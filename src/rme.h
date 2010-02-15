@@ -6,14 +6,17 @@
  * (See the file COPYING for details)
  * 
  * ---
- * Core Emulator 
+ * Core Emulator Include
  */
 #ifndef _RME_H_
 #define _RME_H_
 
+#define RME_BLOCK_SIZE	(32*1024)
+
 enum eRME_Errors
 {
 	RME_ERR_OK,
+	RME_ERR_BADMEM,
 	RME_ERR_UNDEFOPCODE
 };
 
@@ -37,11 +40,12 @@ typedef struct
 	
 	uint16_t	Flags;
 	
-	uint8_t	*Memory[16];	// 1Mib in 16 64 KiB blocks
+	uint8_t	*Memory[32];	// 1Mib in 32 32 KiB blocks
 	
 	// --- Decoder State ---
 	struct {
 		 int	OverrideSegment;
+		 int	IPOffset;
 	}	Decoder;
 }	tRME_State;
 
@@ -49,7 +53,7 @@ typedef struct
 /**
  * \brief Creates a blank RME instance
  */
-tRME_State	*RME_CreateState();
+tRME_State	*RME_CreateState(void);
 
 /**
  * \brief Calls an interrupt
