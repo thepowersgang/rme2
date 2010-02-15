@@ -457,24 +457,13 @@ functionTop:
 		
 	//TEST Family
 	case TEST_RM:	DEBUG_S("TEST (RR)");	//Test Register
-		State->IP += genToFromB(r, (uint8_t*)(code+State->IP), &toB, &fromB);
-		pt2 = *toB & *fromB;
-		State->Flags &= ~(FLAG_CF|FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
-		if(pt2 == 0)	State->Flags |= FLAG_ZF;
-		if(pt2 & 0x80)	State->Flags |= FLAG_SF;
-		while( pt2 >>= 1 )
-			if(pt2&1)	State->Flags ^= FLAG_PF;	//Set Parity
+		RME_Int_GenToFromB(State, &toB, &fromB);
+		RME_Int_DoTest(State, *toB, *fromB, 8);
 		break;
 	case TEST_RMX:	DEBUG_S("TEST (RRX)");	//Test Register Extended
-		State->IP += genToFromW(r, (uint8_t*)(code+State->IP), &toW, &fromW);
-		pt2 = *toW & *fromW;
-		State->Flags &= ~(FLAG_CF|FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
-		if(pt2 == 0)	State->Flags |= FLAG_ZF;
-		if(pt2 & 0x8000)	State->Flags |= FLAG_SF;
-		while( pt2 >>= 1 )
-			if(pt2&1)	State->Flags ^= FLAG_PF;	//Set Parity
+		RME_Int_GenToFromW(State, &toW, &fromW);
+		RME_Int_DoTest(State, *toW, *fromW, 16);
 		break;
-	
 	
 	//CLI - Ignored
 	case CLI:
@@ -486,19 +475,19 @@ functionTop:
 	case DEC_B:		DEBUG_S("DEC BX");	State->BX --;	break;
 	case DEC_C:		DEBUG_S("DEC CX");	State->CX --;	break;
 	case DEC_D:		DEBUG_S("DEC DX");	State->DX --;	break;
-	case DEC_Sp:	DEBUG_S("DEC SP");	r->sp --;	break;
-	case DEC_Bp:	DEBUG_S("DEC BP");	r->bp --;	break;
-	case DEC_Si:	DEBUG_S("DEC SI");	r->si --;	break;
-	case DEC_Di:	DEBUG_S("DEC DI");	r->di --;	break;
+	case DEC_Sp:	DEBUG_S("DEC SP");	State->SP --;	break;
+	case DEC_Bp:	DEBUG_S("DEC BP");	State->BP --;	break;
+	case DEC_Si:	DEBUG_S("DEC SI");	State->SI --;	break;
+	case DEC_Di:	DEBUG_S("DEC DI");	State->DI --;	break;
 	//INC Family
 	case INC_A:		DEBUG_S("INC AX");	State->AX ++;	break;
 	case INC_B:		DEBUG_S("INC BX");	State->BX ++;	break;
 	case INC_C:		DEBUG_S("INC CX");	State->CX ++;	break;
 	case INC_D:		DEBUG_S("INC DX");	State->DX ++;	break;
-	case INC_Sp:	DEBUG_S("INC SP");	r->sp ++;	break;
-	case INC_Bp:	DEBUG_S("INC BP");	r->bp ++;	break;
-	case INC_Si:	DEBUG_S("INC SI");	r->si ++;	break;
-	case INC_Di:	DEBUG_S("INC DI");	r->di ++;	break;
+	case INC_Sp:	DEBUG_S("INC SP");	State->SP ++;	break;
+	case INC_Bp:	DEBUG_S("INC BP");	State->BP ++;	break;
+	case INC_Si:	DEBUG_S("INC SI");	State->SI ++;	break;
+	case INC_Di:	DEBUG_S("INC DI");	State->DI ++;	break;
 	
 	//IN Family
 	case IN_AI:
