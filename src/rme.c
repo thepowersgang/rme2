@@ -64,6 +64,11 @@
 	}while(0)
 
 // === PROTOTYPES ===
+ int	RME_CallInt(tRME_State *State, int Num);
+void	RME_DumpRegs(tRME_State *State);
+ int	RME_Call(tRME_State *State);
+static int	RME_Int_DoOpcode(tRME_State *State);
+
 static inline void	*RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint16_t Ofs);
 static inline uint8_t	RME_Int_Read8(tRME_State *State, uint16_t Seg, uint16_t Ofs);
 static inline uint16_t	RME_Int_Read16(tRME_State *State, uint16_t Seg, uint16_t Ofs);
@@ -71,6 +76,10 @@ static int	RME_Int_GenToFromB(tRME_State *State, uint8_t **to, uint8_t **from);
 static int	RME_Int_GenToFromW(tRME_State *State, uint16_t **to, uint16_t **from);
 static uint16_t	*Seg(tRME_State *State, int code);
 static void	DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset);
+
+// === GLOBALS ===
+static const char *casReg8Names[] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
+static const char *casReg16Names[] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
 
 //=== CODE ===
 /**
@@ -95,7 +104,7 @@ int RME_CallInt(tRME_State *State, int Num)
 	State->IP = IVT[Num].offset;
 	
 	//RME_DumpRegs(State);
-	RME_Call(State);
+	return RME_Call(State);
 }
 
 /**
@@ -137,7 +146,7 @@ int RME_Call(tRME_State *State)
  */
 int RME_Int_DoOpcode(tRME_State *State)
 {
-	uint16_t	pt2;
+	uint16_t	pt2, pt1;	// Spare Words, used for values read from memory
 	uint16_t	*toW, *fromW;
 	 uint8_t	*toB, *fromB;
 	 uint8_t	repType = 0;
@@ -201,7 +210,7 @@ functionTop:
 	CASE8K(0x04, 8):
 		pt2 = RME_Int_Read8(State, State->CS, State->IP);
 		State->IP ++;
-		RME_Int_DoALUOp( opcode >> 3, State, *(uint8_t*)&State->AX, pt2, 8 );
+		RME_Int_DoArithOp( opcode >> 3, State, *(uint8_t*)&State->AX, pt2, 8 );
 		break;
 	
 	// <op> AIX
@@ -218,7 +227,7 @@ functionTop:
 		case 0:	DEBUG_S("ADD (RI)");	break;
 		case 4:	DEBUG_S("AND (RI)");	break;
 		case 7: DEBUG_S("CMP (RI)");	break;
-		default:	putHex((byte2 >> 3) & 7);	break;
+		default:	DEBUG_S("%x (RI)", (byte2 >> 3) & 7);	break;
 		}
 		RME_Int_GenToFromB(State, NULL, &toB);
 		
@@ -234,7 +243,7 @@ functionTop:
 		case 0:	DEBUG_S("ADD (RIX)");	break;
 		case 4:	DEBUG_S("AND (RIX)");	break;
 		case 7: DEBUG_S("CMP (RIX)");	break;
-		default:	putHex((byte2 >> 3) & 7);	break;
+		default:	DEBUG_S("%x (RIX)", (byte2 >> 3) & 7);	break;
 		}
 		RME_Int_GenToFromW(State, NULL, &toW);	//Get Register Value
 		pt2 = RME_Int_Read16(State, State->CS, State->IP);
@@ -243,6 +252,7 @@ functionTop:
 		RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *toB, pt2, 8 );
 		break;
 	#if 0
+	// TODO - Check if this is valid (and valid for RM)
 	case 0x82:	//ADD_RI8
 		byte2 = RME_Int_Read8(State, State->CS, State->IP);	State->IP ++;
 		switch( (byte2 >> 3) & 7 ) {	// rrr
@@ -405,12 +415,12 @@ functionTop:
 		case 0:
 			DEBUG_S("INC (R)");
 			RME_Int_GenToFromB(State, NULL, &toB);	//Get Register Value
-			*toB ++;
+			(*toB) ++;
 			break;
 		case 1:
 			DEBUG_S("DEC (R)");
 			RME_Int_GenToFromB(State, NULL, &toB);	//Get Register Value
-			*toB --;
+			(*toB) --;
 			break;
 		default:
 			return RME_ERR_UNDEFOPCODE;
@@ -423,12 +433,12 @@ functionTop:
 		case 0:
 			DEBUG_S("INC (RX)");
 			RME_Int_GenToFromW(State, NULL, &toW);	//Get Register Value
-			*toW ++;
+			(*toW) ++;
 			break;
 		case 1:
 			DEBUG_S("DEC (RX)");
 			RME_Int_GenToFromW(State, NULL, &toW);	//Get Register Value
-			*toW --;
+			(*toW) --;
 			break;
 		case 2:
 			DEBUG_S("CALL (RX) NEAR");
@@ -491,43 +501,45 @@ functionTop:
 	
 	//IN Family
 	case IN_AI:
-		DEBUG_S("IN (AI) 0x"); DEBUG_H(*(uint8_t*)(code+State->IP)); DEBUG_S(" AL");
+		pt2 = RME_Int_Read8(State, State->CS, State->IP);	State->IP ++;
+		DEBUG_S("IN (AI) 0x%02x AL", pt2);
 		State->AX &= 0xFF00;
-		State->AX |= inportb( *(uint8_t*)(code+State->IP) );
-		State->IP += 1;
+		State->AX |= inportb( pt2 );
 		break;
 	case IN_AIX:
-		DEBUG_S("IN (AIX) 0x"); DEBUG_H(*(uint16_t*)(code+State->IP)); DEBUG_S(" AX");
-		State->AX = inportw( *(uint16_t*)(code+State->IP) );
-		State->IP += 2;
+		pt2 = RME_Int_Read8(State, State->CS, State->IP);	State->IP ++;
+		DEBUG_S("IN (AI) 0x%02x AX", pt2);
+		State->AX = inportw( pt2 );
 		break;
 	case IN_ADx:
 		DEBUG_S("IN (ADx) DX AL");
 		State->AX &= 0xFF00;
-		State->AX |= inportb(r->dx);
+		State->AX |= inportb(State->DX);
 		break;
 	case IN_ADxX:
 		DEBUG_S("IN (ADxX) DX AX");
-		State->AX = inportw(r->dx);
+		State->AX = inportw(State->DX);
 		break;
 	//OUT Family
 	case OUT_IA:
-		DEBUG_S("OUT (IA) 0x"); DEBUG_H(*(uint8_t*)(code+State->IP)); DEBUG_S(" AL");
-		outportb( *(uint8_t*)(code+State->IP), State->AX&0xFF );
+		pt2 = RME_Int_Read8(State, State->CS, State->IP);	State->IP ++;
+		DEBUG_S("OUT (IA) 0x%02x AL", pt2);
+		outportb( pt2, State->AX&0xFF );
 		State->IP += 1;
 		break;
 	case OUT_IAX:
-		DEBUG_S("OUT (IAX) 0x"); DEBUG_H(*(uint16_t*)(code+State->IP)); DEBUG_S(" AX");
-		outportw( *(uint16_t*)(code+State->IP), State->AX );
+		pt2 = RME_Int_Read8(State, State->CS, State->IP);	State->IP ++;
+		DEBUG_S("OUT (IAX) 0x%02x AX", pt2);
+		outportw( pt2, State->AX );
 		State->IP += 2;
 		break;
 	case OUT_DxA:
 		DEBUG_S("OUT (DxA) DX AL");
-		outportb( r->dx, State->AX&0xFF );
+		outportb( State->DX, State->AX&0xFF );
 		break;
 	case OUT_DxAX:
 		DEBUG_S("OUT (DxAX) DX AX");
-		outportb( r->dx, State->AX );
+		outportb( State->DX, State->AX );
 		break;
 	
 	//INT Family
@@ -536,159 +548,130 @@ functionTop:
 		//debugRealMode(r);
 		break;
 	case INT_I:
-		DEBUG_S("INT 0x");	DEBUG_H(code[State->IP]);
-		State->IP++;
+		byte2 = RME_Int_Read8(State, State->CS, State->IP);
+		State->IP ++;
+		DEBUG_S("INT 0x%02x", byte2);
+		// Todo: Nested Interrupts
+		DEBUG_S("TODO: Interrupts");
 		break;
 	case IRET:
-		DEBUG_S("IRET\n");
-		return;
+		DEBUG_S("IRET");
+		// Todo: Return from nested interrupts
 		break;
 		
 	//MOV Family
-	case MOV_MoA:	DEBUG_S("MOV (MoA)");	//Memory Offset from AL
-		pt2 = *(uint16_t*)(code+State->IP);
-		DEBUG_S(" DS:0x");	DEBUG_H(pt2);	DEBUG_S(" AL");
-		*(uint8_t*)(r->ds*16+pt2) = State->AX&0xFF;
+	case MOV_MoA:	// Store AL at Memory Offset
+		DEBUG_S("MOV (MoA)");
+		pt2 = RME_Int_Read16(State, State->CS, State->IP);
 		State->IP += 2;
+		DEBUG_S(" DS:0x%04x AX", pt2);
+		*(uint8_t*)RME_Int_GetPtr(State, State->DS, pt2) = State->AX & 0xFF;
 		break;
-	case MOV_MoAX:	//Memory Offset from AX
+	case MOV_MoAX:	//Store AX at Memory Offset
 		DEBUG_S("MOV (MoAX)");
-		pt2 = *(uint16_t*)(code+State->IP);
-		DEBUG_S(" DS:0x");	DEBUG_H(pt2);	DEBUG_S(" AX");
-		*(uint16_t*)(r->ds*16+pt2) = State->AX;
+		pt2 = RME_Int_Read16(State, State->CS, State->IP);
 		State->IP += 2;
+		DEBUG_S(" DS:0x%04x AX", pt2);
+		*(uint16_t*)RME_Int_GetPtr(State, State->DS, pt2) = State->AX;
 	case MOV_AMo:	//Memory Offset to AL
 		DEBUG_S("MOV (AMo)");
-		pt2 = *(uint16_t*)(code+State->IP);
-		DEBUG_S("AX DS:0x");	DEBUG_H(pt2);
-		State->AX &= 0xFF00;
-		State->AX |= *(uint8_t*)(r->ds*16+pt2);
+		pt2 = RME_Int_Read16(State, State->CS, State->IP);
 		State->IP += 2;
+		DEBUG_S("AX DS:0x%04x", pt2);
+		State->AX &= 0xFF00;
+		State->AX |= *(uint8_t*)RME_Int_GetPtr(State, State->DS, pt2);
 		break;
 	case MOV_AMoX:	//Memory Offset to AX
 		DEBUG_S("MOV (AMoX)");
-		pt2 = *(uint16_t*)(code+State->IP);
-		DEBUG_S(" AX DS:0x");	DEBUG_H(pt2);
-		State->AX = *(uint16_t*)(r->ds*16+pt2);
+		pt2 = RME_Int_Read16(State, State->CS, State->IP);
 		State->IP += 2;
+		DEBUG_S(" AX DS:0x%04x", pt2);
+		State->AX = *(uint16_t*)RME_Int_GetPtr(State, State->DS, pt2);
 		break;
 	case MOV_MI:
 		DEBUG_S("MOV (MI)");
-		State->IP += genToFromB(r, (uint8_t*)(code+State->IP), &toB, NULL);
-		*toB = code[State->IP];
-		State->IP ++;
+		RME_Int_GenToFromB(State, &toB, NULL);
+		*toB = RME_Int_Read8(State, State->CS, State->IP);	State->IP ++;
 		break;
 	case MOV_MIX:
 		DEBUG_S("MOV (MIX)");
-		State->IP += genToFromW(r, (uint8_t*)(code+State->IP), &toW, NULL);
-		*toW = *(uint16_t*)(code+State->IP);
-		State->IP += 2;
+		RME_Int_GenToFromW(State, &toW, NULL);
+		*toW = RME_Int_Read16(State, State->CS, State->IP);	State->IP += 2;
 		break;
 	case MOV_RM:
 		DEBUG_S("MOV (RR)");
-		State->IP += genToFromB(r, (uint8_t*)(code+State->IP), &toB, &fromB);
+		RME_Int_GenToFromB(State, &toB, &fromB);
 		*toB = *fromB;
 		break;
 	case MOV_RMX:
 		DEBUG_S("MOV (RRX)");
-		State->IP += genToFromW(r, (uint8_t*)(code+State->IP), &toW, &fromW);
+		RME_Int_GenToFromW(State, &toW, &fromW);
 		*toW = *fromW;
 		break;
 	case MOV_MR:	DEBUG_S("MOV (MR)REV");
-		RME_Int_GenToFromB(State, &toB, &fromB);
+		RME_Int_GenToFromB(State, &fromB, &toB);
 		*toB = *fromB;
 		break;
 	case MOV_MRX:	DEBUG_S("MOV (MRX)REV");
-		State->IP += genToFromW(r, (uint8_t*)(code+State->IP), &fromW, &toW);
+		RME_Int_GenToFromW(State, &fromW, &toW);
 		*toW = *fromW;
 		break;
-	case MOV_RI_AL:	DEBUG_S("MOV (RI) AL 0x");	DEBUG_H(code[State->IP]);
-		State->AX &= 0xFF00;	State->AX |= code[State->IP];
-		State->IP ++;
+	
+	case MOV_RI_AL:	case MOV_RI_CL:
+	case MOV_RI_DL:	case MOV_RI_BL:
+	case MOV_RI_AH:	case MOV_RI_CH:
+	case MOV_RI_DH:	case MOV_RI_BH:
+		pt2 = RME_Int_Read8(State, State->CS, State->IP);	State->IP ++;
+		DEBUG_S("MOV (RI) %s 0x%02x", casReg8Names[opcode&7], pt2);
+		if(opcode&4)
+			State->GPRs[opcode&3] = (State->GPRs[opcode&3]&0xFF00) | pt2;
+		else
+			State->GPRs[opcode&3] = (State->GPRs[opcode&3]&0xFF) | (pt2<<8);
 		break;
-	case MOV_RI_BL:	DEBUG_S("MOV (RI) BL 0x");	DEBUG_H(code[State->IP]);
-		State->BX &= 0xFF00;	State->BX |= code[State->IP];
-		State->IP ++;
-		break;
-	case MOV_RI_CL:	DEBUG_S("MOV (RI) CL 0x");	DEBUG_H(code[State->IP]);
-		State->CX &= 0xFF00;	State->CX |= code[State->IP];
-		State->IP ++;
-		break;
-	case MOV_RI_DL:	DEBUG_S("MOV (RI) DL 0x");	DEBUG_H(code[State->IP]);
-		r->dx &= 0xFF00;	r->dx |= code[State->IP];
-		State->IP ++;
-		break;
-	case MOV_RI_AH:	DEBUG_S("MOV (RI) AH 0x");	DEBUG_H(code[State->IP]);
-		State->AX &= 0xFF;	State->AX |= code[State->IP]<<8;
-		State->IP ++;
-		break;
-	case MOV_RI_BH:	DEBUG_S("MOV (RI) BH 0x");	DEBUG_H(code[State->IP]);
-		State->BX &= 0xFF;	State->BX |= code[State->IP]<<8;
-		State->IP ++;
-		break;
-	case MOV_RI_CH:	DEBUG_S("MOV (RI) CH 0x");	DEBUG_H(code[State->IP]);
-		State->CX &= 0xFF;	State->CX |= code[State->IP]<<8;
-		State->IP ++;
-		break;
-	case MOV_RI_DH:	DEBUG_S("MOV (RI) DH 0x");	DEBUG_H(code[State->IP]);
-		r->dx &= 0xFF;	r->dx |= code[State->IP]<<8;
-		State->IP ++;
-		break;
-	case MOV_RI_AX:	DEBUG_S("MOV (RI) AX 0x");	DEBUG_H(*(uint16_t*)(code+State->IP));
-		State->AX = *(uint16_t*)(code+State->IP);		State->IP += 2;
-		break;
-	case MOV_RI_BX:	DEBUG_S("MOV (RI) BX 0x");	DEBUG_H(*(uint16_t*)(code+State->IP));
-		State->BX = *(uint16_t*)(code+State->IP);		State->IP += 2;
-		break;
-	case MOV_RI_CX:	DEBUG_S("MOV (RI) CX 0x");	DEBUG_H(*(uint16_t*)(code+State->IP));
-		State->CX = *(uint16_t*)(code+State->IP);		State->IP += 2;
-		break;
-	case MOV_RI_DX:	DEBUG_S("MOV (RI) DX 0x");	DEBUG_H(*(uint16_t*)(code+State->IP));
-		r->dx = *(uint16_t*)(code+State->IP);		State->IP += 2;
-		break;
-	case MOV_RI_SP:	DEBUG_S("MOV (RI) SP 0x");	DEBUG_H(*(uint16_t*)(code+State->IP));
-		r->sp = *(uint16_t*)(code+State->IP);		State->IP += 2;
-		break;
-	case MOV_RI_BP:	DEBUG_S("MOV (RI) BP 0x");	DEBUG_H(*(uint16_t*)(code+State->IP));
-		r->bp = *(uint16_t*)(code+State->IP);		State->IP += 2;
-		break;
-	case MOV_RI_SI:	DEBUG_S("MOV (RI) SI 0x");	DEBUG_H(*(uint16_t*)(code+State->IP));
-		r->si = *(uint16_t*)(code+State->IP);		State->IP += 2;
-		break;
-	case MOV_RI_DI:	DEBUG_S("MOV (RI) DI 0x");	DEBUG_H(*(uint16_t*)(code+State->IP));
-		r->di = *(uint16_t*)(code+State->IP);		State->IP += 2;
+	
+	case MOV_RI_AX:	case MOV_RI_CX:
+	case MOV_RI_DX:	case MOV_RI_BX:
+	case MOV_RI_SP:	case MOV_RI_BP:
+	case MOV_RI_SI:	case MOV_RI_DI:
+		pt2 = RME_Int_Read16(State, State->CS, State->IP);	State->IP += 2;
+		DEBUG_S("MOV (RIX) %s 0x%04x", casReg16Names[opcode&7], pt2);
+		State->GPRs[opcode&7] = pt2;
 		break;
 	
 	case MOV_RS:
 		DEBUG_S("MOV (RS)");
-		fromW = Seg(State, (code[State->IP]>>3)&7);
+		byte2 = RME_Int_Read8(State, State->CS, State->IP);
+		fromW = Seg(State, (byte2>>3)&7);
 		RME_Int_GenToFromW(State, NULL, &toW);
 		*toW = *fromW;
 		break;
 		
 	case MOV_SR:
 		DEBUG_S("MOV (SR)");
-		toW = Seg(State, (code[State->IP]>>3)&7);
+		byte2 = RME_Int_Read8(State, State->CS, State->IP);
+		toW = Seg(State, (byte2>>3)&7);
 		RME_Int_GenToFromW(State, NULL, &fromW);
 		*toW = *fromW;
 		break;
 		
 		
 	//JMP Family
-	case JMP_S:	//Short Jump
-		DEBUG_S("JMP (S) .+0x");DEBUG_H(code[State->IP]);
-		State->IP += *(uint8_t*)(code+State->IP) + 1;
+	case JMP_S:	// Short Jump
+		pt2 = (int8_t)RME_Int_Read8(State, State->CS, State->IP);
+		State->IP ++;
+		DEBUG_S("JMP (S) .+0x%04x", pt2);
+		State->IP += pt2;
 		break;
-	case JMP_N:	//Near Jump
-		DEBUG_S("JMP (S) .+0x");DEBUG_H( *(uint16_t*)(code+State->IP) );
-		State->IP += *(uint16_t*)(code+State->IP) + 2;
+	case JMP_N:	// Near Jump
+		pt2 = RME_Int_Read16(State, State->CS, State->IP);	State->IP += 2;
+		DEBUG_S("JMP (N) .+0x%04x", pt2 );
+		State->IP += pt2;
 		break;
-	case JMP_F:	//Near Jump
-		DEBUG_S("JMP FAR ");DEBUG_H( *(uint16_t*)(code+State->IP+2) );
-		DEBUG_C(':');DEBUG_H( *(uint16_t*)(code+State->IP) );
-		r->cs = *(uint16_t*)(code+State->IP+2);
-		State->IP = *(uint16_t*)(code+State->IP);
-		code = (uint8_t*)(r->cs<<4);
+	case JMP_F:	// Far Jump
+		pt1 = RME_Int_Read16(State, State->CS, State->IP);	State->IP += 2;
+		pt2 = RME_Int_Read16(State, State->CS, State->IP);	State->IP += 2;
+		DEBUG_S("JMP FAR %04x:%04x", pt2, pt1);
+		State->CS = pt2;	State->IP = pt1;
 		break;
 	
 	//XCHG Family
@@ -705,152 +688,197 @@ functionTop:
 		break;
 	case XCHG_AD:
 		DEBUG_S("XCHG AX DX");
-		pt2 = State->AX;	State->AX = r->dx;	r->dx = pt2;
+		pt2 = State->AX;	State->AX = State->DX;	State->DX = pt2;
 		break;
 	case XCHG_ASp:
 		DEBUG_S("XCHG AX SP");
-		pt2 = State->AX;	State->AX = r->sp;	r->sp = pt2;
+		pt2 = State->AX;	State->AX = State->SP;	State->SP = pt2;
 		break;
 	case XCHG_ABp:
 		DEBUG_S("XCHG AX BP");
-		pt2 = State->AX;	State->AX = r->bp;	r->bp = pt2;
+		pt2 = State->AX;	State->AX = State->BP;	State->BP = pt2;
 		break;
 	case XCHG_ASi:
 		DEBUG_S("XCHG AX SI");
-		pt2 = State->AX;	State->AX = r->si;	r->si = pt2;
+		pt2 = State->AX;	State->AX = State->SI;	State->SI = pt2;
 		break;
 	case XCHG_ADi:
 		DEBUG_S("XCHG AX DI");
-		pt2 = State->AX;	State->AX = r->di;	r->di = pt2;
+		pt2 = State->AX;	State->AX = State->DI;	State->DI = pt2;
 		break;
 	case XCHG_RM:
-		DEBUG_S("XCHG (RR)");
-		State->IP += genToFromW(r, (uint8_t*)(code+State->IP), &toW, &fromW);
+		DEBUG_S("XCHG (RM)");
+		RME_Int_GenToFromW(State, &toW, &fromW);
 		pt2 = *toW;		*toW = *fromW;	*fromW = pt2;
 		break;
 		
 	//PUSH Family
 	case PUSHF:
 		DEBUG_S("PUSHF");
-		STACK(r->sp-=2) = State->Flags;
+		STACK(State->SP-=2) = State->Flags;
 		break;
 	case PUSHA:
 		DEBUG_S("PUSHA");
-		STACK(r->sp-=2) = State->AX;	STACK(r->sp-=2) = State->BX;
-		STACK(r->sp-=2) = State->CX;	STACK(r->sp-=2) = r->dx;
-		STACK(r->sp-=2) = r->sp;	STACK(r->sp-=2) = r->bp;
-		STACK(r->sp-=2) = r->si;	STACK(r->sp-=2) = r->di;
-		//STACK(r->sp-=2) = r->ss;	STACK(r->sp-=2) = r->cs;
-		//STACK(r->sp-=2) = r->ds;	STACK(r->sp-=2) = r->es;
+		STACK(State->SP-=2) = State->AX;	STACK(State->SP-=2) = State->BX;
+		STACK(State->SP-=2) = State->CX;	STACK(State->SP-=2) = State->DX;
+		STACK(State->SP-=2) = State->SP;	STACK(State->SP-=2) = State->BP;
+		STACK(State->SP-=2) = State->SI;	STACK(State->SP-=2) = State->DI;
+		//STACK(State->SP-=2) = r->ss;	STACK(State->SP-=2) = r->cs;
+		//STACK(State->SP-=2) = r->ds;	STACK(State->SP-=2) = r->es;
 		break;
-	case PUSH_AX:	DEBUG_S("PUSH AX");	STACK(r->sp-=2) = State->AX;	break;
-	case PUSH_BX:	DEBUG_S("PUSH BX");	STACK(r->sp-=2) = State->BX;	break;
-	case PUSH_CX:	DEBUG_S("PUSH CX");	STACK(r->sp-=2) = State->CX;	break;
-	case PUSH_DX:	DEBUG_S("PUSH DX");	STACK(r->sp-=2) = r->dx;	break;
-	case PUSH_SP:	DEBUG_S("PUSH Sp");	STACK(r->sp) = r->sp;	r->sp-=2;	break;
-	case PUSH_BP:	DEBUG_S("PUSH BP");	STACK(r->sp-=2) = r->bp;	break;
-	case PUSH_SI:	DEBUG_S("PUSH SI");	STACK(r->sp-=2) = r->si;	break;
-	case PUSH_DI:	DEBUG_S("PUSH DI");	STACK(r->sp-=2) = r->di;	break;
-	case PUSH_ES:	DEBUG_S("PUSH ES");	STACK(r->sp-=2) = r->es;	break;
-	case PUSH_CS:	DEBUG_S("PUSH CS");	STACK(r->sp-=2) = r->cs;	break;
-	case PUSH_SS:	DEBUG_S("PUSH SS");	STACK(r->sp-=2) = r->ss;	break;
-	case PUSH_DS:	DEBUG_S("PUSH DS");	STACK(r->sp-=2) = r->ds;	break;
+	case PUSH_AX:	DEBUG_S("PUSH AX");	STACK(State->SP-=2) = State->AX;	break;
+	case PUSH_BX:	DEBUG_S("PUSH BX");	STACK(State->SP-=2) = State->BX;	break;
+	case PUSH_CX:	DEBUG_S("PUSH CX");	STACK(State->SP-=2) = State->CX;	break;
+	case PUSH_DX:	DEBUG_S("PUSH DX");	STACK(State->SP-=2) = State->DX;	break;
+	case PUSH_SP:	DEBUG_S("PUSH Sp");	STACK(State->SP) = State->SP;	State->SP-=2;	break;
+	case PUSH_BP:	DEBUG_S("PUSH BP");	STACK(State->SP-=2) = State->BP;	break;
+	case PUSH_SI:	DEBUG_S("PUSH SI");	STACK(State->SP-=2) = State->SI;	break;
+	case PUSH_DI:	DEBUG_S("PUSH DI");	STACK(State->SP-=2) = State->DI;	break;
+	case PUSH_ES:	DEBUG_S("PUSH ES");	STACK(State->SP-=2) = State->ES;	break;
+	case PUSH_CS:	DEBUG_S("PUSH CS");	STACK(State->SP-=2) = State->CS;	break;
+	case PUSH_SS:	DEBUG_S("PUSH SS");	STACK(State->SP-=2) = State->SS;	break;
+	case PUSH_DS:	DEBUG_S("PUSH DS");	STACK(State->SP-=2) = State->DS;	break;
 	case PUSH_I8:
-		DEBUG_S("PUSH (I8) 0x"); DEBUG_H(code[State->IP]);
-		STACK(r->sp-=2) = code[State->IP];
-		State->IP++;
+		pt2 = RME_Int_Read8(State, State->CS, State->IP);	State->IP ++;
+		DEBUG_S("PUSH (I8) 0x%02x", pt2);
+		STACK(State->SP-=2) = pt2;
 		break;
 	case PUSH_I:
-		DEBUG_S("PUSH (I) "); DEBUG_H( *(uint16_t*)(code+State->IP) );
-		STACK(r->sp-=2) = *(uint16_t*)(code+State->IP);
-		State->IP+=2;
+		pt2 = RME_Int_Read16(State, State->CS, State->IP);	State->IP += 2;
+		DEBUG_S("PUSH (I) 0x%04x", pt2);
+		STACK(State->SP-=2) = pt2;
 		break;		
 
 	//POP Family
 	case POPF:
 		DEBUG_S("POPF");
-		State->Flags = STACK(r->sp);	r->sp += 2;
+		State->Flags = STACK(State->SP);	State->SP += 2;
 		break;
 	case POPA:
 		DEBUG_S("POPA");
-		//r->es = STACK(r->sp); r->sp+=2;	r->ds = STACK(r->sp); r->sp+=2;
-		//r->cs = STACK(r->sp); r->sp+=2;	r->ss = STACK(r->sp); r->sp+=2;
-		r->di = STACK(r->sp); r->sp+=2;	r->si = STACK(r->sp); r->sp+=2;
-		r->bp = STACK(r->sp); r->sp+=2;	r->sp = STACK(r->sp); r->sp+=2;
-		r->dx = STACK(r->sp); r->sp+=2;	State->CX = STACK(r->sp); r->sp+=2;
-		State->BX = STACK(r->sp); r->sp+=2;	State->AX = STACK(r->sp); r->sp+=2;
+		//r->es = STACK(State->SP); State->SP+=2;	r->ds = STACK(State->SP); State->SP+=2;
+		//r->cs = STACK(State->SP); State->SP+=2;	r->ss = STACK(State->SP); State->SP+=2;
+		State->DI = STACK(State->SP); State->SP+=2;	State->SI = STACK(State->SP); State->SP+=2;
+		State->BP = STACK(State->SP); State->SP+=2;	State->SP = STACK(State->SP); State->SP+=2;
+		State->DX = STACK(State->SP); State->SP+=2;	State->CX = STACK(State->SP); State->SP+=2;
+		State->BX = STACK(State->SP); State->SP+=2;	State->AX = STACK(State->SP); State->SP+=2;
 		break;
-	case POP_AX:	DEBUG_S("POP AX");	State->AX = STACK(r->sp); r->sp+=2;	break;
-	case POP_BX:	DEBUG_S("POP BX");	State->BX = STACK(r->sp); r->sp+=2;	break;
-	case POP_CX:	DEBUG_S("POP CX");	State->CX = STACK(r->sp); r->sp+=2;	break;
-	case POP_DX:	DEBUG_S("POP DX");	r->dx = STACK(r->sp); r->sp+=2;	break;
-	case POP_SP:	DEBUG_S("POP SP");	State->AX = STACK(r->sp+=2);	break;
-	case POP_BP:	DEBUG_S("POP BP");	r->bp = STACK(r->sp); r->sp+=2;	break;
-	case POP_SI:	DEBUG_S("POP SI");	r->si = STACK(r->sp); r->sp+=2;	break;
-	case POP_DI:	DEBUG_S("POP DI");	r->di = STACK(r->sp); r->sp+=2;	break;
-	case POP_ES:	DEBUG_S("POP ES");	r->es = STACK(r->sp); r->sp+=2;	break;
-//		case POP_CS:	DEBUG_S("POP CS");	r->cs = STACK(r->sp); r->sp+=2;	break;
-	case POP_SS:	DEBUG_S("POP SS");
-		r->ss = STACK(r->sp);	r->sp+=2;
-		break;
-	case POP_DS:	DEBUG_S("POP DS");	r->ds = STACK(r->sp); r->sp+=2;	break;
+	case POP_AX:	DEBUG_S("POP AX");	State->AX = STACK(State->SP); State->SP+=2;	break;
+	case POP_BX:	DEBUG_S("POP BX");	State->BX = STACK(State->SP); State->SP+=2;	break;
+	case POP_CX:	DEBUG_S("POP CX");	State->CX = STACK(State->SP); State->SP+=2;	break;
+	case POP_DX:	DEBUG_S("POP DX");	State->DX = STACK(State->SP); State->SP+=2;	break;
+	case POP_SP:	DEBUG_S("POP SP");	State->SP += 2;	break;	// POP SP does practically nothing
+	case POP_BP:	DEBUG_S("POP BP");	State->BP = STACK(State->SP); State->SP+=2;	break;
+	case POP_SI:	DEBUG_S("POP SI");	State->SI = STACK(State->SP); State->SP+=2;	break;
+	case POP_DI:	DEBUG_S("POP DI");	State->DI = STACK(State->SP); State->SP+=2;	break;
+//	case POP_CS:	DEBUG_S("POP CS");	State->CS = STACK(State->SP); State->SP+=2;	break;
+	case POP_ES:	DEBUG_S("POP ES");	State->ES = STACK(State->SP); State->SP+=2;	break;
+	case POP_SS:	DEBUG_S("POP SS");	State->SS = STACK(State->SP); State->SP+=2;	break;
+	case POP_DS:	DEBUG_S("POP DS");	State->DS = STACK(State->SP); State->SP+=2;	break;
 	
 	//CALL Family
 	/*case CALL_MF:	//MF, MN, R
 		DEBUG_S("CALL (MF) ");
 		State->IP += genToFromW(r, (uint8_t*)(code+State->IP), NULL, &toW);
-		STACK(r->sp-=2) = State->IP;
+		STACK(State->SP-=2) = State->IP;
 		State->IP += *toW;
 		break;*/
 	case CALL_N:
-		DEBUG_S("CALL (N) .+0x"); DEBUG_H(*(uint16_t*)(code+State->IP));
-		State->IP+=2;
-		STACK(r->sp-=2) = State->IP;
-		State->IP += *(uint16_t*)(code+State->IP-2);
+		pt2 = RME_Int_Read16(State, State->CS, State->IP);	State->IP += 2;
+		DEBUG_S("CALL (N) .+0x%04x", pt2);
+		STACK(State->SP-=2) = State->IP;
+		State->IP += pt2;
 		break;
 	case CALL_F:
-		DEBUG_S("CALL (F) "); DEBUG_H(*(uint16_t*)(code+State->IP+2));
-		DEBUG_C(':');	DEBUG_H(*(uint16_t*)(code+State->IP));
-		State->IP+=4;
-		STACK(r->sp-=2) = r->cs;
-		STACK(r->sp-=2) = State->IP;
-		r->cs = *(uint16_t*)(code+State->IP-2);
-		State->IP = *(uint16_t*)(code+State->IP-4);
-		code = (uint8_t*)(r->cs<<4);
+		pt1 = RME_Int_Read16(State, State->CS, State->IP);	State->IP += 2;
+		pt2 = RME_Int_Read16(State, State->CS, State->IP);	State->IP += 2;
+		DEBUG_S("CALL (F) %04x:%04x", pt2, pt1);
+		STACK(State->SP-=2) = State->CS;
+		STACK(State->SP-=2) = State->IP;
+		State->CS = pt2;
+		State->IP = pt1;
 		break;
 	case RET_N:
 		DEBUG_S("RET (N)");
-		State->IP = STACK(r->sp); r->sp+=2;
+		State->IP = STACK(State->SP); State->SP+=2;
 		break;
 	case RET_F:
 		DEBUG_S("RET (F)");
-		State->IP = STACK(r->sp); r->sp+=2;
-		r->cs = STACK(r->sp); r->sp+=2;
-		code = (uint8_t*)(r->cs<<4);
+		State->IP = STACK(State->SP); State->SP += 2;
+		State->CS = STACK(State->SP); State->SP += 2;
 		break;
 	
 	//STOS Functions
 	case STOSB:
-		*(uint8_t*)(r->es*16+r->di) = State->AX & 0xFF;
-		r->di ++;
+		*(uint8_t*)RME_Int_GetPtr(State, State->ES, State->DI) = State->AX & 0xFF;
+		State->DI ++;
 		break;
 	case STOSW:
-		*(uint16_t*)(r->es*16+r->di) = State->AX;
-		r->di += 2;
+		*(uint16_t*)RME_Int_GetPtr(State, State->ES, State->DI) = State->AX;
+		State->DI += 2;
 		break;
 	
-	#if 0
-	//Misc
+	// Misc
 	case LEA:
 		DEBUG_S("LEA");
-		State->IP += genToFromW(r, (uint8_t*)(code+State->IP), &toW, &fromW);
-		if((uint32_t) fromW > 0x100000) {
-			DEBUG_S("\nERROR: Memory Address Expected\n");
-			return;
+		// HACK - LEA needs to parse the address itself, because it
+		// needs the emulated address, not the true address;
+		byte2 = RME_Int_Read8(State, State->CS, State->IP++);
+		switch(byte2 >> 6)
+		{
+		case 0:	// No Offset
+			pt1 = 0;
+			break;
+		case 1:
+			pt1 = (int8_t)RME_Int_Read8(State, State->CS, State->IP);
+			State->IP ++;
+			break;
+		case 2:
+			pt1 = RME_Int_Read8(State, State->CS, State->IP);
+			State->IP += 2;
+			break;
+		case 3:
+			return RME_ERR_UNDEFOPCODE;
 		}
-		*toW = (Uint32) fromW & 0xFFFF;
+		
+		switch(byte2 & 7)
+		{
+		case 0:
+			DEBUG_S(" DS:[BX+SI+0x%x]", pt1);
+			pt1 += State->BX + State->SI;
+			break;
+		case 1:
+			DEBUG_S(" DS:[BX+DI+0x%x]", pt1);
+			pt1 += State->BX + State->DI;
+			break;
+		case 2:
+			DEBUG_S(" SS:[BP+SI+0x%x]", pt1);
+			pt1 += State->BP + State->SI;
+			break;
+		case 3:
+			DEBUG_S(" SS:[BP+DI+0x%x]", pt1);
+			pt1 += State->BP + State->DI;
+			break;
+		case 4:
+			DEBUG_S(" DS:[SI+0x%x]", pt1);
+			pt1 += State->SI;
+			break;
+		case 5:
+			DEBUG_S(" DS:[DI+0x%x]", pt1);
+			pt1 += State->DI;
+			break;
+		case 6:
+			DEBUG_S(" SS:[BP+0x%x]", pt1);
+			pt1 += State->BP;
+			break;
+		case 7:
+			DEBUG_S(" DS:[BX+0x%x]", pt1);
+			pt1 += State->BX;
+			break;
+		}
 		break;
-	#endif
+	
+	// Flag Manipulation
 	case CLD:
 		DEBUG_S("CLD");
 		State->Flags &= ~FLAG_DF;
@@ -864,62 +892,54 @@ functionTop:
 		DEBUG_S("PREFIX: ADDR OVERRIDE");
 		break;
 	
-	default:
-		//Short Jump
-		if( (code[State->IP-1] & 0xF0) == 0x70)
+	// Short Jumps
+	CASE16(0x70):
+		DEBUG_S("J");
+		pt2 = (int8_t)RME_Int_Read8(State, State->CS, State->IP);	State->IP ++;
+		switch(opcode & 0xF)
 		{
-			DEBUG_S("J");
-			pt2 = code[State->IP];
-			switch(code[State->IP-1] & 0xF) {
-			
-			case 0:	//Overflow
-				DEBUG_C('O');
-				if(State->Flags & FLAG_OF)	State->IP += code[State->IP];
-				break;
-			case 1:	//No Overflow
-				DEBUG_S("NO");
-				if(State->Flags ^ FLAG_OF)	State->IP += code[State->IP];
-				break;
-			case 2:	//Carry
-				DEBUG_C('C');
-				if(State->Flags & FLAG_CF)	State->IP += code[State->IP];
-				break;
-			case 3:	//No Carry
-				DEBUG_S("NC");
-				if(State->Flags ^ FLAG_CF)	State->IP += code[State->IP];
-				break;	
-			case 4:	//Equal
-				DEBUG_S("Z");
-				if(State->Flags & FLAG_ZF)	State->IP += code[State->IP];
-				break;
-			case 5:	//Not Equal
-				DEBUG_S("NZ");
-				if(!(State->Flags & FLAG_ZF))	State->IP += code[State->IP];
-				break;
-			case 6:	//Below or Equal
-				DEBUG_S("BE");
-				if(State->Flags & FLAG_CF || State->Flags & FLAG_ZF)	State->IP += code[State->IP];
-				break;
-			case 7:	//Above
-				DEBUG_S("A");
-				if(State->Flags ^ FLAG_CF && State->Flags ^ FLAG_ZF)	State->IP += code[State->IP];
-				break;
-			
-			}
-			DEBUG_S(" (S) .+0x");
-			DEBUG_H(pt2);
-			
-			State->IP++;
+		case 0:	//Overflow
+			DEBUG_S("O");
+			if( State->Flags & FLAG_OF )	State->IP += pt2;
 			break;
+		case 1:	//No Overflow
+			DEBUG_S("NO");
+			if(!(State->Flags & FLAG_OF))	State->IP += pt2;
+			break;
+		case 2:	//Carry
+			DEBUG_S("C");
+			if( State->Flags & FLAG_CF )	State->IP += pt2;
+			break;
+		case 3:	//No Carry
+			DEBUG_S("NC");
+			if(!(State->Flags & FLAG_CF))	State->IP += pt2;
+			break;	
+		case 4:	//Equal
+			DEBUG_S("Z");
+			if( State->Flags & FLAG_ZF )	State->IP += pt2;
+			break;
+		case 5:	//Not Equal
+			DEBUG_S("NZ");
+			if(!(State->Flags & FLAG_ZF))	State->IP += pt2;
+			break;
+		case 6:	//Below or Equal
+			DEBUG_S("BE");
+			if( State->Flags & FLAG_CF || State->Flags & FLAG_ZF )	State->IP += pt2;
+			break;
+		case 7:	//Above
+			DEBUG_S("A");
+			if(!(State->Flags & FLAG_CF || State->Flags & FLAG_ZF))	State->IP += pt2;
+			break;
+		
 		}
-		puts("Unkown Opcode IP = 0x");	putHex(code[State->IP-1]);
-		__asm__ __volatile__ ("sti");
-		for(;;)
-			__asm__ __volatile__ ("hlt");
-		return;
+		DEBUG_S(" (S) .+0x%04x", pt2);
 		break;
+	
+	default:
+		DEBUG_S("Unkown Opcode IP = 0x%02x", opcode);
+		return RME_ERR_UNDEFOPCODE;
 	}
-	DEBUG_C('\n');
+	DEBUG_S("\n");
 	
 	
 	switch(repType)
@@ -932,7 +952,7 @@ functionTop:
 		}
 		break;
 	case REPNZ:
-		if(State->Flags ^ FLAG_ZF && State->CX--)
+		if( !(State->Flags & FLAG_ZF) && State->CX--)
 		{
 			State->IP = repStart;
 			goto functionTop;
@@ -953,7 +973,7 @@ functionTop:
 		}
 		break;
 	case LOOPNZ:
-		if(State->Flags ^ FLAG_ZF)
+		if( !(State->Flags & FLAG_ZF) )
 		{
 			State->IP = repStart;
 			goto functionTop;
@@ -1031,35 +1051,35 @@ static uint16_t *DoFunc(tRME_State *State, int mmm, int16_t disp)
 	switch(mmm)
 	{
 	case 0:
-		DEBUG_F(" DS:[BX+SI+0x%x]", disp);
+		DEBUG_S(" DS:[BX+SI+0x%x]", disp);
 		addr = (State->DS << 4) + State->BX + State->SI + disp;
 		break;
 	case 1:
-		DEBUG_F(" DS:[BX+DI+0x%x]", disp);
+		DEBUG_S(" DS:[BX+DI+0x%x]", disp);
 		addr = (State->DS << 4) + State->BX + State->DI + disp;
 		break;
 	case 2:
-		DEBUG_F(" SS:[BP+SI+0x%x]", disp);
+		DEBUG_S(" SS:[BP+SI+0x%x]", disp);
 		addr = (State->SS << 4) + State->BP + State->SI + disp;
 		break;
 	case 3:
-		DEBUG_F(" SS:[BP+DI+0x%x]", disp);
+		DEBUG_S(" SS:[BP+DI+0x%x]", disp);
 		addr = (State->SS << 4) + State->BP + State->DI + disp;
 		break;
 	case 4:
-		DEBUG_F(" DS:[SI+0x%x]", disp);
+		DEBUG_S(" DS:[SI+0x%x]", disp);
 		addr = (State->DS << 4) + State->SI + disp;
 		break;
 	case 5:
-		DEBUG_F(" DS:[DI+0x%x]", disp);
+		DEBUG_S(" DS:[DI+0x%x]", disp);
 		addr = (State->DS << 4) + State->DI + disp;
 		break;
 	case 6:
-		DEBUG_F(" SS:[BP+0x%x]", disp);
+		DEBUG_S(" SS:[BP+0x%x]", disp);
 		addr = (State->SS << 4) + State->BP + disp;
 		break;
 	case 7:
-		DEBUG_F(" DS:[BX+0x%x]", disp);
+		DEBUG_S(" DS:[BX+0x%x]", disp);
 		addr = (State->DS << 4) + State->BX + disp;
 		break;
 	}
@@ -1133,13 +1153,13 @@ static void DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset)
 {
 	DEBUG_S("J");
 	switch(type) {
-	case 0:	DEBUG_C('O');	//Overflow
+	case 0:	DEBUG_S("O");	//Overflow
 		if(State->Flags & FLAG_OF)	State->IP += offset;
 		break;
 	case 1:	DEBUG_S("NO");	//No Overflow
 		if(!(State->Flags & FLAG_OF))	State->IP += offset;
 		break;
-	case 2:	DEBUG_C('C');	//Carry
+	case 2:	DEBUG_S("C");	//Carry
 		if(State->Flags & FLAG_CF)	State->IP += offset;
 		break;
 	case 3:	DEBUG_S("NC");	//No Carry
@@ -1160,5 +1180,5 @@ static void DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset)
 		break;
 	
 	}
-	DEBUG_S(" NEAR .+0x");	DEBUG_H(offset);
+	DEBUG_S(" NEAR .+0x%04x", offset);
 }

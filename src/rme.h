@@ -22,8 +22,13 @@ enum eRME_Errors
  */
 typedef struct
 {
-	uint16_t	AX, CX, DX, BX;
-	uint16_t	SP, BP, SI, DI;
+	union {
+		uint16_t	GPRs[8];
+		struct {
+			uint16_t	AX, CX, DX, BX;
+			uint16_t	SP, BP, SI, DI;
+		};
+	};
 	
 	uint16_t	SS, DS;
 	uint16_t	ES;
