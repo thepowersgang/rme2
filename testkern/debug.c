@@ -63,16 +63,16 @@ int itoa(char *buf, uint64_t val, int base, int minLength, char pad)
 }
 
 /**
- * \brief Print a string to the debug stream
+ * \brief Print a string to the debug stream (and append a newline)
  */
 int puts(const char *str)
 {
 	 int	num = 0;
-	while(*str)
+	for(num=0;*str;str++,num++)
 	{
-		putchar(*str++);
-		num ++;
+		putchar(*str);
 	}
+	putchar('\n');
 	return num;
 }
 
@@ -123,7 +123,12 @@ int printf(const char *fmt, ...)
 		
 		// Format Code
 		switch(*fmt)
-		{
+		{		
+		case 'o':
+			itoa(buf, val, 8, minLen, pad);
+			str = buf;
+			goto puts;
+		
 		case 'i':
 			itoa(buf, val, 10, minLen, pad);
 			str = buf;

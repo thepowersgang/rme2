@@ -29,7 +29,8 @@ enum eRME_Errors
 {
 	RME_ERR_OK,
 	RME_ERR_BADMEM,
-	RME_ERR_UNDEFOPCODE
+	RME_ERR_UNDEFOPCODE,
+	RME_ERR_DIVERR
 };
 
 /**
@@ -121,8 +122,6 @@ enum opcodes {
 	OR_MR = 0x08,	OR_MRX = 0x09,
 	OR_AI = 0x0C,	OR_AIX = 0x0D,
 	
-	CLI = 0xFA,	//b11111010
-	
 	CMP_RM = 0x3A,	CMP_RMX = 0x3B,
 	CMP_MR = 0x38,	CMP_MRX = 0x39,
 	CMP_AI = 0x3C,	CMP_AIX = 0x3D,
@@ -179,7 +178,7 @@ enum opcodes {
 	POP_CX = 0x58|CL,	POP_DX = 0x58|DL,
 	POP_SP = 0x58|AH,	POP_BP = 0x58|CH,
 	POP_SI = 0x58|DH,	POP_DI = 0x58|BH,
-	POP_ES = 7|(SREG_ES<<3),	POP_CS = 7|(SREG_CS<<3),
+	POP_ES = 7|(SREG_ES<<3),
 	POP_SS = 7|(SREG_SS<<3),	POP_DS = 7|(SREG_DS<<3),
 	POP_MX = 0x8F,
 	POPA = 0x61,	POPF = 0x9D,
@@ -206,7 +205,12 @@ enum opcodes {
 	
 	LEA = 0x8D,
 	
+	CLC = 0xF8,
+	STC = 0xF9,
+	CLI = 0xFA,	//b11111010
+	STI = 0xFB,
 	CLD = 0xFC,
+	STD = 0xFD,
 	
 	XOR_RM = 0x32,	XOR_RMX = 0x33,
 	XOR_MR = 0x30,	XOR_MRX = 0x31,
