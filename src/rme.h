@@ -11,6 +11,18 @@
 #ifndef _RME_H_
 #define _RME_H_
 
+/**
+ * \file rme.h
+ * \brief Realmode Emulator Header
+ * \author John Hodge (thePowersGang)
+ *
+ * \section using Using RME
+ * 
+ */
+
+/**
+ * \brief Size of a memory block
+ */
 #define RME_BLOCK_SIZE	(32*1024)
 
 enum eRME_Errors
@@ -77,9 +89,10 @@ enum gpRegs
 
 enum sRegs
 {
-	ES = 0,	CS = 1<<3,
-	SS = 2<<3, DS = 3<<3,
-	FS = 4<<3, GS = 5<<3
+	SREG_ES,
+	SREG_CS,
+	SREG_SS,
+	SREG_DS
 };
 
 #define OPCODE_RI(name, code)	name##_RI_AL = code|AL,	name##_RI_BL = code|BL,\
@@ -166,8 +179,8 @@ enum opcodes {
 	POP_CX = 0x58|CL,	POP_DX = 0x58|DL,
 	POP_SP = 0x58|AH,	POP_BP = 0x58|CH,
 	POP_SI = 0x58|DH,	POP_DI = 0x58|BH,
-	POP_ES = 7|ES,	POP_CS = 7|CS,
-	POP_SS = 7|SS,	POP_DS = 7|DS,
+	POP_ES = 7|(SREG_ES<<3),	POP_CS = 7|(SREG_CS<<3),
+	POP_SS = 7|(SREG_SS<<3),	POP_DS = 7|(SREG_DS<<3),
 	POP_MX = 0x8F,
 	POPA = 0x61,	POPF = 0x9D,
 	
@@ -176,8 +189,8 @@ enum opcodes {
 	PUSH_SP = 0x50|AH,	PUSH_BP = 0x50|CH,
 	PUSH_SI = 0x50|DH,	PUSH_DI = 0x50|BH,
 	PUSH_MX = 0xFF,
-	PUSH_ES = 6|ES,	PUSH_CS = 6|CS,
-	PUSH_SS = 6|SS,	PUSH_DS = 6|DS,
+	PUSH_ES = 6|(SREG_ES<<3),	PUSH_CS = 6|(SREG_CS<<3),
+	PUSH_SS = 6|(SREG_SS<<3),	PUSH_DS = 6|(SREG_DS<<3),
 	PUSH_I8 = 0x6A,	PUSH_I = 0x68,
 	PUSHA = 0x60,	PUSHF = 0x9C,
 	
@@ -202,6 +215,12 @@ enum opcodes {
 	TEST_RM = 0x84,	TEST_RMX = 0x85,
 	
 	STOSB = 0xAA, STOSW = 0xAB,
+	
+	// --- Overrides
+	OVR_ES = 0x26,
+	OVR_CS = 0x2E,
+	OVR_SS = 0x36,
+	OVR_DS = 0x3E,
 	
 	REP = 0xF3,	REPNZ = 0xF2,
 	LOOP = 0xE2,	LOOPZ = 0xE0,
