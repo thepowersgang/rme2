@@ -28,6 +28,7 @@
 enum eRME_Errors
 {
 	RME_ERR_OK,
+	RME_ERR_INVAL,
 	RME_ERR_BADMEM,
 	RME_ERR_UNDEFOPCODE,
 	RME_ERR_DIVERR
@@ -217,6 +218,7 @@ enum opcodes {
 	XOR_AI = 0x34,	XOR_AIX = 0x35,
 	
 	TEST_RM = 0x84,	TEST_RMX = 0x85,
+	TEST_AI = 0xA8,	TEST_AIX = 0xA9,
 	
 	STOSB = 0xAA, STOSW = 0xAB,
 	

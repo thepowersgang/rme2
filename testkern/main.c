@@ -30,8 +30,14 @@ int main()
 		emu->Memory[i/RME_BLOCK_SIZE] = (void*)i;
 	
 	
-	#if 1
+	#if 0
 	emu->AX = (0x00<<8) | 0x04;	// Set Mode 0x04
+	i = RME_CallInt(emu, 0x10);
+	#endif
+	
+	#if 1
+	emu->AX = (0x0B<<8) | 0x00;	// Set Border Colour
+	emu->BX = (0x00<<0) | 0x02;	// Colour 1
 	i = RME_CallInt(emu, 0x10);
 	#endif
 	
@@ -55,6 +61,9 @@ int main()
 	case RME_ERR_OK:
 		printf("\n--- Emulator exited successfully!\n");
 		printf("emu->AX = 0x%04x\n", emu->AX);
+		break;
+	case RME_ERR_INVAL:
+		printf("\n--- ERROR: Invalid parameters\n");
 		break;
 	case RME_ERR_BADMEM:
 		printf("\n--- ERROR: Emulator accessed bad memory\n");

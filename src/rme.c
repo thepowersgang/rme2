@@ -221,23 +221,18 @@ tRME_State	*RME_CreateState(void)
  * \brief Run Realmode interrupt
  */
 int RME_CallInt(tRME_State *State, int Num)
-{
-	tIVT	*IVT;
-	
+{	
+	 int	ret;
 	DEBUG_S("RM_Int: Calling Int 0x%x\n", Num);
 	
 	if(Num < 0 || Num > 0xFF) {
 		DEBUG_S("WARNING: %i is not a valid interrupt number", Num);
-		return -1;
+		return RME_ERR_INVAL;
 	}
 	
-	if(State->Memory[0] == NULL) {
-		return RME_ERR_BADMEM;
-	}
-	
-	IVT = (void*)State->Memory[0];
-	State->CS = IVT[Num].segment;
-	State->IP = IVT[Num].offset;
+	ret = RME_Int_Read16(State, 0, Num*4, &State->IP);
+	if(ret)	return ret;
+	RME_Int_Read16(State, 0, Num*4+2, &State->CS);
 	
 	PUSH(State->Flags);
 	PUSH(RME_MAGIC_CS);
@@ -663,6 +658,14 @@ decode:
 		ret = RME_Int_GenToFromW(State, &toW, &fromW);
 		if(ret)	return ret;
 		RME_Int_DoTest(State, *toW, *fromW, 16);
+		break;
+	case TEST_AI:	DEBUG_S("TEST (AI)");
+		READ_INSTR8( pt2 );
+		RME_Int_DoTest(State, State->AX&0xFF, pt2, 8);
+		break;
+	case TEST_AIX:	DEBUG_S("TEST (AIX)");
+		READ_INSTR16( pt2 );
+		RME_Int_DoTest(State, State->AX, pt2, 16);
 		break;
 	
 	// Flag Control
