@@ -1,12 +1,12 @@
 /*
  * Realmode Emulator Plugin
  * - By John Hodge (thePowersGang)
- * 
+ *
  * This code is published under the FreeBSD licence
  * (See the file COPYING for details)
- * 
+ *
  * ---
- * Core Emulator 
+ * Core Emulator
  */
 #define _RME_C_
 #include <stdint.h>
@@ -204,16 +204,16 @@ static const char *casLogicOps[] = {"L0-", "L1-", "L2-", "L3-", "SHL", "SHR", "L
 tRME_State	*RME_CreateState(void)
 {
 	tRME_State	*state = calloc(sizeof(tRME_State), 1);
-	
+
 	if(state == NULL)	return NULL;
-	
+
 	// Initial Stack
 	state->Flags = FLAG_DEFAULT;
-	
+
 	// Stub CS/IP
 	state->CS = 0xF000;
 	state->IP = 0xFFF0;
-	
+
 	return state;
 }
 
@@ -221,23 +221,23 @@ tRME_State	*RME_CreateState(void)
  * \brief Run Realmode interrupt
  */
 int RME_CallInt(tRME_State *State, int Num)
-{	
+{
 	 int	ret;
 	DEBUG_S("RM_Int: Calling Int 0x%x\n", Num);
-	
+
 	if(Num < 0 || Num > 0xFF) {
 		DEBUG_S("WARNING: %i is not a valid interrupt number", Num);
 		return RME_ERR_INVAL;
 	}
-	
+
 	ret = RME_Int_Read16(State, 0, Num*4, &State->IP);
 	if(ret)	return ret;
 	RME_Int_Read16(State, 0, Num*4+2, &State->CS);
-	
+
 	PUSH(State->Flags);
 	PUSH(RME_MAGIC_CS);
 	PUSH(RME_MAGIC_IP);
-	
+
 	return RME_Call(State);
 }
 
@@ -288,23 +288,23 @@ int RME_Int_DoOpcode(tRME_State *State)
 	uint16_t	repStart = 0;
 	 uint8_t	opcode, byte2;
 	 int	ret;
-	
+
 	uint16_t	startIP, startCS;
-	
+
 	startIP = State->IP;
 	startCS = State->CS;
-	
+
 functionTop:
 	State->Decoder.OverrideSegment = -1;
 	State->Decoder.IPOffset = 0;
 
 	DEBUG_S("[0x%x] %04x:%04x ", State->CS*16+State->IP, State->CS, State->IP);
-	
+
 decode:
 	READ_INSTR8( opcode );
 	switch( opcode )
 	{
-	
+
 	// Prefixes
 	case OVR_CS:
 		DEBUG_S("<CS> ");
@@ -322,14 +322,14 @@ decode:
 		DEBUG_S("<ES> ");
 		State->Decoder.OverrideSegment = SREG_ES;
 		goto decode;
-	
+
 	case 0x66:	//Operand Size Override
 		DEBUG_S("PREFIX: OPERAND OVERRIDE");
 		break;
 	case 0x67:	//Memory Size Override
 		DEBUG_S("PREFIX: ADDR OVERRIDE");
 		break;
-	
+
 	// Loops/Repeats
 	case REP:	case REPNZ:
 	case LOOP:
@@ -337,7 +337,7 @@ decode:
 		repType = opcode;
 		repStart = State->IP;
 		goto decode;
-	
+
 
 	#define RME_Int_DoArithOp(num, State, to, from, width)	do{\
 		switch( (num) ) {\
@@ -351,7 +351,7 @@ decode:
 		case 7:	RME_Int_DoCmp(State, (to), (from), (width));	break;\
 		default: DEBUG_S(" - Undef DoArithOP %i\n", (num));	return RME_ERR_UNDEFOPCODE;\
 		}}while(0)
-	
+
 	// <op> MR
 	CASE8K(0x00, 0x8):
 		DEBUG_S("%s (MR)", casArithOps[opcode >> 3]);
@@ -366,7 +366,7 @@ decode:
 		if(ret)	return ret;
 		RME_Int_DoArithOp( opcode >> 3, State, *toW, *fromW, 16 );
 		break;
-	
+
 	// <op> RM
 	CASE8K(0x02, 0x8):
 		DEBUG_S("%s (RM)", casArithOps[opcode >> 3]);
@@ -381,21 +381,21 @@ decode:
 		if(ret)	return ret;
 		RME_Int_DoArithOp( opcode >> 3, State, *toW, *fromW, 16 );
 		break;
-	
+
 	// <op> AI
 	CASE8K(0x04, 8):
 		READ_INSTR8( pt2 );
 		DEBUG_S("%s (AI) AL 0x%02x", casArithOps[opcode >> 3], pt2);
 		RME_Int_DoArithOp( opcode >> 3, State, *(uint8_t*)&State->AX, pt2, 8 );
 		break;
-	
+
 	// <op> AIX
 	CASE8K(0x05, 8):
 		READ_INSTR16( pt2 );
 		DEBUG_S("%s (AIX) AX 0x%04x", casArithOps[opcode >> 3], pt2);
 		RME_Int_DoArithOp( opcode >> 3, State, State->AX, pt2, 16 );
 		break;
-	
+
 	// <op> RI
 	case 0x80:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
@@ -427,7 +427,7 @@ decode:
 		DEBUG_S(" 0x%04x", pt2);
 		RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *toW, pt2, 16 );
 		break;
-		
+
 	// ==== Logic Functions (Shifts) ===
 	#define RME_Int_DoLogicOp( num, State, to, from, width )	do{\
 		switch( (num) ) {\
@@ -490,7 +490,7 @@ decode:
 		DEBUG_S(" CL");
 		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toW, State->CX&0xFF, 8 );
 		break;
-	
+
 	// <op> RI
 	case 0xF6:	//Register Immidate
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
@@ -544,7 +544,7 @@ decode:
 			return RME_ERR_UNDEFOPCODE;
 		//case 2:	break;	// NOT r/m16
 		//case 3:	break;	// NEG r/m16
-		case 4:	break;	// MUL AX, r/m16
+		//case 4:	break;	// MUL AX, r/m16
 		case 5:	// IMUL AX, r/m16
 			{
 			uint32_t	dword;
@@ -578,7 +578,7 @@ decode:
 			return RME_ERR_UNDEFOPCODE;
 		}
 		break;
-		
+
 	case 0xFE:	//Register
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		switch( (byte2>>3) & 7 ) {
@@ -599,7 +599,7 @@ decode:
 			return RME_ERR_UNDEFOPCODE;
 		}
 		break;
-	
+
 	case 0xFF:	//Register Extended
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		switch( (byte2>>3) & 7 ) {
@@ -647,7 +647,7 @@ decode:
 			return RME_ERR_UNDEFOPCODE;
 		}
 		break;
-		
+
 	//TEST Family
 	case TEST_RM:	DEBUG_S("TEST (RR)");	//Test Register
 		ret = RME_Int_GenToFromB(State, &toB, &fromB);
@@ -667,7 +667,7 @@ decode:
 		READ_INSTR16( pt2 );
 		RME_Int_DoTest(State, State->AX, pt2, 16);
 		break;
-	
+
 	// Flag Control
 	case CLC:	DEBUG_S("CLC");	State->Flags &= ~FLAG_CF;	break;
 	case STC:	DEBUG_S("STC");	State->Flags |= FLAG_CF;	break;
@@ -675,7 +675,7 @@ decode:
 	case STI:	DEBUG_S("STI");	State->Flags |= FLAG_IF;	break;
 	case CLD:	DEBUG_S("CLD");	State->Flags &= ~FLAG_DF;	break;
 	case STD:	DEBUG_S("STD");	State->Flags |= FLAG_DF;	break;
-	
+
 	// DEC Register
 	case DEC_A:		DEBUG_S("DEC AX");	State->AX --;	break;
 	case DEC_B:		DEBUG_S("DEC BX");	State->BX --;	break;
@@ -694,7 +694,7 @@ decode:
 	case INC_Bp:	DEBUG_S("INC BP");	State->BP ++;	break;
 	case INC_Si:	DEBUG_S("INC SI");	State->SI ++;	break;
 	case INC_Di:	DEBUG_S("INC DI");	State->DI ++;	break;
-	
+
 	// IN <port>, A
 	case IN_AI:	// Imm8, AL
 		READ_INSTR8( pt2 );
@@ -734,7 +734,7 @@ decode:
 		DEBUG_S("OUT (DxAX) DX AX");
 		outw( State, State->DX, State->AX );
 		break;
-	
+
 	//INT Family
 	case INT3:
 		DEBUG_S("INT 3");
@@ -764,7 +764,7 @@ decode:
 		POP( State->CS );
 		POP( State->Flags );
 		goto ret;
-		
+
 	//MOV Family
 	case MOV_MoA:	// Store AL at Memory Offset
 		DEBUG_S("MOV (MoA)");
@@ -835,7 +835,7 @@ decode:
 		if(ret)	return ret;
 		*toW = *fromW;
 		break;
-	
+
 	case MOV_RI_AL:	case MOV_RI_CL:
 	case MOV_RI_DL:	case MOV_RI_BL:
 	case MOV_RI_AH:	case MOV_RI_CH:
@@ -847,7 +847,7 @@ decode:
 		else
 			State->GPRs[opcode&3] = (State->GPRs[opcode&3]&0xFF00) | pt2;
 		break;
-	
+
 	case MOV_RI_AX:	case MOV_RI_CX:
 	case MOV_RI_DX:	case MOV_RI_BX:
 	case MOV_RI_SP:	case MOV_RI_BP:
@@ -856,7 +856,7 @@ decode:
 		DEBUG_S("MOV (RIX) %s 0x%04x", casReg16Names[opcode&7], pt2);
 		State->GPRs[opcode&7] = pt2;
 		break;
-	
+
 	case MOV_RS:
 		DEBUG_S("MOV (RS)");
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
@@ -865,7 +865,7 @@ decode:
 		if(ret)	return ret;
 		*toW = *fromW;
 		break;
-		
+
 	case MOV_SR:
 		DEBUG_S("MOV (SR)");
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
@@ -874,8 +874,8 @@ decode:
 		if(ret)	return ret;
 		*toW = *fromW;
 		break;
-		
-		
+
+
 	// JMP Family
 	case JMP_S:	// Short Jump
 		READ_INSTR8S( pt2 );
@@ -893,7 +893,7 @@ decode:
 		DEBUG_S("JMP FAR %04x:%04x", pt2, pt1);
 		State->CS = pt2;	State->IP = pt1;
 		goto ret;
-	
+
 	//XCHG Family
 	case XCHG_AA:	//NOP 0x90
 		DEBUG_S("NOP");
@@ -932,7 +932,7 @@ decode:
 		if(ret)	return ret;
 		pt2 = *toW;		*toW = *fromW;	*fromW = pt2;
 		break;
-		
+
 	//PUSH Family
 	case PUSHF:
 		DEBUG_S("PUSHF");
@@ -967,7 +967,7 @@ decode:
 		READ_INSTR16( pt2 );
 		DEBUG_S("PUSH (I) 0x%04x", pt2);
 		PUSH(pt2);
-		break;		
+		break;
 
 	//POP Family
 	case POPF:
@@ -992,7 +992,7 @@ decode:
 	case POP_ES:	DEBUG_S("POP ES");	POP(State->ES);	break;
 	case POP_SS:	DEBUG_S("POP SS");	POP(State->SS);	break;
 	case POP_DS:	DEBUG_S("POP DS");	POP(State->DS);	break;
-	
+
 	// CALL Family
 	case CALL_N:
 		READ_INSTR16( pt2 );
@@ -1019,7 +1019,7 @@ decode:
 		POP(State->IP);
 		POP(State->CS);
 		goto ret;
-	
+
 	//STOS Functions
 	case STOSB:
 		DEBUG_S("STOSB ES:[DI] AL");
@@ -1033,7 +1033,7 @@ decode:
 		if(ret)	return ret;
 		State->DI += 2;
 		break;
-	
+
 	// Misc
 	case LEA:
 		DEBUG_S("LEA");
@@ -1055,7 +1055,7 @@ decode:
 		case 3:
 			return RME_ERR_UNDEFOPCODE;
 		}
-		
+
 		switch(byte2 & 7)
 		{
 		case 0:
@@ -1098,38 +1098,38 @@ decode:
 		}
 		State->GPRs[ (byte2>>3)&7 ] = pt1;
 		break;
-	
+
 	// Short Jumps
 	CASE16(0x70):
 		READ_INSTR8S( pt2 );
 		DoCondJMP(State, opcode & 0xF, pt2);
 		State->IP += State->Decoder.IPOffset;
 		goto ret;
-	
-	
+
+
 	// -- Two Byte Opcodes --
 	case 0x0F:
 		READ_INSTR8( byte2 );
-		
+
 		switch(byte2)
-		{			
+		{
 		//--- Near Jump --- (1000cccc)
 		CASE16(0x80):
 			READ_INSTR16( pt2 );
 			DoCondJMP(State, byte2&0xF, pt2);
 			break;
-		
+
 		default:
 			DEBUG_S("0x0F 0x%02x unknown\n", byte2);
 			return RME_ERR_UNDEFOPCODE;
 		}
 		break;
-	
+
 	default:
 		DEBUG_S("Unkown Opcode IP = 0x%02x", opcode);
 		return RME_ERR_UNDEFOPCODE;
 	}
-	
+
 	switch(repType)
 	{
 	case REP:
@@ -1163,7 +1163,7 @@ decode:
 		}
 		break;
 	}
-	
+
 	State->IP += State->Decoder.IPOffset;
 
 ret:
@@ -1172,7 +1172,7 @@ ret:
 		uint16_t	i = startIP;
 		uint8_t	byte;
 		 int	j = State->Decoder.IPOffset;
-		
+
 		DEBUG_S("\t;");
 		while(i < 0x10000 && j--) {
 			RME_Int_Read8(State, startCS, i, &byte);
@@ -1295,7 +1295,7 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, void *ptr)
 {
 	uint32_t	addr;
 	uint16_t	seg;
-	
+
 	switch(mmm){
 	case 2:	case 3:	case 6:
 		seg = SREG_SS;
@@ -1304,12 +1304,12 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, void *ptr)
 		seg = SREG_DS;
 		break;
 	}
-	
+
 	if(State->Decoder.OverrideSegment != -1)
 		seg = State->Decoder.OverrideSegment;
-	
+
 	seg = *Seg(State, seg);
-	
+
 	switch(mmm)
 	{
 	case -1:	// R/M == 6 when Mod == 0
@@ -1317,7 +1317,7 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, void *ptr)
 		DEBUG_S(":[0x%x]", disp);
 		addr = disp;
 		break;
-		
+
 	case 0:
 		DEBUG_S(":[BX+SI+0x%x]", disp);
 		addr = State->BX + State->SI + disp;
@@ -1359,7 +1359,7 @@ int RME_Int_GenToFromB(tRME_State *State, uint8_t **to, uint8_t **from)
 	uint8_t	d;
 	uint16_t	ofs;
 	 int	ret;
-	
+
 	READ_INSTR8(d);
 	switch(d >> 6)
 	{
@@ -1402,7 +1402,7 @@ int RME_Int_GenToFromW(tRME_State *State, uint16_t **to, uint16_t **from)
 	uint8_t	d;
 	uint16_t	ofs;
 	 int	ret;
-	
+
 	READ_INSTR8(d);
 	switch(d >> 6)
 	{
@@ -1422,7 +1422,7 @@ int RME_Int_GenToFromW(tRME_State *State, uint16_t **to, uint16_t **from)
 			READ_INSTR8S( ofs );
 			ret = DoFunc( State, d & 7, ofs, from );
 			if(ret)	return ret;
-			
+
 		}
 		return 0;
 	case 2:	//16 Bit
@@ -1456,7 +1456,7 @@ static void DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset)
 		break;
 	case 0x3:	DEBUG_S("NC");	//No Carry
 		if(!(State->Flags & FLAG_CF))	State->IP += offset;
-		break;	
+		break;
 	case 0x4:	DEBUG_S("Z");	//Equal
 		if(State->Flags & FLAG_ZF)	State->IP += offset;
 		break;
@@ -1470,7 +1470,7 @@ static void DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset)
 		if( !(State->Flags & FLAG_CF) && !(State->Flags & FLAG_ZF))
 			State->IP += offset;
 		break;
-	
+
 	case 0xC:	DEBUG_S("L");	// Less
 		if( !!(State->Flags & FLAG_SF) != !!(State->Flags & FLAG_OF) )
 			State->IP += offset;
@@ -1479,7 +1479,7 @@ static void DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset)
 		if( State->Flags & FLAG_ZF || !!(State->Flags & FLAG_SF) != !!(State->Flags & FLAG_OF) )
 			State->IP += offset;
 		break;
-	
+
 	default:
 		DEBUG_S(" 0x%x", type);
 		break;
