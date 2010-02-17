@@ -30,7 +30,7 @@ int main()
 		emu->Memory[i/RME_BLOCK_SIZE] = (void*)i;
 
 
-	#if 1
+	#if 0
 	emu->AX = (0x00<<8) | 0x04;	// Set Mode 0x04
 	i = RME_CallInt(emu, 0x10);
 	#endif
@@ -42,16 +42,21 @@ int main()
 	#endif
 
 	#if 0
-	emu->AX = (0x0F<<8) | 0;
+	emu->AX = (0x0F<<8) | 0;	// Function 0xF?
 	i = RME_CallInt(emu, 0x10);
 	#endif
 
-	#if 0
+	// Read Sector
+	#if 1
 	emu->AX = (0x02 << 8) | 1;
 	emu->CX = 1;	// Cylinder 0, Sector 1
-	emu->DX = 0x0;	// Head 0, FDD 1
-	emu->ES = 0x100;	emu->BX = 0x0;
+	emu->DX = 0x0;	// Head 0, HDD 1
+	emu->ES = 0x1000;	emu->BX = 0x0;
 	i = RME_CallInt(emu, 0x13);
+	printf("\n%02x %02x",
+		*(uint8_t*)(0x10000+510),
+		*(uint8_t*)(0x10000+511)
+		);
 	#endif
 
 	//i = RME_CallInt(emu, 0x11);	// Equipment Test

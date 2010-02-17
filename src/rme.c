@@ -26,9 +26,6 @@
 #define	inw(state,port)	inw(port)	// Read 2 bytes from an IO Port
 
 // === CONSTANTS ===
-#define RME_MAGIC_IP	0xFFFF
-#define RME_MAGIC_CS	0xFFFF
-
 #define FLAG_DEFAULT	0x2
 #define FLAG_CF	0x001
 #define FLAG_PF	0x004
@@ -170,15 +167,10 @@
 	(dst) = v;\
 	}while(0)
 
-// === STRUCTURES ===
-typedef struct {
-	uint16_t	offset;
-	uint16_t	segment;
-}	tIVT;
-
 // === PROTOTYPES ===
- int	RME_CallInt(tRME_State *State, int Num);
+tRME_State	*RME_CreateState(void);
 void	RME_DumpRegs(tRME_State *State);
+ int	RME_CallInt(tRME_State *State, int Num);
  int	RME_Call(tRME_State *State);
 static int	RME_Int_DoOpcode(tRME_State *State);
 
@@ -190,7 +182,7 @@ static inline int	RME_Int_Write16(tRME_State *State, uint16_t Seg, uint16_t Ofs,
 static int	RME_Int_GenToFromB(tRME_State *State, uint8_t **to, uint8_t **from) __attribute__((warn_unused_result));
 static int	RME_Int_GenToFromW(tRME_State *State, uint16_t **to, uint16_t **from) __attribute__((warn_unused_result));
 static uint16_t	*Seg(tRME_State *State, int code);
-static void	DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset);
+static int	RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, const char *name);
 
 // === GLOBALS ===
 static const char *casReg8Names[] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
@@ -200,8 +192,9 @@ static const char *casLogicOps[] = {"L0-", "L1-", "L2-", "L3-", "SHL", "SHR", "L
 
 // === CODE ===
 /**
+ * \brief Creates a blank RME State
  */
-tRME_State	*RME_CreateState(void)
+tRME_State *RME_CreateState(void)
 {
 	tRME_State	*state = calloc(sizeof(tRME_State), 1);
 
@@ -215,6 +208,22 @@ tRME_State	*RME_CreateState(void)
 	state->IP = 0xFFF0;
 
 	return state;
+}
+
+/**
+ * \brief Dump Realmode Registers
+ */
+void RME_DumpRegs(tRME_State *State)
+{
+	DEBUG_S("\n");
+	DEBUG_S("AX %04x  CX %04x  DX %04x  BX %04x\n",
+		State->AX, State->BX, State->CX, State->DX);
+	DEBUG_S("SP %04x  BP %04x  SI %04x  DI %04x\n",
+		State->SP, State->BP, State->SI, State->DI);
+	DEBUG_S("SS %04x  DS %04x  ES %04x\n",
+		State->SS, State->DS, State->ES);
+	DEBUG_S("CS:IP = 0x%04x:%04x\n", State->CS, State->IP);
+	DEBUG_S("Flags = %04x\n", State->Flags);
 }
 
 /**
@@ -242,22 +251,6 @@ int RME_CallInt(tRME_State *State, int Num)
 }
 
 /**
- * \brief Dump Realmode Registers
- */
-void RME_DumpRegs(tRME_State *State)
-{
-	DEBUG_S("\n");
-	DEBUG_S("AX %04x  CX %04x  DX %04x  BX %04x\n",
-		State->AX, State->BX, State->CX, State->DX);
-	DEBUG_S("SP %04x  BP %04x  SI %04x  DI %04x\n",
-		State->SP, State->BP, State->SI, State->DI);
-	DEBUG_S("SS %04x  DS %04x  ES %04x\n",
-		State->SS, State->DS, State->ES);
-	DEBUG_S("CS:IP = 0x%04x:%04x\n", State->CS, State->IP);
-	DEBUG_S("Flags = %04x\n", State->Flags);
-}
-
-/**
  * Call a realmode function (a jump to a magic location is used as the return)
  */
 int RME_Call(tRME_State *State)
@@ -265,7 +258,7 @@ int RME_Call(tRME_State *State)
 	 int	ret;
 	for(;;)
 	{
-		#if DEBUG
+		#if DEBUG >= 2
 		RME_DumpRegs(State);
 		#endif
 		if(State->IP == RME_MAGIC_IP && State->CS == RME_MAGIC_CS)
@@ -297,8 +290,9 @@ int RME_Int_DoOpcode(tRME_State *State)
 functionTop:
 	State->Decoder.OverrideSegment = -1;
 	State->Decoder.IPOffset = 0;
+	State->InstrNum ++;
 
-	DEBUG_S("[0x%x] %04x:%04x ", State->CS*16+State->IP, State->CS, State->IP);
+	DEBUG_S("(%8i) [0x%x] %04x:%04x ", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
 
 decode:
 	READ_INSTR8( opcode );
@@ -1102,9 +1096,9 @@ decode:
 	// Short Jumps
 	CASE16(0x70):
 		READ_INSTR8S( pt2 );
-		DoCondJMP(State, opcode & 0xF, pt2);
-		State->IP += State->Decoder.IPOffset;
-		goto ret;
+		ret = RME_Int_DoCondJMP(State, opcode & 0xF, pt2, "(S)");
+		if(ret)	return ret;
+		break;
 
 
 	// -- Two Byte Opcodes --
@@ -1116,7 +1110,8 @@ decode:
 		//--- Near Jump --- (1000cccc)
 		CASE16(0x80):
 			READ_INSTR16( pt2 );
-			DoCondJMP(State, byte2&0xF, pt2);
+			ret = RME_Int_DoCondJMP(State, byte2&0xF, pt2, "(N)");
+			if(ret)	return ret;
 			break;
 
 		default:
@@ -1441,7 +1436,7 @@ int RME_Int_GenToFromW(tRME_State *State, uint16_t **to, uint16_t **from)
 	return 0;
 }
 
-static void DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset)
+static int RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, const char *name)
 {
 	DEBUG_S("J");
 	switch(type) {
@@ -1475,6 +1470,10 @@ static void DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset)
 		if( !!(State->Flags & FLAG_SF) != !!(State->Flags & FLAG_OF) )
 			State->IP += offset;
 		break;
+	case 0xD:	DEBUG_S("GE");	// Greater or Equal
+		if( !!(State->Flags & FLAG_SF) == !!(State->Flags & FLAG_OF) )
+			State->IP += offset;
+		break;
 	case 0xE:	DEBUG_S("LE");	// Less or Equal
 		if( State->Flags & FLAG_ZF || !!(State->Flags & FLAG_SF) != !!(State->Flags & FLAG_OF) )
 			State->IP += offset;
@@ -1482,7 +1481,8 @@ static void DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset)
 
 	default:
 		DEBUG_S(" 0x%x", type);
-		break;
+		return RME_ERR_UNDEFOPCODE;
 	}
-	DEBUG_S(" NEAR .+0x%04x", offset);
+	DEBUG_S(" %s .+0x%04x", name, offset);
+	return 0;
 }

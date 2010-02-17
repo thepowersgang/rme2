@@ -25,13 +25,25 @@
  */
 #define RME_BLOCK_SIZE	(32*1024)
 
+/**
+ * \brief Magic return Instruction Pointer
+ */
+#define RME_MAGIC_IP	0xFFFF
+/**
+ * \brief Magic return Code Segment
+ */
+#define RME_MAGIC_CS	0xFFFF
+
+/**
+ * \brief Error codes returned by ::RME_Call and ::RME_CallInt
+ */
 enum eRME_Errors
 {
-	RME_ERR_OK,
-	RME_ERR_INVAL,
-	RME_ERR_BADMEM,
-	RME_ERR_UNDEFOPCODE,
-	RME_ERR_DIVERR
+	RME_ERR_OK,	//!< Exited successfully
+	RME_ERR_INVAL,	//!< Bad paramater passed to emulator
+	RME_ERR_BADMEM,	//!< Emulator accessed invalid memory
+	RME_ERR_UNDEFOPCODE,	//!< Undefined opcode
+	RME_ERR_DIVERR	//!< Divide error
 };
 
 /**
@@ -39,6 +51,8 @@ enum eRME_Errors
  */
 typedef struct
 {
+	//! \brief General Purpose Registers
+	//! \{
 	union {
 		uint16_t	GPRs[8];
 		struct {
@@ -46,17 +60,39 @@ typedef struct
 			uint16_t	SP, BP, SI, DI;
 		};
 	};
+	//! \}
 
-	uint16_t	SS, DS;
-	uint16_t	ES;
+	//! \brief Segment Registers
+	//! \{
+	uint16_t	SS;	//!< Stack Segment
+	uint16_t	DS;	//!< Data Segment
+	uint16_t	ES;	//!< Extra Segment
+	//! \}
 
-	uint16_t	CS, IP;
 
-	uint16_t	Flags;
+	uint16_t	CS;	//!< Code Segment
+	uint16_t	IP;	//!< Instruction Pointer
 
+	uint16_t	Flags;	//!< State Flags
+
+	/**
+	 * \brief Emulator's Memory
+	 *
+	 * The 1MiB realmode address space is broken into blocks of
+	 * ::RME_BLOCK_SIZE bytes that can each point to different areas
+	 * of memory.
+	 * NOTE: There is no write protection on these blocks
+	 * \note A value of NULL in a block indicates that the block is invalid
+	 */
 	uint8_t	*Memory[32];	// 1Mib in 32 32 KiB blocks
 
+	 int	InstrNum;	//!< Total executed instructions
+
 	// --- Decoder State ---
+	/**
+	 * \brief Decoder State
+	 * \note Should not be touched except by the emulator
+	 */
 	struct {
 		 int	OverrideSegment;
 		 int	IPOffset;
@@ -67,14 +103,26 @@ typedef struct
 /**
  * \brief Creates a blank RME instance
  */
-tRME_State	*RME_CreateState(void);
+extern tRME_State	*RME_CreateState(void);
 
 /**
  * \brief Calls an interrupt
  * \param State	State returned from ::RME_CreateState
  * \param Number	Interrupt number
  */
- int	RME_CallInt(tRME_State *State, int Number);
+extern int	RME_CallInt(tRME_State *State, int Number);
+
+/**
+ * \brief Executes the emulator until RME_MAGIC_CS:RME_MAGIC_IP is reached
+ * \param State	State returned from ::RME_CreateState
+ */
+extern int	RME_Call(tRME_State *State);
+
+/**
+ * \brief Prints contents of the state's registers to debug
+ * \param State	State returned from ::RME_CreateState
+ */
+extern void RME_DumpRegs(tRME_State *State);
 
 /*
  * Definitions specific to the internals of the emulator
