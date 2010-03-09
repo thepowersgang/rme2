@@ -30,7 +30,7 @@ int main()
 		emu->Memory[i/RME_BLOCK_SIZE] = (void*)i;
 
 
-	#if 0
+	#if 1
 	emu->AX = (0x00<<8) | 0x04;	// Set Mode 0x04
 	i = RME_CallInt(emu, 0x10);
 	#endif
@@ -47,7 +47,7 @@ int main()
 	#endif
 
 	// Read Sector
-	#if 1
+	#if 0
 	emu->AX = (0x02 << 8) | 1;
 	emu->CX = 1;	// Cylinder 0, Sector 1
 	emu->DX = 0x0;	// Head 0, HDD 1
