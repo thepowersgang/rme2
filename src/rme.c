@@ -27,24 +27,41 @@
 
 // === CONSTANTS ===
 #define FLAG_DEFAULT	0x2
-#define FLAG_CF	0x001
-#define FLAG_PF	0x004
-#define FLAG_AF	0x010
-#define FLAG_ZF	0x040
-#define FLAG_SF	0x080
-#define FLAG_TF	0x100
-#define FLAG_IF	0x200
-#define FLAG_DF	0x400
-#define FLAG_OF	0x800
+/**
+ * \brief FLAGS Register Values
+ * \{
+ */
+#define FLAG_CF	0x001	//!< Carry Flag
+#define FLAG_PF	0x004	//!< Pairity Flag
+#define FLAG_AF	0x010	//!< ?
+#define FLAG_ZF	0x040	//!< Zero Flag
+#define FLAG_SF	0x080	//!< Sign Flag
+#define FLAG_TF	0x100	//!< ?
+#define FLAG_IF	0x200	//!< Interrupt Flag
+#define FLAG_DF	0x400	//!< Direction Flag
+#define FLAG_OF	0x800	//!< Overflow Flag
+/**
+ * \}
+ */
 
+/**
+ * \name Exception Handlers
+ * \{
+ */
 #define	RME_Int_Expt_DivideError(State)	(RME_ERR_DIVERR)
+/**
+ * \}
+ */
 
+// --- Stack Primiatives ---
 #define PUSH(v)	RME_Int_Write16(State,State->SS,State->SP-=2,(v))
 #define POP(dst)	do{\
 	uint16_t v;\
 	RME_Int_Read16(State,State->SS,State->SP,&v);State->SP+=2;\
 	(dst)=v;\
 	}while(0)
+
+// --- Debug Macro ---
 #if DEBUG
 # define DEBUG_S(...)	printf(__VA_ARGS__)
 #else
@@ -61,7 +78,6 @@
 #define CASE16K(b,k)	CASE4K(b,k):CASE4K((b)+4*(k),k):CASE4K((b)+8*(k),k):CASE4K((b)+12*(k),k)
 // --- Operation helpers
 #define PAIRITY8(v)	((((v)>>7)&1)^(((v)>>6)&1)^(((v)>>5)&1)^(((v)>>4)&1)^(((v)>>3)&1)^(((v)>>2)&1)^(((v)>>1)&1)^((v)&1))
-#define PAIRITY32(v)	(PAIRITY8(v) ^ PAIRITY8((v)>>8) ^ PAIRITY8((v)>>16) ^ PAIRITY8((v)>>24))
 #define SET_PF(State,v,w) do{\
 	if(w==8)State->Flags |= PAIRITY8(v) ? FLAG_PF : 0;\
 	else	State->Flags |= (PAIRITY8(v) ^ PAIRITY8(v>>8)) ? FLAG_PF : 0;\
@@ -74,27 +90,35 @@
 	}while(0)
 
 // --- Operations
-// 0: Add
+/**
+ * \brief 0 - Add
+ */
 #define RME_Int_DoAdd(State, to, from, width)	do{\
 	(to) += (from);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
 	SET_COMM_FLAGS(State,(to),(width));\
 	State->Flags |= ((to) < (from)) ? FLAG_OF|FLAG_CF : 0;\
 	}while(0)
-// 1: Bitwise OR
+/**
+ * \brief 1 - Bitwise OR
+ */
 #define RME_Int_DoOr(State, to, from, width)	do{\
 	(to) |= (from);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
 	SET_COMM_FLAGS(State,(to),(width));\
 	}while(0)
-// 2: Add with Carry
+/**
+ * \brief 2 - Add with Carry
+ */
 #define RME_Int_DoAdc(State, to, from, width)	do{\
 	(to) += (from) + ((State->Flags&FLAG_CF)?1:0);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
 	SET_COMM_FLAGS(State,(to),(width));\
 	State->Flags |= ((to) < (from)) ? FLAG_OF|FLAG_CF : 0;\
 	}while(0)
-// 3: Subtract with borrow
+/**
+ * \brief 3 - Subtract with borrow
+ */
 #define RME_Int_DoSbb(State, to, from, width)	do{\
 	(to) -= (from) + ((State->Flags&FLAG_CF)?1:0);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
@@ -147,19 +171,47 @@
 	State->Flags |= ((to) & 1) ? FLAG_CF : 0;\
 	}while(0)
 
+/**
+ * \brief Delegates an Arithmatic Operation to the required helper
+ */
+#define RME_Int_DoArithOp(num, State, to, from, width)	do{\
+	switch( (num) ) {\
+	case 0:	RME_Int_DoAdd(State, (to), (from), (width));	break;\
+	case 1:	RME_Int_DoOr (State, (to), (from), (width));	break;\
+	case 2:	RME_Int_DoAdc(State, (to), (from), (width));	break;\
+	case 3:	RME_Int_DoSbb(State, (to), (from), (width));	break;\
+	case 4:	RME_Int_DoAnd(State, (to), (from), (width));	break;\
+	case 5:	RME_Int_DoSub(State, (to), (from), (width));	break;\
+	case 6:	RME_Int_DoXor(State, (to), (from), (width));	break;\
+	case 7:	RME_Int_DoCmp(State, (to), (from), (width));	break;\
+	default: DEBUG_S(" - Undef DoArithOP %i\n", (num));	return RME_ERR_UNDEFOPCODE;\
+	}}while(0)
+
 // --- Memory Helpers
+/**
+ * \brief Read an unsigned byte from the instruction stream
+ * Reads 1 byte as an unsigned integer from CS:IP and increases IP by 1.
+ */
 #define READ_INSTR8(dst)	do{int r;uint8_t v;\
 	r=RME_Int_Read8(State,State->CS,State->IP+State->Decoder.IPOffset,&v);\
 	if(r)	return r;\
 	State->Decoder.IPOffset++;\
 	(dst) = v;\
 	}while(0)
+/**
+ * \brief Read a signed byte from the instruction stream
+ * Reads 1 byte as an signed integer from CS:IP and increases IP by 1.
+ */
 #define READ_INSTR8S(dst)	do{int r;int8_t v;\
 	r=RME_Int_Read8(State,State->CS,State->IP+State->Decoder.IPOffset,(uint8_t*)&v);\
 	if(r)	return r;\
 	State->Decoder.IPOffset++;\
 	(dst) = v;\
 	}while(0)
+/**
+ * \brief Read a word from the instruction stream
+ * Reads 2 bytes as an unsigned integer from CS:IP and increases IP by 2.
+ */
 #define READ_INSTR16(dst)	do{int r;uint16_t v;\
 	r=RME_Int_Read16(State,State->CS,State->IP+State->Decoder.IPOffset,&v);\
 	if(r)	return r;\
@@ -187,7 +239,7 @@ static int	RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, c
 // === GLOBALS ===
 static const char *casReg8Names[] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
 static const char *casReg16Names[] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
-static const char *casArithOps[] = {"ADD", "OR", "-2-", "-3-", "AND", "SUB", "XOR", "CMP"};
+static const char *casArithOps[] = {"ADD", "OR", "ADC", "SBB", "AND", "SUB", "XOR", "CMP"};
 static const char *casLogicOps[] = {"L0-", "L1-", "L2-", "L3-", "SHL", "SHR", "L6-", "L7-"};
 
 // === CODE ===
@@ -331,20 +383,6 @@ decode:
 		repType = opcode;
 		repStart = State->IP;
 		goto decode;
-
-
-	#define RME_Int_DoArithOp(num, State, to, from, width)	do{\
-		switch( (num) ) {\
-		case 0:	RME_Int_DoAdd(State, (to), (from), (width));	break;\
-		case 1:	RME_Int_DoOr (State, (to), (from), (width));	break;\
-		case 2:	RME_Int_DoAdc(State, (to), (from), (width));	break;\
-		case 3:	RME_Int_DoSbb(State, (to), (from), (width));	break;\
-		case 4:	RME_Int_DoAnd(State, (to), (from), (width));	break;\
-		case 5:	RME_Int_DoSub(State, (to), (from), (width));	break;\
-		case 6:	RME_Int_DoXor(State, (to), (from), (width));	break;\
-		case 7:	RME_Int_DoCmp(State, (to), (from), (width));	break;\
-		default: DEBUG_S(" - Undef DoArithOP %i\n", (num));	return RME_ERR_UNDEFOPCODE;\
-		}}while(0)
 
 	// <op> MR
 	CASE8K(0x00, 0x8):
@@ -693,8 +731,7 @@ decode:
 	case IN_AI:	// Imm8, AL
 		READ_INSTR8( pt2 );
 		DEBUG_S("IN (AI) 0x%02x AL", pt2);
-		State->AX &= 0xFF00;
-		State->AX |= inb( State, pt2 );
+		*(uint8_t*)(&State->AX) = inb( State, pt2 );
 		break;
 	case IN_AIX:	// Imm8, AX
 		READ_INSTR8( pt2 );
@@ -703,7 +740,7 @@ decode:
 		break;
 	case IN_ADx:	// DX, AL
 		DEBUG_S("IN (ADx) DX AL");
-		*(uint8_t*)(&State->AX) |= inb(State, State->DX);
+		*(uint8_t*)(&State->AX) = inb(State, State->DX);
 		break;
 	case IN_ADxX:	// DX, AX
 		DEBUG_S("IN (ADxX) DX AX");
@@ -1031,8 +1068,8 @@ decode:
 	// Misc
 	case LEA:
 		DEBUG_S("LEA");
-		// HACK - LEA needs to parse the address itself, because it
-		// needs the emulated address, not the true address.
+		// LEA needs to parse the address itself, because it needs the
+		// emulated address, not the true address.
 		// Hence, it cannot use RME_Int_GenToFromB/W
 		READ_INSTR8(byte2);
 		switch(byte2 >> 6)
@@ -1121,7 +1158,7 @@ decode:
 		break;
 
 	default:
-		DEBUG_S("Unkown Opcode IP = 0x%02x", opcode);
+		DEBUG_S("Unkown Opcode 0x%02x", opcode);
 		return RME_ERR_UNDEFOPCODE;
 	}
 
