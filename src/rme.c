@@ -368,12 +368,13 @@ decode:
 		State->Decoder.OverrideSegment = SREG_ES;
 		goto decode;
 
+	// Size Overrides are not implemented
 	case 0x66:	//Operand Size Override
 		DEBUG_S("PREFIX: OPERAND OVERRIDE");
-		break;
+		return RME_ERR_UNDEFOPCODE;
 	case 0x67:	//Memory Size Override
 		DEBUG_S("PREFIX: ADDR OVERRIDE");
-		break;
+		return RME_ERR_UNDEFOPCODE;
 
 	// Repeat Prefix
 	case REP:	DEBUG_S("REP ");
@@ -475,6 +476,7 @@ decode:
 		ret = RME_Int_ParseModRMB(State, NULL, &toB);
 		if(ret)	return ret;
 		READ_INSTR8( pt2 );
+		DEBUG_S("0x%02x", pt2);
 		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toB, pt2, 8 );
 		break;
 	// <op> RI8X
@@ -484,7 +486,7 @@ decode:
 		ret = RME_Int_ParseModRMW(State, NULL, &toW);
 		if(ret)	return ret;
 		READ_INSTR8( pt2 );
-		DEBUG_S("0x%04x", pt2);
+		DEBUG_S("0x%02x", pt2);
 		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toW, pt2, 8 );
 		break;
 	// <op> R1
@@ -551,7 +553,7 @@ decode:
 			if(*fromB == 0)	return RME_Int_Expt_DivideError(State);
 			pt2 = State->AX / *fromW;
 			if(pt2 > 0xFF)	return RME_Int_Expt_DivideError(State);
-			State->DX = State->AX - pt2 * (*fromW);
+			pt2 |= (State->AX - pt2 * (*fromW)) << 8;
 			State->AX = pt2;
 			break;
 		//case 7:	break;	// IDIV AX, r/m8 (signed)
