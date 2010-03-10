@@ -592,6 +592,8 @@ decode:
 			else
 				State->Flags |= FLAG_CF|FLAG_OF;
 			}
+			State->DX = dword >> 16;
+			State->AX = dword & 0xFFFF;
 			break;
 		case 6:	// DIV DX:AX, r/m16
 			{
