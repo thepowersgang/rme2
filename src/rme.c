@@ -1053,18 +1053,26 @@ decode:
 		POP(State->CS);
 		goto ret;
 
-	//STOS Functions
+	// -- String Operations --
 	case STOSB:
 		DEBUG_S("STOSB ES:[DI] AL");
-		ret = RME_Int_Write8(State, State->ES, State->DI, State->AX&0xFF);
-		if(ret)	return ret;
-		State->DI ++;
+		if( repType == REP )	DEBUG_S(" (0x%x times)", Regs->CX);
+		do {
+			ret = RME_Int_Write8(State, State->ES, State->DI, State->AX&0xFF);
+			if(ret)	return ret;
+			State->DI ++;
+		} while(repType == REP && Regs->CX && Regs->CX--);
+		repType = 0;
 		break;
 	case STOSW:
-		DEBUG_S("STOSB ES:[DI] AX");
-		ret = RME_Int_Write16(State, State->ES, State->DI, State->AX);
-		if(ret)	return ret;
-		State->DI += 2;
+		DEBUG_S("STOSW ES:[DI] AX");
+		if( repType == REP )	DEBUG_S(" (0x%x times)", Regs->CX);
+		do {
+			ret = RME_Int_Write16(State, State->ES, State->DI, State->AX);
+			if(ret)	return ret;
+			State->DI += 2;
+		} while(repType == REP && Regs->CX && (Regs->CX-=2)+2);
+		repType = 0;
 		break;
 
 	// Misc
@@ -1132,7 +1140,7 @@ decode:
 		State->GPRs[ (byte2>>3)&7 ] = pt1;
 		break;
 
-	// Loops
+	// -- Loops --
 	case LOOP:	DEBUG_S("LOOP ");
 		READ_INSTR8S( pt2 );
 		if(State->CX != 0)
@@ -1181,20 +1189,10 @@ decode:
 		return RME_ERR_UNDEFOPCODE;
 	}
 
-	switch(repType)
+	if(repType)
 	{
-	case REP:
-		if(State->Flags & FLAG_ZF && State->CX--) {
-			DEBUG_S("\n");
-			goto functionTop;
-		}
-		break;
-	case REPNZ:
-		if( !(State->Flags & FLAG_ZF) && State->CX--) {
-			DEBUG_S("\n");
-			goto functionTop;
-		}
-		break;
+		DEBUG_S("Prefix 0x%02x used with wrong opcode 0x%02x", repType, opcode);
+		return RME_ERR_UNDEFOPCODE;
 	}
 
 	State->IP += State->Decoder.IPOffset;
