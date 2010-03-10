@@ -376,11 +376,13 @@ decode:
 		DEBUG_S("PREFIX: ADDR OVERRIDE");
 		break;
 
-	// Loops/Repeats
-	case REP:	case REPNZ:
-	case LOOP:
-	case LOOPZ:	case LOOPNZ:
-		repType = opcode;
+	// Repeat Prefix
+	case REP:	DEBUG_S("REP ");
+		repType = REP;
+		repStart = State->IP;
+		goto decode;
+	case REPNZ:	DEBUG_S("REPNZ ");
+		repType = REPNZ;
 		repStart = State->IP;
 		goto decode;
 
@@ -1130,6 +1132,23 @@ decode:
 		State->GPRs[ (byte2>>3)&7 ] = pt1;
 		break;
 
+	// Loops
+	case LOOP:	DEBUG_S("LOOP ");
+		READ_INSTR8S( pt2 );
+		if(State->CX != 0)
+			State->IP += pt2;
+		break;
+	case LOOPNZ:	DEBUG_S("LOOPNZ ");
+		READ_INSTR8S( pt2 );
+		if(State->CX != 0 && !(State->Flags & FLAG_ZF))
+			State->IP += pt2;
+		break;
+	case LOOPZ:	DEBUG_S("LOOPZ ");
+		READ_INSTR8S( pt2 );
+		if(State->CX != 0 && State->Flags & FLAG_ZF)
+			State->IP += pt2;
+		break;
+
 	// Short Jumps
 	CASE16(0x70):
 		READ_INSTR8S( pt2 );
@@ -1172,24 +1191,6 @@ decode:
 		break;
 	case REPNZ:
 		if( !(State->Flags & FLAG_ZF) && State->CX--) {
-			DEBUG_S("\n");
-			goto functionTop;
-		}
-		break;
-	case LOOP:
-		if(State->CX != 0) {
-			DEBUG_S("\n");
-			goto functionTop;
-		}
-		break;
-	case LOOPZ:
-		if(State->Flags & FLAG_ZF) {
-			DEBUG_S("\n");
-			goto functionTop;
-		}
-		break;
-	case LOOPNZ:
-		if( !(State->Flags & FLAG_ZF) ) {
 			DEBUG_S("\n");
 			goto functionTop;
 		}
