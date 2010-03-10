@@ -16,7 +16,7 @@ void *memset(void *Dest, int Val, size_t Num)
 {
 	__asm__ __volatile__ (
 		"rep stosl;\n\t"
-		"mov %3, %%ecx;\n\t"
+		"movl %3, %%ecx;\n\t"
 		"rep stosb"
 		:: "D" (Dest), "a" (Val), "c" (Num/4), "r" (Num&3));
 	return Dest;
@@ -29,7 +29,7 @@ void *memcpy(void *Dest, const void *Src, size_t Num)
 {
 	__asm__ __volatile__ (
 		"rep movsl;\n\t"
-		"mov %3, %%ecx;\n\t"
+		"movl %3, %%ecx;\n\t"
 		"rep movsb"
 		:: "D" (Dest), "S" (Src), "c" (Num/4), "r" (Num&3));
 	return Dest;

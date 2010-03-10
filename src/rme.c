@@ -327,6 +327,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 {
 	uint16_t	pt2, pt1;	// Spare Words, used for values read from memory
 	uint16_t	seg;
+//	uint32_t	*toD, *fromD;
 	uint16_t	*toW, *fromW;
 	 uint8_t	*toB, *fromB;
 	 uint8_t	repType = 0;
@@ -340,6 +341,8 @@ int RME_Int_DoOpcode(tRME_State *State)
 	startCS = State->CS;
 
 	State->Decoder.OverrideSegment = -1;
+	State->Decoder.bOverrideOperand = 0;
+	State->Decoder.bOverrideAddress = 0;
 	State->Decoder.IPOffset = 0;
 	State->InstrNum ++;
 
@@ -587,8 +590,9 @@ decode:
 			ret = RME_Int_ParseModRMW(State, NULL, &fromW);
 			if(ret)	return ret;
 			dword = (int16_t)State->AX * (int16_t)*fromW;
+			DEBUG_S(" %04x * %04x = %08x", State->AX, *fromW, dword);
 			if((int32_t)dword == (int16_t)State->AX)
-				State->Flags |= FLAG_CF|FLAG_OF;
+				State->Flags &= ~(FLAG_CF|FLAG_OF);
 			else
 				State->Flags |= FLAG_CF|FLAG_OF;
 			State->DX = dword >> 16;
@@ -1018,9 +1022,9 @@ decode:
 		POP(State->CX);	POP(State->AX);
 		break;
 	case POP_AX:	DEBUG_S("POP AX");	POP(State->AX);	break;
-	case POP_BX:	DEBUG_S("POP BX");	POP(State->BX);	break;
 	case POP_CX:	DEBUG_S("POP CX");	POP(State->CX);	break;
 	case POP_DX:	DEBUG_S("POP DX");	POP(State->DX);	break;
+	case POP_BX:	DEBUG_S("POP BX");	POP(State->BX);	break;
 	case POP_SP:	DEBUG_S("POP SP");	State->SP += 2;	break;	// POP SP does practically nothing
 	case POP_BP:	DEBUG_S("POP BP");	POP(State->BP);	break;
 	case POP_SI:	DEBUG_S("POP SI");	POP(State->SI);	break;
@@ -1074,7 +1078,27 @@ decode:
 			ret = RME_Int_Write16(State, State->ES, State->DI, State->AX);
 			if(ret)	return ret;
 			State->DI += 2;
-		} while(repType == REP && State->CX && (State->CX-=2)+2);
+		} while(repType == REP && State->CX && State->CX--);
+		repType = 0;
+		break;
+	case LODSB:
+		DEBUG_S("LODSB AL DS:[SI]");
+		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX);
+		do {
+			ret = RME_Int_Read8(State, State->DS, State->SI, (uint8_t*)&State->AX);
+			if(ret)	return ret;
+			State->DI ++;
+		} while(repType == REP && State->CX && State->CX--);
+		repType = 0;
+		break;
+	case LODSW:
+		DEBUG_S("LODSW AX DS:[SI]");
+		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX);
+		do {
+			ret = RME_Int_Read16(State, State->DS, State->SI, &State->AX);
+			if(ret)	return ret;
+			State->DI += 2;
+		} while(repType == REP && State->CX && State->CX--);
 		repType = 0;
 		break;
 
@@ -1099,6 +1123,8 @@ decode:
 		case 3:
 			return RME_ERR_UNDEFOPCODE;
 		}
+
+		DEBUG_S(" %s", casReg16Names[(byte2>>3)&7]);
 
 		switch(byte2 & 7)
 		{
@@ -1146,16 +1172,19 @@ decode:
 	// -- Loops --
 	case LOOP:	DEBUG_S("LOOP ");
 		READ_INSTR8S( pt2 );
+		DEBUG_S(".+0x%04x", pt2);
 		if(State->CX != 0)
 			State->IP += pt2;
 		break;
 	case LOOPNZ:	DEBUG_S("LOOPNZ ");
 		READ_INSTR8S( pt2 );
+		DEBUG_S(".+0x%04x", pt2);
 		if(State->CX != 0 && !(State->Flags & FLAG_ZF))
 			State->IP += pt2;
 		break;
 	case LOOPZ:	DEBUG_S("LOOPZ ");
 		READ_INSTR8S( pt2 );
+		DEBUG_S(".+0x%04x", pt2);
 		if(State->CX != 0 && State->Flags & FLAG_ZF)
 			State->IP += pt2;
 		break;

@@ -95,6 +95,8 @@ typedef struct
 	 */
 	struct {
 		 int	OverrideSegment;
+		 int	bOverrideOperand;
+		 int	bOverrideAddress;
 		 int	IPOffset;
 	}	Decoder;
 }	tRME_State;
@@ -263,6 +265,7 @@ enum opcodes {
 	TEST_AI = 0xA8,	TEST_AIX = 0xA9,
 
 	STOSB = 0xAA,	STOSW = 0xAB,
+	LODSB = 0xAC,	LODSW = 0xAD,
 	INSB = 0x6C,	INSW = 0x6D,
 
 	// --- Overrides

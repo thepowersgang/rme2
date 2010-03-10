@@ -8,6 +8,11 @@
 #include "common.h"
 #include "../src/rme.h"
 
+typedef struct {
+	uint16_t	Offset;
+	uint16_t	Segment;
+}	t_farptr;
+
 // === CODE ===
 int main()
 {
@@ -30,9 +35,28 @@ int main()
 		emu->Memory[i/RME_BLOCK_SIZE] = (void*)i;
 
 
-	#if 1
-	emu->AX = (0x00<<8) | 0x04;	// Set Mode 0x04
+	#if 0
+	emu->AX = (0x00<<8) | 0x11;	// Set Mode 0x11
 	i = RME_CallInt(emu, 0x10);
+	#endif
+
+	// VESA
+	#if 1
+	{
+		struct VesaControllerInfo {
+			char	Signature[4];	// == "VBE2"
+			uint16_t	Version;	// == 0x0300 for Vesa 3.0
+			t_farptr	OemString;	// isa vbeFarPtr
+			uint8_t	Capabilities[4];
+			t_farptr	Videomodes;	// isa vbeParPtr
+			uint16_t	TotalMemory;// as # of 64KB blocks
+		}	*info = (void*)0x10000;
+		memcpy(info->Signature, "VBE2", 4);
+		emu->AX = 0x4F00;
+		emu->ES = 0x1000;
+		emu->DI = 0;
+		i = RME_CallInt(emu, 0x10);
+	}
 	#endif
 
 	#if 0
@@ -48,9 +72,9 @@ int main()
 
 	// Read Sector
 	#if 0
-	emu->AX = (0x02 << 8) | 1;
+	emu->AX = 0x0201;	// Function 2, 1 sector
 	emu->CX = 1;	// Cylinder 0, Sector 1
-	emu->DX = 0x0;	// Head 0, HDD 1
+	emu->DX = 0x10;	// Head 0, HDD 1
 	emu->ES = 0x1000;	emu->BX = 0x0;
 	i = RME_CallInt(emu, 0x13);
 	printf("\n%02x %02x",
