@@ -339,7 +339,6 @@ int RME_Int_DoOpcode(tRME_State *State)
 	startIP = State->IP;
 	startCS = State->CS;
 
-functionTop:
 	State->Decoder.OverrideSegment = -1;
 	State->Decoder.IPOffset = 0;
 	State->InstrNum ++;
@@ -1056,22 +1055,22 @@ decode:
 	// -- String Operations --
 	case STOSB:
 		DEBUG_S("STOSB ES:[DI] AL");
-		if( repType == REP )	DEBUG_S(" (0x%x times)", Regs->CX);
+		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX);
 		do {
 			ret = RME_Int_Write8(State, State->ES, State->DI, State->AX&0xFF);
 			if(ret)	return ret;
 			State->DI ++;
-		} while(repType == REP && Regs->CX && Regs->CX--);
+		} while(repType == REP && State->CX && State->CX--);
 		repType = 0;
 		break;
 	case STOSW:
 		DEBUG_S("STOSW ES:[DI] AX");
-		if( repType == REP )	DEBUG_S(" (0x%x times)", Regs->CX);
+		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX);
 		do {
 			ret = RME_Int_Write16(State, State->ES, State->DI, State->AX);
 			if(ret)	return ret;
 			State->DI += 2;
-		} while(repType == REP && Regs->CX && (Regs->CX-=2)+2);
+		} while(repType == REP && State->CX && (State->CX-=2)+2);
 		repType = 0;
 		break;
 
