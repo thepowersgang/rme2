@@ -18,7 +18,7 @@
 #include "rme.h"
 
 // Settings
-#define DEBUG	1	// Enable debug?
+#define DEBUG	0	// Enable debug?
 #define	printf	printf	// Formatted print function
 #define	outb(state,port,val)	outb(port,val)	// Write 1 byte to an IO Port
 #define	outw(state,port,val)	outw(port,val)	// Write 2 bytes to an IO Port
@@ -237,10 +237,12 @@ static uint16_t	*Seg(tRME_State *State, int code);
 static int	RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, const char *name);
 
 // === GLOBALS ===
+#if DEBUG
 static const char *casReg8Names[] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
 static const char *casReg16Names[] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
 static const char *casArithOps[] = {"ADD", "OR", "ADC", "SBB", "AND", "SUB", "XOR", "CMP"};
 static const char *casLogicOps[] = {"L0-", "L1-", "L2-", "L3-", "SHL", "SHR", "L6-", "L7-"};
+#endif
 
 // === CODE ===
 /**
@@ -1061,6 +1063,7 @@ decode:
 		goto ret;
 
 	// -- String Operations --
+	// Store
 	case STOSB:
 		DEBUG_S("STOSB ES:[DI] AL");
 		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX);
@@ -1081,6 +1084,7 @@ decode:
 		} while(repType == REP && State->CX && State->CX--);
 		repType = 0;
 		break;
+	// Load
 	case LODSB:
 		DEBUG_S("LODSB AL DS:[SI]");
 		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX);

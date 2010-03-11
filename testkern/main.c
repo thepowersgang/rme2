@@ -20,6 +20,7 @@ int main()
 	void	*lowCache;
 	void	*zeroptr = (void*)0;
 	 int	i;
+	 int	ret;
 
 	Heap_Init();
 
@@ -37,7 +38,7 @@ int main()
 
 	#if 0
 	emu->AX = (0x00<<8) | 0x11;	// Set Mode 0x11
-	i = RME_CallInt(emu, 0x10);
+	ret = RME_CallInt(emu, 0x10);
 	#endif
 
 	// VESA
@@ -51,23 +52,87 @@ int main()
 			t_farptr	Videomodes;	// isa vbeParPtr
 			uint16_t	TotalMemory;// as # of 64KB blocks
 		}	*info = (void*)0x10000;
+		
+		struct {
+			uint16_t	attributes;
+			 uint8_t	winA, winB;
+			uint16_t	granularity;
+			uint16_t	winsize;
+			uint16_t	segmentA, segmentB;
+			t_farptr	realFctPtr;
+			uint16_t	pitch; // bytes per scanline
+
+			uint16_t	Xres, Yres;
+			uint8_t	Wchar, Ychar, planes, bpp, banks;
+			uint8_t	memory_model, bank_size, image_pages;
+			uint8_t	reserved0;
+
+			uint8_t	red_mask, red_position;
+			uint8_t	green_mask, green_position;
+			uint8_t	blue_mask, blue_position;
+			uint8_t	rsv_mask, rsv_position;
+			uint8_t	directcolor_attributes;
+
+			uint32_t	physbase;  // your LFB address ;)
+			uint32_t	reserved1;
+			uint16_t	reserved2;
+		}	*modeinfo = (void*)0x9000;
+		
+		uint16_t	*modes;
+		
 		memcpy(info->Signature, "VBE2", 4);
 		emu->AX = 0x4F00;
 		emu->ES = 0x1000;
 		emu->DI = 0;
-		i = RME_CallInt(emu, 0x10);
+		ret = RME_CallInt(emu, 0x10);
+		printf("emu->AX = 0x%04x\n", emu->AX);
+		printf("info->Videomodes = {Segment:0x%04x,Offset:0x%04x}\n",
+			info->Videomodes.Segment, info->Videomodes.Offset);
+		modes = (void*)( (info->Videomodes.Segment*16) + info->Videomodes.Offset );
+		for(i = 1; modes[i] != 0xFFFF; i++ )
+		{
+			emu->AX = 0x4F01;
+			emu->CX = modes[i];
+			emu->ES = 0x0900;
+			emu->DI = 0x0000;
+			RME_CallInt(emu, 0x10);
+			printf("modes[%i] = 0x%04x\n", i, modes[i]);
+			printf("modeinfo = {\n");
+			printf("  .attributes = 0x%04x\n", modeinfo->attributes);
+			printf("  .pitch = 0x%04x\n", modeinfo->pitch);
+			printf("  .Xres = %i\n", modeinfo->Xres);
+			printf("  .Yres = %i\n", modeinfo->Yres);
+			printf("  .bpp = %i\n", modeinfo->bpp);
+			printf("  .physbase = 0x%08x\n", modeinfo->physbase);
+			
+			/*
+			printf("  .width = %i\n", modes[i].width);
+			printf("  .height = %i\n", modes[i].height);
+			printf("  .pitch = 0x%04x\n", modes[i].pitch);
+			printf("  .bpp = %i\n", modes[i].bpp);
+			printf("  .flags = 0x%04x\n", modes[i].flags);
+			printf("  .fbSize = 0x%04x\n", modes[i].fbSize);
+			printf("  .framebuffer = 0x%08x\n", modes[i].framebuffer);
+			*/
+			printf("}\n");
+			//break;
+		}
+		
+		emu->AX = 0x4F02;
+		emu->BX = 0x0115;	// Qemu 800x600x24
+		RME_CallInt(emu, 0x10);
 	}
 	#endif
 
 	#if 0
 	emu->AX = (0x0B<<8) | 0x00;	// Set Border Colour
 	emu->BX = (0x00<<0) | 0x02;	// Colour 1
-	i = RME_CallInt(emu, 0x10);
+	ret = RME_CallInt(emu, 0x10);
 	#endif
 
 	#if 0
 	emu->AX = (0x0F<<8) | 0;	// Function 0xF?
-	i = RME_CallInt(emu, 0x10);
+	ret = RME_CallInt(emu, 0x10);
 	#endif
 
 	// Read Sector
@@ -76,16 +141,16 @@ int main()
 	emu->CX = 1;	// Cylinder 0, Sector 1
 	emu->DX = 0x10;	// Head 0, HDD 1
 	emu->ES = 0x1000;	emu->BX = 0x0;
-	i = RME_CallInt(emu, 0x13);
+	ret = RME_CallInt(emu, 0x13);
 	printf("\n%02x %02x",
 		*(uint8_t*)(0x10000+510),
 		*(uint8_t*)(0x10000+511)
 		);
 	#endif
 
-	//i = RME_CallInt(emu, 0x11);	// Equipment Test
+	//ret = RME_CallInt(emu, 0x11);	// Equipment Test
 
-	switch( i )
+	switch( ret )
 	{
 	case RME_ERR_OK:
 		printf("\n--- Emulator exited successfully!\n");
@@ -104,7 +169,7 @@ int main()
 		printf("\n--- ERROR: Division Fault\n");
 		break;
 	default:
-		printf("\n--- ERROR: Unknown error %i\n", i);
+		printf("\n--- ERROR: Unknown error %i\n", ret);
 		break;
 	}
 
