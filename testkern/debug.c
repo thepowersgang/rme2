@@ -77,6 +77,14 @@ int puts(const char *str)
 }
 
 /**
+ * \brief ?Sanity check the values for printf?
+ */
+int __printf_chk(int flag, const char *fmt, ...)
+{
+	return 0;	// Check this
+}
+
+/**
  * \brief Print formatted
  */
 int printf(const char *fmt, ...)

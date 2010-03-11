@@ -81,20 +81,20 @@ int main()
 		uint16_t	*modes;
 		
 		memcpy(info->Signature, "VBE2", 4);
-		emu->AX = 0x4F00;
+		emu->AX.W = 0x4F00;
 		emu->ES = 0x1000;
-		emu->DI = 0;
+		emu->DI.W = 0;
 		ret = RME_CallInt(emu, 0x10);
-		printf("emu->AX = 0x%04x\n", emu->AX);
+		printf("emu->AX = 0x%04x\n", emu->AX.W);
 		printf("info->Videomodes = {Segment:0x%04x,Offset:0x%04x}\n",
 			info->Videomodes.Segment, info->Videomodes.Offset);
 		modes = (void*)( (info->Videomodes.Segment*16) + info->Videomodes.Offset );
 		for(i = 1; modes[i] != 0xFFFF; i++ )
 		{
-			emu->AX = 0x4F01;
-			emu->CX = modes[i];
+			emu->AX.W = 0x4F01;
+			emu->CX.W = modes[i];
 			emu->ES = 0x0900;
-			emu->DI = 0x0000;
+			emu->DI.W = 0x0000;
 			RME_CallInt(emu, 0x10);
 			printf("modes[%i] = 0x%04x\n", i, modes[i]);
 			printf("modeinfo = {\n");
@@ -118,29 +118,30 @@ int main()
 			//break;
 		}
 		
-		emu->AX = 0x4F02;
-		emu->BX = 0x0115;	// Qemu 800x600x24
+		emu->AX.W = 0x4F02;
+		emu->BX.W = 0x0115;	// Qemu 800x600x24
 		RME_CallInt(emu, 0x10);
 	}
 	#endif
 
 	#if 0
-	emu->AX = (0x0B<<8) | 0x00;	// Set Border Colour
-	emu->BX = (0x00<<0) | 0x02;	// Colour 1
+	emu->AX.W = (0x0B<<8) | 0x00;	// Set Border Colour
+	emu->BX.W = (0x00<<0) | 0x02;	// Colour 1
 	ret = RME_CallInt(emu, 0x10);
 	#endif
 
 	#if 0
-	emu->AX = (0x0F<<8) | 0;	// Function 0xF?
+	emu->AX.W = (0x0F<<8) | 0;	// Function 0xF?
 	ret = RME_CallInt(emu, 0x10);
 	#endif
 
 	// Read Sector
 	#if 0
-	emu->AX = 0x0201;	// Function 2, 1 sector
-	emu->CX = 1;	// Cylinder 0, Sector 1
-	emu->DX = 0x10;	// Head 0, HDD 1
-	emu->ES = 0x1000;	emu->BX = 0x0;
+	emu->AX.W = 0x0201;	// Function 2, 1 sector
+	emu->CX.W = 1;	// Cylinder 0, Sector 1
+	emu->DX.W = 0x10;	// Head 0, HDD 1
+	emu->ES = 0x1000;
+	emu->BX.W = 0x0;
 	ret = RME_CallInt(emu, 0x13);
 	printf("\n%02x %02x",
 		*(uint8_t*)(0x10000+510),
@@ -154,7 +155,7 @@ int main()
 	{
 	case RME_ERR_OK:
 		printf("\n--- Emulator exited successfully!\n");
-		printf("emu->AX = 0x%04x\n", emu->AX);
+		printf("emu->AX = 0x%04x\n", emu->AX.W);
 		break;
 	case RME_ERR_INVAL:
 		printf("\n--- ERROR: Invalid parameters\n");

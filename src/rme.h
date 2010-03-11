@@ -43,7 +43,10 @@ enum eRME_Errors
 	RME_ERR_INVAL,	//!< Bad paramater passed to emulator
 	RME_ERR_BADMEM,	//!< Emulator accessed invalid memory
 	RME_ERR_UNDEFOPCODE,	//!< Undefined opcode
-	RME_ERR_DIVERR	//!< Divide error
+	RME_ERR_DIVERR,	//!< Divide error
+	RME_ERR_BUG,	//!< Bug in the emulator
+	
+	RME_ERR_LAST	//!< Last Error
 };
 
 /**
@@ -54,12 +57,14 @@ typedef struct
 	//! \brief General Purpose Registers
 	//! \{
 	union {
-		uint16_t	GPRs[8];
+		uint32_t	D;
+		uint16_t	W;
 		struct {
-			uint16_t	AX, CX, DX, BX;
-			uint16_t	SP, BP, SI, DI;
-		};
-	};
+			uint8_t	L;
+			uint8_t	H;
+		}	B;
+	}	AX, CX, DX, BX, SP, BP, SI, DI;
+	
 	//! \}
 
 	//! \brief Segment Registers
