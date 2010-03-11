@@ -104,6 +104,7 @@ int main()
 			printf("  .Yres = %i\n", modeinfo->Yres);
 			printf("  .bpp = %i\n", modeinfo->bpp);
 			printf("  .physbase = 0x%08x\n", modeinfo->physbase);
+			printf("}\n");
 			
 			/*
 			printf("  .width = %i\n", modes[i].width);
@@ -114,7 +115,6 @@ int main()
 			printf("  .fbSize = 0x%04x\n", modes[i].fbSize);
 			printf("  .framebuffer = 0x%08x\n", modes[i].framebuffer);
 			*/
-			printf("}\n");
 			//break;
 		}
 		

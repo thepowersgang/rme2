@@ -18,7 +18,7 @@
 #include "rme.h"
 
 // Settings
-#define DEBUG	0	// Enable debug?
+#define DEBUG	1	// Enable debug?
 #define	printf	printf	// Formatted print function
 #define	outb(state,port,val)	outb(port,val)	// Write 1 byte to an IO Port
 #define	outw(state,port,val)	outw(port,val)	// Write 2 bytes to an IO Port
@@ -231,8 +231,8 @@ static inline int	RME_Int_Read8(tRME_State *State, uint16_t Seg, uint16_t Ofs, u
 static inline int	RME_Int_Read16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t *Dst);
 static inline int	RME_Int_Write8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t Val);
 static inline int	RME_Int_Write16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t Val);
-static int	RME_Int_ParseModRMB(tRME_State *State, uint8_t **to, uint8_t **from) __attribute__((warn_unused_result));
-static int	RME_Int_ParseModRMW(tRME_State *State, uint16_t **to, uint16_t **from) __attribute__((warn_unused_result));
+static int	RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from) __attribute__((warn_unused_result));
+static int	RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from) __attribute__((warn_unused_result));
 static uint16_t	*Seg(tRME_State *State, int code);
 static int	RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, const char *name);
 
@@ -329,11 +329,13 @@ int RME_Int_DoOpcode(tRME_State *State)
 {
 	uint16_t	pt2, pt1;	// Spare Words, used for values read from memory
 	uint16_t	seg;
-//	uint32_t	*toD, *fromD;
-	uint16_t	*toW, *fromW;
+	
+	union {
+		uint32_t	*D;
+		uint16_t	*W;
+	}	to, from;
 	 uint8_t	*toB, *fromB;
 	 uint8_t	repType = 0;
-	uint16_t	repStart = 0;
 	 uint8_t	opcode, byte2;
 	 int	ret;
 
@@ -384,41 +386,39 @@ decode:
 	// Repeat Prefix
 	case REP:	DEBUG_S("REP ");
 		repType = REP;
-		repStart = State->IP;
 		goto decode;
 	case REPNZ:	DEBUG_S("REPNZ ");
 		repType = REPNZ;
-		repStart = State->IP;
 		goto decode;
 
 	// <op> MR
 	CASE8K(0x00, 0x8):
 		DEBUG_S("%s (MR)", casArithOps[opcode >> 3]);
-		ret = RME_Int_ParseModRMB(State, &fromB, &toB);
+		ret = RME_Int_ParseModRM(State, &fromB, &toB);
 		if(ret)	return ret;
 		RME_Int_DoArithOp( opcode >> 3, State, *toB, *fromB, 8 );
 		break;
 	// <op> MRX
 	CASE8K(0x01, 0x8):
 		DEBUG_S("%s (MRX)", casArithOps[opcode >> 3]);
-		ret = RME_Int_ParseModRMW(State, &fromW, &toW);
+		ret = RME_Int_ParseModRMX(State, &from.W, &to.W);
 		if(ret)	return ret;
-		RME_Int_DoArithOp( opcode >> 3, State, *toW, *fromW, 16 );
+		RME_Int_DoArithOp( opcode >> 3, State, *to.W, *from.W, 16 );
 		break;
 
 	// <op> RM
 	CASE8K(0x02, 0x8):
 		DEBUG_S("%s (RM)", casArithOps[opcode >> 3]);
-		ret = RME_Int_ParseModRMB(State, &toB, &fromB);
+		ret = RME_Int_ParseModRM(State, &toB, &fromB);
 		if(ret)	return ret;
 		RME_Int_DoArithOp( opcode >> 3, State, *toB, *fromB, 8 );
 		break;
 	// <op> RMX
 	CASE8K(0x03, 0x8):
 		DEBUG_S("%s (RM)", casArithOps[opcode >> 3]);
-		ret = RME_Int_ParseModRMW(State, &toW, &fromW);
+		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
-		RME_Int_DoArithOp( opcode >> 3, State, *toW, *fromW, 16 );
+		RME_Int_DoArithOp( opcode >> 3, State, *to.W, *from.W, 16 );
 		break;
 
 	// <op> AI
@@ -439,7 +439,7 @@ decode:
 	case 0x80:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RI)", casArithOps[(byte2 >> 3) & 7]);
-		ret = RME_Int_ParseModRMB(State, NULL, &toB);
+		ret = RME_Int_ParseModRM(State, NULL, &toB);
 		if(ret)	return ret;
 		READ_INSTR8( pt2 );
 		DEBUG_S(" 0x%02x", pt2);
@@ -449,22 +449,22 @@ decode:
 	case 0x81:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RIX)", casArithOps[(byte2 >> 3) & 7]);
-		ret = RME_Int_ParseModRMW(State, NULL, &toW);	//Get Register Value
+		ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 		if(ret)	return ret;
 		READ_INSTR16( pt2 );
 		DEBUG_S(" 0x%04x", pt2);	//Print Immediate Valiue
-		RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *toB, pt2, 8 );
+		RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *to.W, pt2, 16 );
 		break;
 	// 0x82 MAY be a valid instruction, with the same effect as 0x80 (<op> RI)
 	// <op> RI8X
 	case 0x83:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RI8X)", casArithOps[(byte2 >> 3) & 7]);
-		ret = RME_Int_ParseModRMW(State, NULL, &toW);	//Get Register Value
+		ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 		if(ret)	return ret;
 		READ_INSTR8S( pt2 );
 		DEBUG_S(" 0x%04x", pt2);
-		RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *toW, pt2, 16 );
+		RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *to.W, pt2, 16 );
 		break;
 
 	// ==== Logic Functions (Shifts) ===
@@ -478,7 +478,7 @@ decode:
 	case 0xC0:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RI8)", casLogicOps[(byte2 >> 3) & 7]);
-		ret = RME_Int_ParseModRMB(State, NULL, &toB);
+		ret = RME_Int_ParseModRM(State, NULL, &toB);
 		if(ret)	return ret;
 		READ_INSTR8( pt2 );
 		DEBUG_S("0x%02x", pt2);
@@ -488,17 +488,17 @@ decode:
 	case 0xC1:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RI8X)", casLogicOps[(byte2 >> 3) & 7]);
-		ret = RME_Int_ParseModRMW(State, NULL, &toW);
+		ret = RME_Int_ParseModRMX(State, NULL, &to.W);
 		if(ret)	return ret;
 		READ_INSTR8( pt2 );
 		DEBUG_S("0x%02x", pt2);
-		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toW, pt2, 8 );
+		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *to.W, pt2, 8 );
 		break;
 	// <op> R1
 	case 0xD0:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (R1)", casLogicOps[(byte2 >> 3) & 7]);
-		ret = RME_Int_ParseModRMB(State, NULL, &toB);
+		ret = RME_Int_ParseModRM(State, NULL, &toB);
 		if(ret)	return ret;
 		DEBUG_S(" 1");
 		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toB, 1, 8 );
@@ -507,16 +507,16 @@ decode:
 	case 0xD1:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (R1X)", casLogicOps[(byte2 >> 3) & 7]);
-		ret = RME_Int_ParseModRMW(State, NULL, &toW);
+		ret = RME_Int_ParseModRMX(State, NULL, &to.W);
 		if(ret)	return ret;
 		DEBUG_S(" 1");
-		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toW, 1, 8 );
+		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *to.W, 1, 8 );
 		break;
 	// <op> RCl
 	case 0xD2:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RCl)", casLogicOps[(byte2 >> 3) & 7]);
-		ret = RME_Int_ParseModRMB(State, NULL, &toB);
+		ret = RME_Int_ParseModRM(State, NULL, &toB);
 		if(ret)	return ret;
 		DEBUG_S(" CL");
 		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toB, State->CX&0xFF, 8 );
@@ -525,10 +525,10 @@ decode:
 	case 0xD3:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RClX)", casLogicOps[(byte2 >> 3) & 7]);
-		ret = RME_Int_ParseModRMW(State, NULL, &toW);
+		ret = RME_Int_ParseModRMX(State, NULL, &to.W);
 		if(ret)	return ret;
 		DEBUG_S(" CL");
-		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toW, State->CX&0xFF, 8 );
+		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *to.W, State->CX&0xFF, 8 );
 		break;
 
 	// <op> RI
@@ -538,7 +538,7 @@ decode:
 		{
 		case 0:	// TEST r/m8, Imm8
 			DEBUG_S("TEST (RI)");
-			ret = RME_Int_ParseModRMB(State, NULL, &toB);
+			ret = RME_Int_ParseModRM(State, NULL, &toB);
 			if(ret)	return ret;
 			READ_INSTR8(pt2);
 			DEBUG_S(" 0x%02x", pt2);
@@ -553,12 +553,12 @@ decode:
 		//case 5:	break;	// IMUL AX = AL * r/m8
 		case 6:	// DIV AX, r/m8 (unsigned)
 			DEBUG_S("DIV (RI) AX");
-			ret = RME_Int_ParseModRMB(State, NULL, &fromB);
+			ret = RME_Int_ParseModRM(State, NULL, &fromB);
 			if(ret)	return ret;
 			if(*fromB == 0)	return RME_Int_Expt_DivideError(State);
-			pt2 = State->AX / *fromW;
+			pt2 = State->AX / *fromB;
 			if(pt2 > 0xFF)	return RME_Int_Expt_DivideError(State);
-			pt2 |= (State->AX - pt2 * (*fromW)) << 8;
+			pt2 |= (State->AX - pt2 * (*fromB)) << 8;
 			State->AX = pt2;
 			break;
 		//case 7:	break;	// IDIV AX, r/m8 (signed)
@@ -573,11 +573,11 @@ decode:
 		switch( (byte2>>3) & 7 ) {
 		case 0:	// TEST r/m16, Imm16
 			DEBUG_S("TEST (RIX)");
-			ret = RME_Int_ParseModRMW(State, NULL, &toW);
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);
 			if(ret)	return ret;
 			READ_INSTR16(pt2);
 			DEBUG_S(" 0x%04x", pt2);
-			RME_Int_DoTest(State, *toW, pt2, 16);
+			RME_Int_DoTest(State, *to.W, pt2, 16);
 			break;
 		case 1:
 			DEBUG_S("0xF7 /1 Undefined\n");
@@ -589,10 +589,10 @@ decode:
 			{
 			uint32_t	dword;
 			DEBUG_S("IMUL (RIX) AX");
-			ret = RME_Int_ParseModRMW(State, NULL, &fromW);
+			ret = RME_Int_ParseModRMX(State, NULL, &from.W);
 			if(ret)	return ret;
-			dword = (int16_t)State->AX * (int16_t)*fromW;
-			DEBUG_S(" %04x * %04x = %08x", State->AX, *fromW, dword);
+			dword = (int16_t)State->AX * (int16_t)*from.W;
+			DEBUG_S(" %04x * %04x = %08x", State->AX, *from.W, dword);
 			if((int32_t)dword == (int16_t)State->AX)
 				State->Flags &= ~(FLAG_CF|FLAG_OF);
 			else
@@ -605,14 +605,14 @@ decode:
 			{
 			uint32_t	dword, dword2;
 			DEBUG_S("DIV (RIX) DX:AX");
-			ret = RME_Int_ParseModRMW(State, NULL, &fromW);
+			ret = RME_Int_ParseModRMX(State, NULL, &from.W);
 			if(ret)	return ret;
-			if( *fromW == 0 )	return RME_Int_Expt_DivideError(State);
-			dword = (State->DX<<16)|State->AX;
-			dword2 = dword / *fromW;
+			if( *from.W == 0 )	return RME_Int_Expt_DivideError(State);
+			dword = (State->DX << 16) | State->AX;
+			dword2 = dword / *from.W;
 			if(dword2 > 0xFFFF)	return RME_Int_Expt_DivideError(State);
 			State->AX = dword2;
-			State->DX = dword - dword2 * (*fromW);
+			State->DX = dword - dword2 * (*from.W);
 			}
 			break;
 		//case 7:	break;	// IDIV DX:AX, r/m16
@@ -627,13 +627,13 @@ decode:
 		switch( (byte2>>3) & 7 ) {
 		case 0:
 			DEBUG_S("INC (R)");
-			ret = RME_Int_ParseModRMB(State, NULL, &toB);	//Get Register Value
+			ret = RME_Int_ParseModRM(State, NULL, &toB);	//Get Register Value
 			if(ret)	return ret;
 			(*toB) ++;
 			break;
 		case 1:
 			DEBUG_S("DEC (R)");
-			ret = RME_Int_ParseModRMB(State, NULL, &toB);	//Get Register Value
+			ret = RME_Int_ParseModRM(State, NULL, &toB);	//Get Register Value
 			if(ret)	return ret;
 			(*toB) --;
 			break;
@@ -648,42 +648,42 @@ decode:
 		switch( (byte2>>3) & 7 ) {
 		case 0:
 			DEBUG_S("INC (RX)");
-			ret = RME_Int_ParseModRMW(State, NULL, &toW);	//Get Register Value
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 			if(ret)	return ret;
-			(*toW) ++;
+			(*to.W) ++;
 			break;
 		case 1:
 			DEBUG_S("DEC (RX)");
-			ret = RME_Int_ParseModRMW(State, NULL, &toW);	//Get Register Value
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 			if(ret)	return ret;
-			(*toW) --;
+			(*to.W) --;
 			break;
 		case 2:
 			DEBUG_S("CALL (RX) NEAR");
-			ret = RME_Int_ParseModRMW(State, NULL, &toW);	//Get Register Value
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 			if(ret)	return ret;
 			PUSH( State->IP + State->Decoder.IPOffset );
-			DEBUG_S(" (0x%04x)", *toW);
-			State->IP = *toW;
+			DEBUG_S(" (0x%04x)", *to.W);
+			State->IP = *to.W;
 			goto ret;
 		case 3:
 			DEBUG_S("CALL (MX) FAR --NI--\n");
 			return RME_ERR_UNDEFOPCODE;
 		case 4:
 			DEBUG_S("JMP (RX) NEAR");
-			ret = RME_Int_ParseModRMW(State, NULL, &toW);	//Get Register Value
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 			if(ret)	return ret;
-			DEBUG_S(" (0x%04x)", *toW);
-			State->IP = *toW;
+			DEBUG_S(" (0x%04x)", *to.W);
+			State->IP = *to.W;
 			goto ret;
 		case 5:
 			DEBUG_S("JMP (MX) FAR --NI--\n");
 			return RME_ERR_UNDEFOPCODE;
 		case 6:
 			DEBUG_S("PUSH (RX)");
-			ret = RME_Int_ParseModRMW(State, NULL, &toW);	//Get Register Value
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 			if(ret)	return ret;
-			PUSH( *toW );
+			PUSH( *to.W );
 			break;
 		case 7:
 			DEBUG_S("0xFF /7 - Undefined\n");
@@ -693,14 +693,14 @@ decode:
 
 	//TEST Family
 	case TEST_RM:	DEBUG_S("TEST (RR)");	//Test Register
-		ret = RME_Int_ParseModRMB(State, &toB, &fromB);
+		ret = RME_Int_ParseModRM(State, &toB, &fromB);
 		if(ret)	return ret;
 		RME_Int_DoTest(State, *toB, *fromB, 8);
 		break;
 	case TEST_RMX:	DEBUG_S("TEST (RRX)");	//Test Register Extended
-		ret = RME_Int_ParseModRMW(State, &toW, &fromW);
+		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
-		RME_Int_DoTest(State, *toW, *fromW, 16);
+		RME_Int_DoTest(State, *to.W, *from.W, 16);
 		break;
 	case TEST_AI:	DEBUG_S("TEST (AI)");
 		READ_INSTR8( pt2 );
@@ -841,7 +841,7 @@ decode:
 		break;
 	case MOV_MI:
 		DEBUG_S("MOV (RI)");
-		ret = RME_Int_ParseModRMB(State, &toB, NULL);
+		ret = RME_Int_ParseModRM(State, &toB, NULL);
 		if(ret)	return ret;
 		READ_INSTR8( pt2 );
 		DEBUG_S(" 0x%02x", pt2);
@@ -849,33 +849,33 @@ decode:
 		break;
 	case MOV_MIX:
 		DEBUG_S("MOV (RIX)");
-		ret = RME_Int_ParseModRMW(State, &toW, NULL);
+		ret = RME_Int_ParseModRMX(State, &to.W, NULL);
 		if(ret)	return ret;
 		READ_INSTR16( pt2 );
 		DEBUG_S(" 0x%04x", pt2);
-		*toW = pt2;
+		*to.W = pt2;
 		break;
 	case MOV_RM:
 		DEBUG_S("MOV (RM)");
-		ret = RME_Int_ParseModRMB(State, &toB, &fromB);
+		ret = RME_Int_ParseModRM(State, &toB, &fromB);
 		if(ret)	return ret;
 		*toB = *fromB;
 		break;
 	case MOV_RMX:
 		DEBUG_S("MOV (RMX)");
-		ret = RME_Int_ParseModRMW(State, &toW, &fromW);
+		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
-		*toW = *fromW;
+		*to.W = *from.W;
 		break;
 	case MOV_MR:	DEBUG_S("MOV (RM) REV");
-		ret = RME_Int_ParseModRMB(State, &fromB, &toB);
+		ret = RME_Int_ParseModRM(State, &fromB, &toB);
 		if(ret)	return ret;
 		*toB = *fromB;
 		break;
 	case MOV_MRX:	DEBUG_S("MOV (RMX) REV");
-		ret = RME_Int_ParseModRMW(State, &fromW, &toW);
+		ret = RME_Int_ParseModRMX(State, &from.W, &to.W);
 		if(ret)	return ret;
-		*toW = *fromW;
+		*to.W = *from.W;
 		break;
 
 	case MOV_RI_AL:	case MOV_RI_CL:
@@ -902,19 +902,19 @@ decode:
 	case MOV_RS:
 		DEBUG_S("MOV (RS)");
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
-		fromW = Seg(State, (byte2>>3)&7);
-		ret = RME_Int_ParseModRMW(State, NULL, &toW);
+		from.W = Seg(State, (byte2>>3)&7);
+		ret = RME_Int_ParseModRMX(State, NULL, &to.W);
 		if(ret)	return ret;
-		*toW = *fromW;
+		*to.W = *from.W;
 		break;
 
 	case MOV_SR:
 		DEBUG_S("MOV (SR)");
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
-		toW = Seg(State, (byte2>>3)&7);
-		ret = RME_Int_ParseModRMW(State, NULL, &fromW);
+		to.W = Seg(State, (byte2>>3)&7);
+		ret = RME_Int_ParseModRMX(State, NULL, &from.W);
 		if(ret)	return ret;
-		*toW = *fromW;
+		*to.W = *from.W;
 		break;
 
 
@@ -970,9 +970,9 @@ decode:
 		break;
 	case XCHG_RM:
 		DEBUG_S("XCHG (RM)");
-		ret = RME_Int_ParseModRMW(State, &toW, &fromW);
+		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
-		pt2 = *toW;		*toW = *fromW;	*fromW = pt2;
+		pt2 = *to.W;	*to.W = *from.W;	*from.W = pt2;
 		break;
 
 	//PUSH Family
@@ -1111,7 +1111,7 @@ decode:
 		DEBUG_S("LEA");
 		// LEA needs to parse the address itself, because it needs the
 		// emulated address, not the true address.
-		// Hence, it cannot use RME_Int_ParseModRMB/W
+		// Hence, it cannot use RME_Int_ParseModRM/W
 		READ_INSTR8(byte2);
 		switch(byte2 >> 6)
 		{
@@ -1451,7 +1451,7 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, void *ptr)
  * \param to	R field destination (ignored if NULL)
  * \param from	M field destination (ignored if NULL)
  */
-int RME_Int_ParseModRMB(tRME_State *State, uint8_t **to, uint8_t **from)
+int RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from)
 {
 	uint8_t	d;
 	uint16_t	ofs;
@@ -1500,7 +1500,7 @@ int RME_Int_ParseModRMB(tRME_State *State, uint8_t **to, uint8_t **from)
  * \param to	R field destination (ignored if NULL)
  * \param from	M field destination (ignored if NULL)
  */
-int RME_Int_ParseModRMW(tRME_State *State, uint16_t **to, uint16_t **from)
+int RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from)
 {
 	uint8_t	d;
 	uint16_t	ofs;
