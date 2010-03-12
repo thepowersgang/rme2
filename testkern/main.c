@@ -36,13 +36,13 @@ int main()
 		emu->Memory[i/RME_BLOCK_SIZE] = (void*)i;
 
 
-	#if 0
-	emu->AX = (0x00<<8) | 0x11;	// Set Mode 0x11
+	#if 1
+	emu->AX.W = (0x00<<8) | 0x11;	// Set Mode 0x11
 	ret = RME_CallInt(emu, 0x10);
 	#endif
 
 	// VESA
-	#if 1
+	#if 0
 	{
 		struct VesaControllerInfo {
 			char	Signature[4];	// == "VBE2"

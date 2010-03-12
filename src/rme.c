@@ -490,7 +490,9 @@ decode:
 			RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *to.W, pt2, 16 );
 		}
 		break;
+	
 	// 0x82 MAY be a valid instruction, with the same effect as 0x80 (<op> RI)
+	
 	// <op> RI8X
 	case 0x83:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
@@ -693,12 +695,18 @@ decode:
 			ret = RME_Int_ParseModRM(State, NULL, &toB);	//Get Register Value
 			if(ret)	return ret;
 			(*toB) ++;
+			State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
+			SET_COMM_FLAGS(State, *toB, 8);
+			State->Flags |= (State->Flags & FLAG_ZF) ? FLAG_OF : 0;
 			break;
 		case 1:
 			DEBUG_S("DEC (R)");
 			ret = RME_Int_ParseModRM(State, NULL, &toB);	//Get Register Value
 			if(ret)	return ret;
 			(*toB) --;
+			State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
+			SET_COMM_FLAGS(State, *toB, 8);
+			State->Flags |= (*toB == 0xFF) ? FLAG_OF : 0;
 			break;
 		default:
 			DEBUG_S("0xFE /%x unknown", (byte2>>3) & 7);
@@ -713,19 +721,32 @@ decode:
 			DEBUG_S("INC (RX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 			if(ret)	return ret;
-			if(State->Decoder.bOverrideOperand)
+			
+			State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
+			if(State->Decoder.bOverrideOperand) {
 				(*to.D) ++;
-			else
+				SET_COMM_FLAGS(State, *to.D, 32);
+			} else {
 				(*to.W) ++;
+				SET_COMM_FLAGS(State, *to.W, 16);
+			}
+			State->Flags |= (State->Flags & FLAG_ZF) ? FLAG_OF : 0;
 			break;
 		case 1:
 			DEBUG_S("DEC (RX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 			if(ret)	return ret;
-			if(State->Decoder.bOverrideOperand)
+			
+			State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
+			if(State->Decoder.bOverrideOperand) {
 				(*to.D) --;
-			else
+				SET_COMM_FLAGS(State, *to.D, 32);
+				State->Flags |= (*to.D == 0xFFFFFFFF) ? FLAG_OF : 0;
+			} else {
 				(*to.W) --;
+				SET_COMM_FLAGS(State, *to.W, 16);
+				State->Flags |= (*to.W == 0xFFFF) ? FLAG_OF : 0;
+			}
 			break;
 		case 2:
 			DEBUG_S("CALL (RX) NEAR");
@@ -793,29 +814,46 @@ decode:
 	// Flag Control
 	case CLC:	DEBUG_S("CLC");	State->Flags &= ~FLAG_CF;	break;
 	case STC:	DEBUG_S("STC");	State->Flags |= FLAG_CF;	break;
-	case CLI:	DEBUG_S("CLI");	State->Flags &= ~FLAG_IF;	break;
-	case STI:	DEBUG_S("STI");	State->Flags |= FLAG_IF;	break;
+	case CLI:	DEBUG_S("CLI");
+		State->Flags &= ~FLAG_IF;
+		//if(State->bReflectIF)	__asm__ __volatile__ ("cli");
+		break;
+	case STI:	DEBUG_S("STI");
+		State->Flags |= FLAG_IF;
+		//if(State->bReflectIF)	__asm__ __volatile__ ("sti");
+		break;
 	case CLD:	DEBUG_S("CLD");	State->Flags &= ~FLAG_DF;	break;
 	case STD:	DEBUG_S("STD");	State->Flags |= FLAG_DF;	break;
 
-	// DEC Register
-	case DEC_A:		DEBUG_S("DEC AX");	State->AX.W --;	break;
-	case DEC_B:		DEBUG_S("DEC BX");	State->BX.W --;	break;
-	case DEC_C:		DEBUG_S("DEC CX");	State->CX.W --;	break;
-	case DEC_D:		DEBUG_S("DEC DX");	State->DX.W --;	break;
-	case DEC_Sp:	DEBUG_S("DEC SP");	State->SP.W --;	break;
-	case DEC_Bp:	DEBUG_S("DEC BP");	State->BP.W --;	break;
-	case DEC_Si:	DEBUG_S("DEC SI");	State->SI.W --;	break;
-	case DEC_Di:	DEBUG_S("DEC DI");	State->DI.W --;	break;
 	// INC Register
-	case INC_A:		DEBUG_S("INC AX");	State->AX.W ++;	break;
-	case INC_B:		DEBUG_S("INC BX");	State->BX.W ++;	break;
-	case INC_C:		DEBUG_S("INC CX");	State->CX.W ++;	break;
-	case INC_D:		DEBUG_S("INC DX");	State->DX.W ++;	break;
-	case INC_Sp:	DEBUG_S("INC SP");	State->SP.W ++;	break;
-	case INC_Bp:	DEBUG_S("INC BP");	State->BP.W ++;	break;
-	case INC_Si:	DEBUG_S("INC SI");	State->SI.W ++;	break;
-	case INC_Di:	DEBUG_S("INC DI");	State->DI.W ++;	break;
+	CASE8(INC_A):
+		DEBUG_S("INC ");
+		to.W = RegW(State, opcode&7);
+		State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
+		if(State->Decoder.bOverrideOperand) {
+			(*to.D) ++;
+			SET_COMM_FLAGS(State, *to.D, 32);
+		} else {
+			(*to.W) ++;
+			SET_COMM_FLAGS(State, *to.W, 16);
+		}
+		State->Flags |= (State->Flags & FLAG_ZF) ? FLAG_OF : 0;
+		break;
+	// DEC Register
+	CASE8(DEC_A):
+		DEBUG_S("DEC ");
+		to.W = RegW(State, opcode&7);
+		State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
+		if(State->Decoder.bOverrideOperand) {
+			(*to.D) --;
+			SET_COMM_FLAGS(State, *to.D, 32);
+			State->Flags |= (*to.D == 0xFFFFFFFF) ? FLAG_OF : 0;
+		} else {
+			(*to.W) --;
+			SET_COMM_FLAGS(State, *to.W, 16);
+			State->Flags |= (*to.W == 0xFFFF) ? FLAG_OF : 0;
+		}
+		break;
 
 	// IN <port>, A
 	case IN_AI:	// Imm8, AL
@@ -1175,7 +1213,10 @@ decode:
 	case POP_CX:	DEBUG_S("POP CX");	POP(State->CX.W);	break;
 	case POP_DX:	DEBUG_S("POP DX");	POP(State->DX.W);	break;
 	case POP_BX:	DEBUG_S("POP BX");	POP(State->BX.W);	break;
-	case POP_SP:	DEBUG_S("POP SP");	State->SP.W += 2;	break;	// POP SP does practically nothing
+	case POP_SP:	DEBUG_S("POP SP");
+		POP(State->SP.W);
+		State->SP.W += 2;
+		break;
 	case POP_BP:	DEBUG_S("POP BP");	POP(State->BP.W);	break;
 	case POP_SI:	DEBUG_S("POP SI");	POP(State->SI.W);	break;
 	case POP_DI:	DEBUG_S("POP DI");	POP(State->DI.W);	break;
@@ -1218,7 +1259,10 @@ decode:
 		do {
 			ret = RME_Int_Write8(State, State->ES, State->DI.W, State->AX.B.L);
 			if(ret)	return ret;
-			State->DI.W ++;
+			if(State->Flags & FLAG_DF)
+				State->DI.W --;
+			else
+				State->DI.W ++;
 		} while(repType == REP && State->CX.W && State->CX.W--);
 		repType = 0;
 		break;
@@ -1228,7 +1272,10 @@ decode:
 		do {
 			ret = RME_Int_Write16(State, State->ES, State->DI.W, State->AX.W);
 			if(ret)	return ret;
-			State->DI.W += 2;
+			if(State->Flags & FLAG_DF)
+				State->DI.W -= 2;
+			else
+				State->DI.W += 2;
 		} while(repType == REP && State->CX.W && State->CX.W--);
 		repType = 0;
 		break;
@@ -1239,7 +1286,10 @@ decode:
 		do {
 			ret = RME_Int_Read8(State, State->DS, State->SI.W, &State->AX.B.L);
 			if(ret)	return ret;
-			State->SI.W ++;
+			if(State->Flags & FLAG_DF)
+				State->SI.W --;
+			else
+				State->SI.W ++;
 		} while(repType == REP && State->CX.W && State->CX.W--);
 		repType = 0;
 		break;
@@ -1249,7 +1299,10 @@ decode:
 		do {
 			ret = RME_Int_Read16(State, State->DS, State->SI.W, &State->AX.W);
 			if(ret)	return ret;
-			State->SI.W += 2;
+			if(State->Flags & FLAG_DF)
+				State->SI.W -= 2;
+			else
+				State->SI.W += 2;
 		} while(repType == REP && State->CX.W && State->CX.W--);
 		repType = 0;
 		break;
@@ -1327,19 +1380,19 @@ decode:
 	case LOOP:	DEBUG_S("LOOP ");
 		READ_INSTR8S( pt2 );
 		DEBUG_S(".+0x%04x", pt2);
-		if(State->CX.W != 0)
+		if(State->CX.W-- != 0)
 			State->IP += pt2;
 		break;
 	case LOOPNZ:	DEBUG_S("LOOPNZ ");
 		READ_INSTR8S( pt2 );
 		DEBUG_S(".+0x%04x", pt2);
-		if(State->CX.W != 0 && !(State->Flags & FLAG_ZF))
+		if(State->CX.W-- != 0 && !(State->Flags & FLAG_ZF))
 			State->IP += pt2;
 		break;
 	case LOOPZ:	DEBUG_S("LOOPZ ");
 		READ_INSTR8S( pt2 );
 		DEBUG_S(".+0x%04x", pt2);
-		if(State->CX.W != 0 && State->Flags & FLAG_ZF)
+		if(State->CX.W-- != 0 && State->Flags & FLAG_ZF)
 			State->IP += pt2;
 		break;
 
@@ -1513,16 +1566,30 @@ static inline uint8_t *RegB(tRME_State *State, int num)
  */
 static inline uint16_t *RegW(tRME_State *State, int num)
 {
-	switch(num)
-	{
-	case 0:	DEBUG_S(" AX");	return &State->AX.W;
-	case 1:	DEBUG_S(" CX");	return &State->CX.W;
-	case 2:	DEBUG_S(" DX");	return &State->DX.W;
-	case 3:	DEBUG_S(" BX");	return &State->BX.W;
-	case 4:	DEBUG_S(" SP");	return &State->SP.W;
-	case 5:	DEBUG_S(" BP");	return &State->BP.W;
-	case 6:	DEBUG_S(" SI");	return &State->SI.W;
-	case 7:	DEBUG_S(" DI");	return &State->DI.W;
+	if(State->Decoder.bOverrideOperand) {
+		switch(num)
+		{
+		case 0:	DEBUG_S(" EAX");	return &State->AX.W;
+		case 1:	DEBUG_S(" ECX");	return &State->CX.W;
+		case 2:	DEBUG_S(" EDX");	return &State->DX.W;
+		case 3:	DEBUG_S(" EBX");	return &State->BX.W;
+		case 4:	DEBUG_S(" ESP");	return &State->SP.W;
+		case 5:	DEBUG_S(" EBP");	return &State->BP.W;
+		case 6:	DEBUG_S(" ESI");	return &State->SI.W;
+		case 7:	DEBUG_S(" EDI");	return &State->DI.W;
+		}
+	} else {
+		switch(num)
+		{
+		case 0:	DEBUG_S(" AX");	return &State->AX.W;
+		case 1:	DEBUG_S(" CX");	return &State->CX.W;
+		case 2:	DEBUG_S(" DX");	return &State->DX.W;
+		case 3:	DEBUG_S(" BX");	return &State->BX.W;
+		case 4:	DEBUG_S(" SP");	return &State->SP.W;
+		case 5:	DEBUG_S(" BP");	return &State->BP.W;
+		case 6:	DEBUG_S(" SI");	return &State->SI.W;
+		case 7:	DEBUG_S(" DI");	return &State->DI.W;
+		}
 	}
 	return 0;
 }
