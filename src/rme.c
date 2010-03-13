@@ -23,9 +23,9 @@
 #define	outB(state,port,val)	outb(port,val)	// Write 1 byte to an IO Port
 #define	outW(state,port,val)	outw(port,val)	// Write 2 bytes to an IO Port
 #define	outD(state,port,val)	outl(port,val)	// Write 4 bytes to an IO Port
-#define	inB(state,port)	inb(port)	// Read 1 byte from an IO Port
-#define	inW(state,port)	inw(port)	// Read 2 bytes from an IO Port
-#define	inD(state,port)	inl(port)	// Read 4 bytes from an IO Port
+#define	inB(state,port,dst)	(*(dst)=inb((port)),0)	// Read 1 byte from an IO Port
+#define	inW(state,port,dst)	(*(dst)=inw((port)),0)	// Read 2 bytes from an IO Port
+#define	inD(state,port,dst)	(*(dst)=inl((port)),0)	// Read 4 bytes from an IO Port
 
 // === CONSTANTS ===
 #define FLAG_DEFAULT	0x2
@@ -862,30 +862,34 @@ decode:
 	case IN_AI:	// Imm8, AL
 		READ_INSTR8( pt2 );
 		DEBUG_S("IN (AI) 0x%02x AL", pt2);
-		State->AX.B.L = inB( State, pt2 );
+		ret = inB( State, pt2, &State->AX.B.L );
+		if(ret)	return ret;
 		break;
 	case IN_AIX:	// Imm8, AX
 		READ_INSTR8( pt2 );
 		if( State->Decoder.bOverrideOperand ) {
 			DEBUG_S("IN (AIX) 0x%02x EAX", pt2);
-			State->AX.D = inD( State, pt2 );
+			ret = inD( State, pt2, &State->AX.D );
 		} else {
 			DEBUG_S("IN (AIX) 0x%02x AX", pt2);
-			State->AX.W = inW( State, pt2 );
+			ret = inW( State, pt2, &State->AX.W );
 		}
+		if(ret)	return ret;
 		break;
 	case IN_ADx:	// DX, AL
 		DEBUG_S("IN (ADx) DX AL");
-		State->AX.B.L = inB(State, State->DX.W);
+		ret = inB(State, State->DX.W, &State->AX.B.L);
+		if(ret)	return ret;
 		break;
 	case IN_ADxX:	// DX, AX
 		if( State->Decoder.bOverrideOperand ) {
 			DEBUG_S("IN (ADxX) DX EAX");
-			State->AX.D = inD(State, State->DX.W);
+			ret = inD(State, State->DX.W, &State->AX.D);
 		} else {
 			DEBUG_S("IN (ADxX) DX AX");
-			State->AX.W = inW(State, State->DX.W);
+			ret = inW(State, State->DX.W, &State->AX.W);
 		}
+		if(ret)	return ret;
 		break;
 	
 	// OUT <port>, A
