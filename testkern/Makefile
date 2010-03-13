@@ -6,7 +6,7 @@ RM = rm -f
 
 ASFLAGS = -felf
 CPPFLAGS = -I.
-CFLAGS = -Wall -Werror -fno-stack-protector
+CFLAGS = -Wall -Werror -fno-stack-protector -O3
 LDFLAGS = -T link.ld
 
 OBJ = start.ao main.o debug.o heap.o lib.o ../src/rme.o

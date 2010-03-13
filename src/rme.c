@@ -19,6 +19,7 @@
 
 // Settings
 #define DEBUG	1	// Enable debug?
+#define ERR_OUTPUT	1	// Enable using printf on an error?
 #define	printf	printf	// Formatted print function
 #define	outB(state,port,val)	(outb(port,val),0)	// Write 1 byte to an IO Port
 #define	outW(state,port,val)	(outw(port,val),0)	// Write 2 bytes to an IO Port
@@ -76,6 +77,11 @@
 # define DEBUG_S(...)	printf(__VA_ARGS__)
 #else
 # define DEBUG_S(...)
+#endif
+#if ERR_OUTPUT
+# define ERROR_S(...)	printf(__VA_ARGS__)
+#else
+# define ERROR_S(...)
 #endif
 
 // === MACRO VOODOO ===
@@ -196,7 +202,7 @@
 	case 5:	RME_Int_DoSub(State, (to), (from), (width));	break;\
 	case 6:	RME_Int_DoXor(State, (to), (from), (width));	break;\
 	case 7:	RME_Int_DoCmp(State, (to), (from), (width));	break;\
-	default: DEBUG_S(" - Undef DoArithOP %i\n", (num));	return RME_ERR_UNDEFOPCODE;\
+	default: DEBUG_S(" - Undef DoArithOP %i\n", (num));	return RME_ERR_BUG;\
 	}}while(0)
 
 // --- Memory Helpers
@@ -261,7 +267,7 @@ static WARN_UNUSED_RET int	RME_Int_ParseModRMX(tRME_State *State, uint16_t **to,
 static inline uint16_t	*Seg(tRME_State *State, int code);
 static inline uint8_t	*RegB(tRME_State *State, int num);
 static inline uint16_t	*RegW(tRME_State *State, int num);
-static WARN_UNUSED_RET int	RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, const char *name);
+static inline WARN_UNUSED_RET int	RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, const char *name);
 
 // === GLOBALS ===
 #if DEBUG
@@ -314,7 +320,7 @@ int RME_CallInt(tRME_State *State, int Num)
 	DEBUG_S("RM_Int: Calling Int 0x%x\n", Num);
 
 	if(Num < 0 || Num > 0xFF) {
-		DEBUG_S("WARNING: %i is not a valid interrupt number", Num);
+		ERROR_S("WARNING: %i is not a valid interrupt number", Num);
 		return RME_ERR_INVAL;
 	}
 
@@ -525,7 +531,7 @@ decode:
 		switch( (num) ) {\
 		case 4:	RME_Int_DoShl(State, (to), (from), (width));	break;\
 		case 5:	RME_Int_DoShr(State, (to), (from), (width));	break;\
-		default: DEBUG_S(" - DoLogicOp Undef %i\n", (num)); return RME_ERR_UNDEFOPCODE;\
+		default: ERROR_S(" - DoLogicOp Undef %i\n", (num)); return RME_ERR_UNDEFOPCODE;\
 		}}while(0)
 	// <op> RI8
 	case 0xC0:
@@ -607,7 +613,7 @@ decode:
 			RME_Int_DoTest(State, *toB, pt2, 8);
 			break;
 		case 1:	// Undef
-			DEBUG_S("0xF6 /1 Undefined\n");
+			ERROR_S("0xF6 /1 Undefined\n");
 			return RME_ERR_UNDEFOPCODE;
 		//case 2:	break;	// NOT r/m8
 		//case 3:	break;	// NEG r/m8
@@ -625,7 +631,7 @@ decode:
 			break;
 		//case 7:	break;	// IDIV AX, r/m8 (signed)
 		default:
-			DEBUG_S("0xF6 /%x unknown\n", (byte2>>3) & 7);
+			ERROR_S("0xF6 /%x unknown\n", (byte2>>3) & 7);
 			return RME_ERR_UNDEFOPCODE;
 		}
 		break;
@@ -649,7 +655,7 @@ decode:
 			}
 			break;
 		case 1:
-			DEBUG_S("0xF7 /1 Undefined\n");
+			ERROR_S("0xF7 /1 Undefined\n");
 			return RME_ERR_UNDEFOPCODE;
 		//case 2:	break;	// NOT r/m16
 		//case 3:	break;	// NEG r/m16
@@ -692,7 +698,7 @@ decode:
 			break;
 		//case 7:	break;	// IDIV DX:AX, r/m16
 		default:
-			DEBUG_S("0xF7 /%x unknown\n", (byte2>>3) & 7);
+			ERROR_S("0xF7 /%x unknown\n", (byte2>>3) & 7);
 			return RME_ERR_UNDEFOPCODE;
 		}
 		break;
@@ -767,7 +773,7 @@ decode:
 			State->IP = *to.W;
 			goto ret;
 		case 3:
-			DEBUG_S("CALL (MX) FAR --NI--\n");
+			ERROR_S("CALL (MX) FAR --NI--\n");
 			return RME_ERR_UNDEFOPCODE;
 		case 4:
 			DEBUG_S("JMP (RX) NEAR");
@@ -777,7 +783,7 @@ decode:
 			State->IP = *to.W;
 			goto ret;
 		case 5:
-			DEBUG_S("JMP (MX) FAR --NI--\n");
+			ERROR_S("JMP (MX) FAR --NI--\n");
 			return RME_ERR_UNDEFOPCODE;
 		case 6:
 			DEBUG_S("PUSH (RX)");
@@ -786,7 +792,7 @@ decode:
 			PUSH( *to.W );
 			break;
 		case 7:
-			DEBUG_S("0xFF /7 - Undefined\n");
+			ERROR_S("0xFF /7 - Undefined\n");
 			return RME_ERR_UNDEFOPCODE;
 		}
 		break;
@@ -1242,8 +1248,9 @@ decode:
 
 	// -- String Operations --
 	// Store
-	case STOSB:
-		DEBUG_S("STOSB ES:[DI] AL");
+	case STOSB:	DEBUG_S("STOSB");
+		DEBUG_S(" ES:[DI]");
+		DEBUG_S(" AL");
 		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX.W);
 		do {
 			ret = RME_Int_Write8(State, State->ES, State->DI.W, State->AX.B.L);
@@ -1286,8 +1293,8 @@ decode:
 		break;
 	
 	// Load
-	case LODSB:
-		DEBUG_S("LODSB AL DS:[SI]");
+	case LODSB:	DEBUG_S("LODS AL");
+		DEBUG_S(" DS:[SI]");
 		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX.W);
 		do {
 			ret = RME_Int_Read8(State, State->DS, State->SI.W, &State->AX.B.L);
@@ -1445,13 +1452,13 @@ decode:
 			break;
 
 		default:
-			DEBUG_S("0x0F 0x%02x unknown\n", byte2);
+			ERROR_S("0x0F 0x%02x unknown\n", byte2);
 			return RME_ERR_UNDEFOPCODE;
 		}
 		break;
 
 	default:
-		DEBUG_S("Unkown Opcode 0x%02x", opcode);
+		ERROR_S("Unkown Opcode 0x%02x", opcode);
 		return RME_ERR_UNDEFOPCODE;
 	}
 
@@ -1818,7 +1825,7 @@ int RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from)
  * \param offset	Offset to add to IP if jump succeeds
  * \param name	Jump class name (Short or Near)
  */
-static int RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, const char *name)
+static inline int RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, const char *name)
 {
 	DEBUG_S("J");
 	switch(type) {
@@ -1882,7 +1889,7 @@ static int RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, c
 
 	default:
 		DEBUG_S(" 0x%x", type);
-		return RME_ERR_UNDEFOPCODE;
+		return RME_ERR_BUG;
 	}
 	DEBUG_S(" %s .+0x%04x", name, offset);
 	return 0;
