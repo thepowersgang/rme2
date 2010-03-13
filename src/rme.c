@@ -1817,32 +1817,47 @@ static int RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, c
 {
 	DEBUG_S("J");
 	switch(type) {
-	case 0x0:	DEBUG_S("O");	//Overflow
+	case 0x0:	DEBUG_S("O");	// Overflow
 		if(State->Flags & FLAG_OF)	State->IP += offset;
 		break;
-	case 0x1:	DEBUG_S("NO");	//No Overflow
+	case 0x1:	DEBUG_S("NO");	// No Overflow
 		if(!(State->Flags & FLAG_OF))	State->IP += offset;
 		break;
-	case 0x2:	DEBUG_S("C");	//Carry
+	case 0x2:	DEBUG_S("C");	// Carry
 		if(State->Flags & FLAG_CF)	State->IP += offset;
 		break;
-	case 0x3:	DEBUG_S("NC");	//No Carry
+	case 0x3:	DEBUG_S("NC");	// No Carry
 		if(!(State->Flags & FLAG_CF))	State->IP += offset;
 		break;
-	case 0x4:	DEBUG_S("Z");	//Equal
+	case 0x4:	DEBUG_S("Z");	// Equal
 		if(State->Flags & FLAG_ZF)	State->IP += offset;
 		break;
-	case 0x5:	DEBUG_S("NZ");	//Not Equal
+	case 0x5:	DEBUG_S("NZ");	// Not Equal
 		if(!(State->Flags & FLAG_ZF))	State->IP += offset;
 		break;
-	case 0x6:	DEBUG_S("BE");	//Below or Equal
+	case 0x6:	DEBUG_S("BE");	// Below or Equal
 		if(State->Flags & FLAG_CF || State->Flags & FLAG_ZF)	State->IP += offset;
 		break;
-	case 0x7:	DEBUG_S("A");	//Above
+	case 0x7:	DEBUG_S("A");	// Above
 		if( !(State->Flags & FLAG_CF) && !(State->Flags & FLAG_ZF))
 			State->IP += offset;
 		break;
-
+	case 0x8:	DEBUG_S("S");	// Sign
+		if( State->Flags & FLAG_SF )
+			State->IP += offset;
+		break;
+	case 0x9:	DEBUG_S("NS");	// Not Sign
+		if( !(State->Flags & FLAG_SF) )
+			State->IP += offset;
+		break;
+	case 0xA:	DEBUG_S("PE");	// Pairity Even
+		if( State->Flags & FLAG_PF )
+			State->IP += offset;
+		break;
+	case 0xB:	DEBUG_S("PO");	// Pairity Odd
+		if( !(State->Flags & FLAG_PF) )
+			State->IP += offset;
+		break;
 	case 0xC:	DEBUG_S("L");	// Less
 		if( !!(State->Flags & FLAG_SF) != !!(State->Flags & FLAG_OF) )
 			State->IP += offset;
@@ -1853,6 +1868,10 @@ static int RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, c
 		break;
 	case 0xE:	DEBUG_S("LE");	// Less or Equal
 		if( State->Flags & FLAG_ZF || !!(State->Flags & FLAG_SF) != !!(State->Flags & FLAG_OF) )
+			State->IP += offset;
+		break;
+	case 0xF:	DEBUG_S("G");	// Greater
+		if( !(State->Flags & FLAG_ZF) || !!(State->Flags & FLAG_SF) == !!(State->Flags & FLAG_OF) )
 			State->IP += offset;
 		break;
 
