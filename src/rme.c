@@ -27,6 +27,9 @@
 #define	inW(state,port,dst)	(*(dst)=inw((port)),0)	// Read 2 bytes from an IO Port
 #define	inD(state,port,dst)	(*(dst)=inl((port)),0)	// Read 4 bytes from an IO Port
 
+// -- Per Compiler macros
+#define	WARN_UNUSED_RET	__attribute__((warn_unused_result))
+
 // === CONSTANTS ===
 #define FLAG_DEFAULT	0x2
 /**
@@ -56,10 +59,15 @@
  */
 
 // --- Stack Primiatives ---
-#define PUSH(v)	RME_Int_Write16(State,State->SS,State->SP.W-=2,(v))
+#define PUSH(v)	do{\
+	ret=RME_Int_Write16(State,State->SS,State->SP.W-=2,(v));\
+	if(ret)return ret;\
+	}while(0)
 #define POP(dst)	do{\
 	uint16_t v;\
-	RME_Int_Read16(State,State->SS,State->SP.W,&v);State->SP.W+=2;\
+	ret=RME_Int_Read16(State,State->SS,State->SP.W,&v);\
+	if(ret)return ret;\
+	State->SP.W+=2;\
 	(dst)=v;\
 	}while(0)
 
@@ -240,25 +248,23 @@ void	RME_DumpRegs(tRME_State *State);
  int	RME_Call(tRME_State *State);
 static int	RME_Int_DoOpcode(tRME_State *State);
 
-static inline int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint16_t Ofs, void **Ptr);
-static inline int	RME_Int_Read8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst);
-static inline int	RME_Int_Read16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t *Dst);
-static inline int	RME_Int_Read32(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint32_t *Dst);
-static inline int	RME_Int_Write8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t Val);
-static inline int	RME_Int_Write16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t Val);
-static inline int	RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint32_t Val);
+static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint16_t Ofs, void **Ptr);
+static inline WARN_UNUSED_RET int	RME_Int_Read8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst);
+static inline WARN_UNUSED_RET int	RME_Int_Read16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t *Dst);
+static inline WARN_UNUSED_RET int	RME_Int_Read32(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint32_t *Dst);
+static inline WARN_UNUSED_RET int	RME_Int_Write8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t Val);
+static inline WARN_UNUSED_RET int	RME_Int_Write16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t Val);
+static inline WARN_UNUSED_RET int	RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint32_t Val);
 
-static int	RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from) __attribute__((warn_unused_result));
-static int	RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from) __attribute__((warn_unused_result));
+static WARN_UNUSED_RET int	RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from) __attribute__((warn_unused_result));
+static WARN_UNUSED_RET int	RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from) __attribute__((warn_unused_result));
 static inline uint16_t	*Seg(tRME_State *State, int code);
 static inline uint8_t	*RegB(tRME_State *State, int num);
 static inline uint16_t	*RegW(tRME_State *State, int num);
-static int	RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, const char *name);
+static WARN_UNUSED_RET int	RME_Int_DoCondJMP(tRME_State *State, uint8_t type, uint16_t offset, const char *name);
 
 // === GLOBALS ===
 #if DEBUG
-//static const char *casReg8Names[] = {"AL", "CL", "DL", "BL", "AH", "CH", "DH", "BH"};
-//static const char *casReg16Names[] = {"AX", "CX", "DX", "BX", "SP", "BP", "SI", "DI"};
 static const char *casArithOps[] = {"ADD", "OR", "ADC", "SBB", "AND", "SUB", "XOR", "CMP"};
 static const char *casLogicOps[] = {"L0-", "L1-", "L2-", "L3-", "SHL", "SHR", "L6-", "L7-"};
 #endif
@@ -314,7 +320,8 @@ int RME_CallInt(tRME_State *State, int Num)
 
 	ret = RME_Int_Read16(State, 0, Num*4, &State->IP);
 	if(ret)	return ret;
-	RME_Int_Read16(State, 0, Num*4+2, &State->CS);
+	ret = RME_Int_Read16(State, 0, Num*4+2, &State->CS);
+	if(ret)	return ret;
 
 	PUSH(State->Flags);
 	PUSH(RME_MAGIC_CS);
@@ -929,8 +936,10 @@ decode:
 	//INT Family
 	case INT3:
 		DEBUG_S("INT 3");
-		RME_Int_Read16(State, 0, 3*4, &pt1);	// Offset
-		RME_Int_Read16(State, 0, 3*4+2, &pt2);	// Segment
+		ret = RME_Int_Read16(State, 0, 3*4, &pt1);	// Offset
+		if(ret)	return ret;
+		ret = RME_Int_Read16(State, 0, 3*4+2, &pt2);	// Segment
+		if(ret)	return ret;
 		PUSH( State->Flags );
 		PUSH( State->CS );
 		PUSH( State->IP );
@@ -940,8 +949,10 @@ decode:
 	case INT_I:
 		READ_INSTR8( byte2 );
 		DEBUG_S("INT 0x%02x", byte2);
-		RME_Int_Read16(State, 0, byte2*4, &pt1);	// Offset
-		RME_Int_Read16(State, 0, byte2*4+2, &pt2);	// Segment
+		ret = RME_Int_Read16(State, 0, byte2*4, &pt1);	// Offset
+		if(ret)	return ret;
+		ret = RME_Int_Read16(State, 0, byte2*4+2, &pt2);	// Segment
+		if(ret)	return ret;
 		PUSH( State->Flags );
 		PUSH( State->CS );
 		PUSH( State->IP );
@@ -960,7 +971,8 @@ decode:
 		seg = *Seg(State, seg);
 		READ_INSTR16( pt2 );
 		DEBUG_S(":0x%04x AL", pt2);
-		RME_Int_Write8(State, seg, pt2, State->AX.W & 0xFF);
+		ret = RME_Int_Write8(State, seg, pt2, State->AX.W & 0xFF);
+		if(ret)	return ret;
 		break;
 	case MOV_MoAX:	DEBUG_S("MOV (MoAX)");	//Store AX at Memory Offset
 		seg = (State->Decoder.OverrideSegment==-1) ? SREG_DS : State->Decoder.OverrideSegment;
@@ -1192,10 +1204,8 @@ decode:
 	case POP_CX:	DEBUG_S("POP CX");	POP(State->CX.W);	break;
 	case POP_DX:	DEBUG_S("POP DX");	POP(State->DX.W);	break;
 	case POP_BX:	DEBUG_S("POP BX");	POP(State->BX.W);	break;
-	case POP_SP:	DEBUG_S("POP SP");
-		POP(State->SP.W);
-		State->SP.W -= 2;	// Counteract the += in the POP macro
-		break;
+	// The POP macro is indirect, so no need to do anthing special
+	case POP_SP:	DEBUG_S("POP SP");	POP(State->SP.W);	break;
 	case POP_BP:	DEBUG_S("POP BP");	POP(State->BP.W);	break;
 	case POP_SI:	DEBUG_S("POP SI");	POP(State->SI.W);	break;
 	case POP_DI:	DEBUG_S("POP DI");	POP(State->DI.W);	break;
@@ -1428,14 +1438,14 @@ ret:
 
 		DEBUG_S("\t;");
 		while(i < 0x10000 && j--) {
-			RME_Int_Read8(State, startCS, i, &byte);
+			ret = RME_Int_Read8(State, startCS, i, &byte);
 			DEBUG_S(" %02x", byte);
 			i ++;
 		}
 		if(j > 0)
 		{
 			while(j--) {
-				RME_Int_Read8(State, startCS, i, &byte);
+				ret = RME_Int_Read8(State, startCS, i, &byte);
 				DEBUG_S(" %02x", byte);
 				i ++;
 			}
