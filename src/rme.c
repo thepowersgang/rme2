@@ -1403,19 +1403,22 @@ decode:
 	case LOOP:	DEBUG_S("LOOP ");
 		READ_INSTR8S( pt2 );
 		DEBUG_S(".+0x%04x", pt2);
-		if(State->CX.W-- != 0)
+		State->CX.W --;
+		if(State->CX.W != 0)
 			State->IP += pt2;
 		break;
 	case LOOPNZ:	DEBUG_S("LOOPNZ ");
 		READ_INSTR8S( pt2 );
 		DEBUG_S(".+0x%04x", pt2);
-		if(State->CX.W-- != 0 && !(State->Flags & FLAG_ZF))
+		State->CX.W --;
+		if(State->CX.W != 0 && !(State->Flags & FLAG_ZF))
 			State->IP += pt2;
 		break;
 	case LOOPZ:	DEBUG_S("LOOPZ ");
 		READ_INSTR8S( pt2 );
 		DEBUG_S(".+0x%04x", pt2);
-		if(State->CX.W-- != 0 && State->Flags & FLAG_ZF)
+		State->CX.W --;
+		if(State->CX.W != 0 && State->Flags & FLAG_ZF)
 			State->IP += pt2;
 		break;
 
