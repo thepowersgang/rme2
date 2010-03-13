@@ -887,6 +887,7 @@ decode:
 			State->AX.W = inW(State, State->DX.W);
 		}
 		break;
+	
 	// OUT <port>, A
 	case OUT_IA:	// Imm8, AL
 		READ_INSTR8( pt2 );
@@ -928,7 +929,6 @@ decode:
 		State->IP = pt1;
 		State->CS = pt2;
 		goto ret;
-		break;
 	case INT_I:
 		READ_INSTR8( byte2 );
 		DEBUG_S("INT 0x%02x", byte2);
@@ -940,42 +940,41 @@ decode:
 		State->IP = pt1;
 		State->CS = pt2;
 		goto ret;
-	case IRET:
-		DEBUG_S("IRET");
+	case IRET:	DEBUG_S("IRET");
 		POP( State->IP );
 		POP( State->CS );
 		POP( State->Flags );
 		goto ret;
 
 	//MOV Family
-	case MOV_MoA:	// Store AL at Memory Offset
-		DEBUG_S("MOV (MoA)");
+	case MOV_MoA:	DEBUG_S("MOV (MoA)");	// Store AL at Memory Offset
 		seg = (State->Decoder.OverrideSegment==-1) ? SREG_DS : State->Decoder.OverrideSegment;
 		seg = *Seg(State, seg);
 		READ_INSTR16( pt2 );
 		DEBUG_S(":0x%04x AL", pt2);
 		RME_Int_Write8(State, seg, pt2, State->AX.W & 0xFF);
 		break;
-	case MOV_MoAX:	//Store AX at Memory Offset
-		DEBUG_S("MOV (MoAX)");
+	case MOV_MoAX:	DEBUG_S("MOV (MoAX)");	//Store AX at Memory Offset
 		seg = (State->Decoder.OverrideSegment==-1) ? SREG_DS : State->Decoder.OverrideSegment;
 		seg = *Seg(State, seg);
 		READ_INSTR16( pt2 );
 		DEBUG_S(":0x%04x", pt2);
 		if(State->Decoder.bOverrideOperand) {
-			DEBUG_S(" AX.D");
-			RME_Int_Write32(State, seg, pt2, State->AX.D);
+			DEBUG_S(" EAX");
+			ret = RME_Int_Write32(State, seg, pt2, State->AX.D);
 		} else {
 			DEBUG_S(" AX");
-			RME_Int_Write16(State, seg, pt2, State->AX.W);
+			ret = RME_Int_Write16(State, seg, pt2, State->AX.W);
 		}
-	case MOV_AMo:	//Memory Offset to AL
-		DEBUG_S("MOV (AMo) AL");
+		if(ret)	return ret;
+		break;
+	case MOV_AMo:	DEBUG_S("MOV (AMo) AL");	//Memory Offset to AL
 		seg = (State->Decoder.OverrideSegment==-1) ? SREG_DS : State->Decoder.OverrideSegment;
 		seg = *Seg(State, seg);
 		READ_INSTR16( pt2 );
 		DEBUG_S(":0x%04x", pt2);
-		RME_Int_Read8(State, seg, pt2, (uint8_t*)&State->AX.W);
+		ret = RME_Int_Read8(State, seg, pt2, (uint8_t*)&State->AX.W);
+		if(ret)	return ret;
 		break;
 	case MOV_AMoX:	//Memory Offset to AX
 		if(State->Decoder.bOverrideOperand)
@@ -987,20 +986,19 @@ decode:
 		READ_INSTR16( pt2 );
 		DEBUG_S(":0x%04x", pt2);
 		if(State->Decoder.bOverrideOperand)
-			RME_Int_Read32(State, State->DS, pt2, &State->AX.D);
+			ret = RME_Int_Read32(State, State->DS, pt2, &State->AX.D);
 		else
-			RME_Int_Read16(State, State->DS, pt2, &State->AX.W);
+			ret = RME_Int_Read16(State, State->DS, pt2, &State->AX.W);
+		if(ret)	return ret;
 		break;
-	case MOV_MI:
-		DEBUG_S("MOV (RI)");
+	case MOV_MI:	DEBUG_S("MOV (RI)");
 		ret = RME_Int_ParseModRM(State, &toB, NULL);
 		if(ret)	return ret;
 		READ_INSTR8( pt2 );
 		DEBUG_S(" 0x%02x", pt2);
 		*toB = pt2;
 		break;
-	case MOV_MIX:
-		DEBUG_S("MOV (RIX)");
+	case MOV_MIX:	DEBUG_S("MOV (RIX)");
 		ret = RME_Int_ParseModRMX(State, &to.W, NULL);
 		if(ret)	return ret;
 		if(State->Decoder.bOverrideOperand) {
@@ -1013,14 +1011,12 @@ decode:
 			*to.W = pt2;
 		}
 		break;
-	case MOV_RM:
-		DEBUG_S("MOV (RM)");
+	case MOV_RM:	DEBUG_S("MOV (RM)");
 		ret = RME_Int_ParseModRM(State, &toB, &fromB);
 		if(ret)	return ret;
 		*toB = *fromB;
 		break;
-	case MOV_RMX:
-		DEBUG_S("MOV (RMX)");
+	case MOV_RMX:	DEBUG_S("MOV (RMX)");
 		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
 		if(State->Decoder.bOverrideOperand)
@@ -1406,6 +1402,7 @@ decode:
 		return RME_ERR_UNDEFOPCODE;
 	}
 
+	// repType is cleared if it is used, so if it's not used, it's invalid
 	if(repType)
 	{
 		DEBUG_S("Prefix 0x%02x used with wrong opcode 0x%02x", repType, opcode);
