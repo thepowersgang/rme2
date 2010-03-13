@@ -29,7 +29,9 @@ extern void *memcpy(void *Dest, const void *Src, size_t Num);
 
 extern void	outb(uint16_t Port, uint8_t Data);
 extern void	outw(uint16_t Port, uint16_t Data);
+extern void	outl(uint16_t Port, uint32_t Data);
 extern uint8_t	inb(uint16_t Port);
 extern uint16_t	inw(uint16_t Port);
+extern uint32_t	inl(uint16_t Port);
 
 #endif

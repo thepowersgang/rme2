@@ -111,6 +111,10 @@ void outw(uint16_t Port, uint16_t Data)
 {
 	__asm__ __volatile__ ("outw %%ax, %%dx"::"d"(Port),"a"(Data));
 }
+void outl(uint16_t Port, uint32_t Data)
+{
+	__asm__ __volatile__ ("outl %%eax, %%dx"::"d"(Port),"a"(Data));
+}
 uint8_t inb(uint16_t Port)
 {
 	uint8_t	ret;
@@ -121,6 +125,12 @@ uint16_t inw(uint16_t Port)
 {
 	uint16_t	ret;
 	__asm__ __volatile__ ("inw %%dx, %%ax":"=a"(ret):"d"(Port));
+	return ret;
+}
+uint32_t inl(uint16_t Port)
+{
+	uint32_t	ret;
+	__asm__ __volatile__ ("inl %%dx, %%eax":"=a"(ret):"d"(Port));
 	return ret;
 }
 

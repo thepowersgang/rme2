@@ -20,10 +20,12 @@
 // Settings
 #define DEBUG	1	// Enable debug?
 #define	printf	printf	// Formatted print function
-#define	outb(state,port,val)	outb(port,val)	// Write 1 byte to an IO Port
-#define	outw(state,port,val)	outw(port,val)	// Write 2 bytes to an IO Port
-#define	inb(state,port)	inb(port)	// Read 1 byte from an IO Port
-#define	inw(state,port)	inw(port)	// Read 2 bytes from an IO Port
+#define	outB(state,port,val)	outb(port,val)	// Write 1 byte to an IO Port
+#define	outW(state,port,val)	outw(port,val)	// Write 2 bytes to an IO Port
+#define	outD(state,port,val)	outl(port,val)	// Write 4 bytes to an IO Port
+#define	inB(state,port)	inb(port)	// Read 1 byte from an IO Port
+#define	inW(state,port)	inw(port)	// Read 2 bytes from an IO Port
+#define	inD(state,port)	inl(port)	// Read 4 bytes from an IO Port
 
 // === CONSTANTS ===
 #define FLAG_DEFAULT	0x2
@@ -79,15 +81,16 @@
 #define CASE16K(b,k)	CASE4K(b,k):CASE4K((b)+4*(k),k):CASE4K((b)+8*(k),k):CASE4K((b)+12*(k),k)
 // --- Operation helpers
 #define PAIRITY8(v)	((((v)>>7)&1)^(((v)>>6)&1)^(((v)>>5)&1)^(((v)>>4)&1)^(((v)>>3)&1)^(((v)>>2)&1)^(((v)>>1)&1)^((v)&1))
+#define PAIRITY16(v)	(PAIRITY8(v) ^ PAIRITY8(v>>8))
 #define SET_PF(State,v,w) do{\
-	if(w==8)State->Flags |= PAIRITY8(v) ? FLAG_PF : 0;\
-	else	State->Flags |= (PAIRITY8(v) ^ PAIRITY8(v>>8)) ? FLAG_PF : 0;\
+	if(w==8)	State->Flags |= PAIRITY8(v) ? FLAG_PF : 0;\
+	else if(w==16)	State->Flags |= PAIRITY16(v) ? FLAG_PF : 0;\
+	else	State->Flags |= (PAIRITY16(v) ^ PAIRITY16((v)>>16)) ? FLAG_PF : 0;\
 	}while(0)
 #define SET_COMM_FLAGS(State,v,w) do{\
 	State->Flags |= ((v) == 0) ? FLAG_ZF : 0;\
 	State->Flags |= ((v) >> ((w)-1)) ? FLAG_SF : 0;\
-	if(w==8)State->Flags |= PAIRITY8(v) ? FLAG_PF : 0;\
-	else	State->Flags |= (PAIRITY8(v) ^ PAIRITY8(v>>8)) ? FLAG_PF : 0;\
+	SET_PF(State, (v), (w));\
 	}while(0)
 
 // --- Operations
@@ -859,39 +862,59 @@ decode:
 	case IN_AI:	// Imm8, AL
 		READ_INSTR8( pt2 );
 		DEBUG_S("IN (AI) 0x%02x AL", pt2);
-		State->AX.B.L = inb( State, pt2 );
+		State->AX.B.L = inB( State, pt2 );
 		break;
 	case IN_AIX:	// Imm8, AX
 		READ_INSTR8( pt2 );
-		DEBUG_S("IN (AIX) 0x%02x AX", pt2);
-		State->AX.W = inw( State, pt2 );
+		if( State->Decoder.bOverrideOperand ) {
+			DEBUG_S("IN (AIX) 0x%02x EAX", pt2);
+			State->AX.D = inD( State, pt2 );
+		} else {
+			DEBUG_S("IN (AIX) 0x%02x AX", pt2);
+			State->AX.W = inW( State, pt2 );
+		}
 		break;
 	case IN_ADx:	// DX, AL
 		DEBUG_S("IN (ADx) DX AL");
-		State->AX.B.L = inb(State, State->DX.W);
+		State->AX.B.L = inB(State, State->DX.W);
 		break;
 	case IN_ADxX:	// DX, AX
-		DEBUG_S("IN (ADxX) DX AX");
-		State->AX.W = inw(State, State->DX.W);
+		if( State->Decoder.bOverrideOperand ) {
+			DEBUG_S("IN (ADxX) DX EAX");
+			State->AX.D = inD(State, State->DX.W);
+		} else {
+			DEBUG_S("IN (ADxX) DX AX");
+			State->AX.W = inW(State, State->DX.W);
+		}
 		break;
 	// OUT <port>, A
 	case OUT_IA:	// Imm8, AL
 		READ_INSTR8( pt2 );
 		DEBUG_S("OUT (IA) 0x%02x AL", pt2);
-		outb( State, pt2, State->AX.B.L );
+		outB( State, pt2, State->AX.B.L );
 		break;
 	case OUT_IAX:	// Imm8, AX
 		READ_INSTR8( pt2 );
-		DEBUG_S("OUT (IAX) 0x%02x AX", pt2);
-		outw( State, pt2, State->AX.W );
+		if( State->Decoder.bOverrideOperand ) {
+			DEBUG_S("OUT (IAX) 0x%02x EAX", pt2);
+			outD( State, pt2, State->AX.D );
+		} else {
+			DEBUG_S("OUT (IAX) 0x%02x AX", pt2);
+			outW( State, pt2, State->AX.W );
+		}
 		break;
 	case OUT_DxA:	// DX, AL
 		DEBUG_S("OUT (DxA) DX AL");
-		outb( State, State->DX.W, State->AX.B.L );
+		outB( State, State->DX.W, State->AX.B.L );
 		break;
 	case OUT_DxAX:	// DX, AX
-		DEBUG_S("OUT (DxAX) DX AX");
-		outw( State, State->DX.W, State->AX.W );
+		if( State->Decoder.bOverrideOperand ) {
+			DEBUG_S("OUT (DxAX) DX EAX");
+			outD( State, State->DX.W, State->AX.D );
+		} else {
+			DEBUG_S("OUT (DxAX) DX AX");
+			outW( State, State->DX.W, State->AX.W );
+		}
 		break;
 
 	//INT Family
