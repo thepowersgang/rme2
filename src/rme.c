@@ -1255,19 +1255,36 @@ decode:
 		} while(repType == REP && State->CX.W && State->CX.W--);
 		repType = 0;
 		break;
-	case STOSW:
-		DEBUG_S("STOSW ES:[DI] AX");
+	case STOSW:	DEBUG_S("STOS");
+		DEBUG_S(" ES:[DI]");
+		if( State->Decoder.bOverrideOperand )
+			DEBUG_S(" EAX");
+		else
+			DEBUG_S(" AX");
+		
 		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX.W);
-		do {
-			ret = RME_Int_Write16(State, State->ES, State->DI.W, State->AX.W);
-			if(ret)	return ret;
-			if(State->Flags & FLAG_DF)
-				State->DI.W -= 2;
-			else
-				State->DI.W += 2;
-		} while(repType == REP && State->CX.W && State->CX.W--);
+		if( State->Decoder.bOverrideOperand )
+		{
+			 int	step = 4;
+			if(State->Flags & FLAG_DF)	step = -step;
+			do {
+				ret = RME_Int_Write32(State, State->ES, State->DI.W, State->AX.D);
+				if(ret)	return ret;
+				State->DI.W += step;
+			} while(repType == REP && State->CX.W && State->CX.W--);
+		}
+		else {
+			 int	step = 2;
+			if(State->Flags & FLAG_DF)	step = -step;
+			do {
+				ret = RME_Int_Write16(State, State->ES, State->DI.W, State->AX.W);
+				if(ret)	return ret;
+				State->DI.W += step;
+			} while(repType == REP && State->CX.W && State->CX.W--);
+		}
 		repType = 0;
 		break;
+	
 	// Load
 	case LODSB:
 		DEBUG_S("LODSB AL DS:[SI]");
@@ -1282,24 +1299,42 @@ decode:
 		} while(repType == REP && State->CX.W && State->CX.W--);
 		repType = 0;
 		break;
-	case LODSW:
-		DEBUG_S("LODSW AX DS:[SI]");
+	case LODSW:	DEBUG_S("LODS");
+		if( State->Decoder.bOverrideOperand )
+			DEBUG_S(" EAX");
+		else
+			DEBUG_S(" AX");
+		DEBUG_S(" DS:[SI]");
+		
 		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX.W);
-		do {
-			ret = RME_Int_Read16(State, State->DS, State->SI.W, &State->AX.W);
-			if(ret)	return ret;
-			if(State->Flags & FLAG_DF)
-				State->SI.W -= 2;
-			else
-				State->SI.W += 2;
-		} while(repType == REP && State->CX.W && State->CX.W--);
+		
+		if( State->Decoder.bOverrideOperand )
+		{
+			 int	step = 4;
+			if(State->Flags & FLAG_DF)	step = -step;
+			do {
+				ret = RME_Int_Read32(State, State->DS, State->SI.W, &State->AX.D);
+				if(ret)	return ret;
+				State->SI.W += step;
+			} while(repType == REP && State->CX.W && State->CX.W--);
+		}
+		else {
+			 int	step = 2;
+			if(State->Flags & FLAG_DF)	step = -step;
+			do {
+				ret = RME_Int_Read16(State, State->DS, State->SI.W, &State->AX.W);
+				if(ret)	return ret;
+				State->SI.W += step;
+			} while(repType == REP && State->CX.W && State->CX.W--);
+		}
 		repType = 0;
 		break;
 
-	// Misc
+	// === Misc ===
+	// Load effective address
 	case LEA:
 		DEBUG_S("LEA");
-		// LEA needs to parse the address itself, because it needs the
+		// LEA parses the address itself, because it needs the
 		// emulated address, not the true address.
 		// Hence, it cannot use RME_Int_ParseModRM/W
 		READ_INSTR8(byte2);
