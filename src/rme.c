@@ -1107,73 +1107,25 @@ decode:
 		State->CS = pt2;	State->IP = pt1;
 		goto ret;
 
-	//XCHG Family
-	case XCHG_AA:	//NOP 0x90
+	// XCHG Family
+	case XCHG_AA:	// NOP 0x90
 		DEBUG_S("NOP");
 		break;
-	case XCHG_AB:
-		if(State->Decoder.bOverrideOperand) {
-			DEBUG_S("XCHG EAX EBX");
-			XCHG(State->AX.D, State->BX.D);
-		} else {
-			DEBUG_S("XCHG AX BX");
-			XCHG(State->AX.W, State->BX.W);
-		}
-		break;
 	case XCHG_AC:
-		if(State->Decoder.bOverrideOperand) {
-			DEBUG_S("XCHG EAX ECX");
-			XCHG(State->AX.D, State->CX.D);
-		} else {
-			DEBUG_S("XCHG AX CX");
-			XCHG(State->AX.W, State->CX.W);
-		}
+	case XCHG_AD:	case XCHG_AB:
+	case XCHG_ASp:	case XCHG_ABp:
+	case XCHG_ASi:	case XCHG_ADi:
+		if(State->Decoder.bOverrideOperand)
+			DEBUG_S("XCHG EAX");
+		else
+			DEBUG_S("XCHG AX");
+		from.W = RegW(State, opcode&7);
+		if(State->Decoder.bOverrideOperand)
+			XCHG(State->AX.D, *from.D);
+		else
+			XCHG(State->AX.W, *from.W);
 		break;
-	case XCHG_AD:
-		if(State->Decoder.bOverrideOperand) {
-			DEBUG_S("XCHG EAX EDX");
-			XCHG(State->AX.D, State->DX.D);
-		} else {
-			DEBUG_S("XCHG AX DX");
-			XCHG(State->AX.W, State->DX.W);
-		}
-		break;
-	case XCHG_ASp:
-		if(State->Decoder.bOverrideOperand) {
-			DEBUG_S("XCHG EAX ESP");
-			XCHG(State->AX.D, State->SP.D);
-		} else {
-			DEBUG_S("XCHG AX SP");
-			XCHG(State->AX.W, State->SP.W);
-		}
-		break;
-	case XCHG_ABp:
-		if(State->Decoder.bOverrideOperand) {
-			DEBUG_S("XCHG EAX EBP");
-			XCHG(State->AX.D, State->BP.D);
-		} else {
-			DEBUG_S("XCHG AX BP");
-			XCHG(State->AX.W, State->BP.W);
-		}
-		break;
-	case XCHG_ASi:
-		if(State->Decoder.bOverrideOperand) {
-			DEBUG_S("XCHG EAX ESI");
-			XCHG(State->AX.D, State->SI.D);
-		} else {
-			DEBUG_S("XCHG AX SI");
-			XCHG(State->AX.W, State->SI.W);
-		}
-		break;
-	case XCHG_ADi:
-		if(State->Decoder.bOverrideOperand) {
-			DEBUG_S("XCHG EAX EDI");
-			XCHG(State->AX.D, State->DI.D);
-		} else {
-			DEBUG_S("XCHG AX DI");
-			XCHG(State->AX.W, State->DI.W);
-		}
-		break;
+
 	case XCHG_RM:
 		DEBUG_S("XCHG (RM)");
 		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
@@ -1184,7 +1136,7 @@ decode:
 			XCHG(*to.W, *from.W);
 		break;
 
-	//PUSH Family
+	// PUSH Family
 	case PUSHF:
 		DEBUG_S("PUSHF");
 		PUSH(State->Flags);
@@ -1238,7 +1190,7 @@ decode:
 	case POP_BX:	DEBUG_S("POP BX");	POP(State->BX.W);	break;
 	case POP_SP:	DEBUG_S("POP SP");
 		POP(State->SP.W);
-		State->SP.W += 2;
+		State->SP.W -= 2;	// Counteract the += in the POP macro
 		break;
 	case POP_BP:	DEBUG_S("POP BP");	POP(State->BP.W);	break;
 	case POP_SI:	DEBUG_S("POP SI");	POP(State->SI.W);	break;
