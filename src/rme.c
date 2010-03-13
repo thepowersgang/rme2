@@ -20,9 +20,9 @@
 // Settings
 #define DEBUG	1	// Enable debug?
 #define	printf	printf	// Formatted print function
-#define	outB(state,port,val)	outb(port,val)	// Write 1 byte to an IO Port
-#define	outW(state,port,val)	outw(port,val)	// Write 2 bytes to an IO Port
-#define	outD(state,port,val)	outl(port,val)	// Write 4 bytes to an IO Port
+#define	outB(state,port,val)	(outb(port,val),0)	// Write 1 byte to an IO Port
+#define	outW(state,port,val)	(outw(port,val),0)	// Write 2 bytes to an IO Port
+#define	outD(state,port,val)	(outl(port,val),0)	// Write 4 bytes to an IO Port
 #define	inB(state,port,dst)	(*(dst)=inb((port)),0)	// Read 1 byte from an IO Port
 #define	inW(state,port,dst)	(*(dst)=inw((port)),0)	// Read 2 bytes from an IO Port
 #define	inD(state,port,dst)	(*(dst)=inl((port)),0)	// Read 4 bytes from an IO Port
@@ -896,30 +896,34 @@ decode:
 	case OUT_IA:	// Imm8, AL
 		READ_INSTR8( pt2 );
 		DEBUG_S("OUT (IA) 0x%02x AL", pt2);
-		outB( State, pt2, State->AX.B.L );
+		ret = outB( State, pt2, State->AX.B.L );
+		if(ret)	return ret;
 		break;
 	case OUT_IAX:	// Imm8, AX
 		READ_INSTR8( pt2 );
 		if( State->Decoder.bOverrideOperand ) {
 			DEBUG_S("OUT (IAX) 0x%02x EAX", pt2);
-			outD( State, pt2, State->AX.D );
+			ret = outD( State, pt2, State->AX.D );
 		} else {
 			DEBUG_S("OUT (IAX) 0x%02x AX", pt2);
-			outW( State, pt2, State->AX.W );
+			ret = outW( State, pt2, State->AX.W );
 		}
+		if(ret)	return ret;
 		break;
 	case OUT_DxA:	// DX, AL
 		DEBUG_S("OUT (DxA) DX AL");
-		outB( State, State->DX.W, State->AX.B.L );
+		ret = outB( State, State->DX.W, State->AX.B.L );
+		if(ret)	return ret;
 		break;
 	case OUT_DxAX:	// DX, AX
 		if( State->Decoder.bOverrideOperand ) {
 			DEBUG_S("OUT (DxAX) DX EAX");
-			outD( State, State->DX.W, State->AX.D );
+			ret = outD( State, State->DX.W, State->AX.D );
 		} else {
 			DEBUG_S("OUT (DxAX) DX AX");
-			outW( State, State->DX.W, State->AX.W );
+			ret = outW( State, State->DX.W, State->AX.W );
 		}
+		if(ret)	return ret;
 		break;
 
 	//INT Family
