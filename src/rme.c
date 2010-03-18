@@ -207,6 +207,7 @@
 	default: DEBUG_S(" - Undef DoArithOP %i\n", (num));	return RME_ERR_BUG;\
 	}}while(0)
 
+
 // --- Memory Helpers
 /**
  * \brief Read an unsigned byte from the instruction stream
@@ -263,6 +264,10 @@ static inline WARN_UNUSED_RET int	RME_Int_Read32(tRME_State *State, uint16_t Seg
 static inline WARN_UNUSED_RET int	RME_Int_Write8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t Val);
 static inline WARN_UNUSED_RET int	RME_Int_Write16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t Val);
 static inline WARN_UNUSED_RET int	RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint32_t Val);
+
+static inline WARN_UNUSED_RET int	RME_Int_DoArithOp8(int Num, tRME_State *State, uint8_t *Dest, uint8_t Src);
+static inline WARN_UNUSED_RET int	RME_Int_DoArithOp16(int Num, tRME_State *State, uint16_t *Dest, uint16_t Src);
+static inline WARN_UNUSED_RET int	RME_Int_DoArithOp32(int Num, tRME_State *State, uint32_t *Dest, uint32_t Src);
 
 static WARN_UNUSED_RET int	RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from) __attribute__((warn_unused_result));
 static WARN_UNUSED_RET int	RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from) __attribute__((warn_unused_result));
@@ -431,7 +436,8 @@ decode:
 		DEBUG_S("%s (MR)", casArithOps[opcode >> 3]);
 		ret = RME_Int_ParseModRM(State, &fromB, &toB);
 		if(ret)	return ret;
-		RME_Int_DoArithOp( opcode >> 3, State, *toB, *fromB, 8 );
+		ret = RME_Int_DoArithOp8( opcode >> 3, State, toB, *fromB );
+		if(ret)	return ret;
 		break;
 	// <op> MRX
 	CASE8K(0x01, 0x8):
@@ -439,9 +445,10 @@ decode:
 		ret = RME_Int_ParseModRMX(State, &from.W, &to.W);
 		if(ret)	return ret;
 		if(State->Decoder.bOverrideOperand)
-			RME_Int_DoArithOp( opcode >> 3, State, *to.D, *from.D, 32 );
+			ret = RME_Int_DoArithOp32( opcode >> 3, State, to.D, *from.D );
 		else
-			RME_Int_DoArithOp( opcode >> 3, State, *to.W, *from.W, 16 );
+			ret = RME_Int_DoArithOp16( opcode >> 3, State, to.W, *from.W );
+		if(ret)	return ret;
 		break;
 
 	// <op> RM
@@ -449,7 +456,8 @@ decode:
 		DEBUG_S("%s (RM)", casArithOps[opcode >> 3]);
 		ret = RME_Int_ParseModRM(State, &toB, &fromB);
 		if(ret)	return ret;
-		RME_Int_DoArithOp( opcode >> 3, State, *toB, *fromB, 8 );
+		ret = RME_Int_DoArithOp8( opcode >> 3, State, toB, *fromB );
+		if(ret)	return ret;
 		break;
 	// <op> RMX
 	CASE8K(0x03, 0x8):
@@ -457,16 +465,18 @@ decode:
 		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
 		if(State->Decoder.bOverrideOperand)
-			RME_Int_DoArithOp( opcode >> 3, State, *to.D, *from.D, 32 );
+			ret = RME_Int_DoArithOp32( opcode >> 3, State, to.D, *from.D );
 		else
-			RME_Int_DoArithOp( opcode >> 3, State, *to.W, *from.W, 16 );
+			ret = RME_Int_DoArithOp16( opcode >> 3, State, to.W, *from.W );
+		if(ret)	return ret;
 		break;
 
 	// <op> AI
 	CASE8K(0x04, 8):
 		READ_INSTR8( pt2 );
 		DEBUG_S("%s (AI) AL 0x%02x", casArithOps[opcode >> 3], pt2);
-		RME_Int_DoArithOp( opcode >> 3, State, State->AX.B.L, pt2, 8 );
+		ret = RME_Int_DoArithOp8( opcode >> 3, State, &State->AX.B.L, pt2 );
+		if(ret)	return ret;
 		break;
 
 	// <op> AIX
@@ -474,12 +484,13 @@ decode:
 		if(State->Decoder.bOverrideOperand) {
 			READ_INSTR32( dword );
 			DEBUG_S("%s (AIX) AX.D 0x%08x", casArithOps[opcode >> 3], dword);
-			RME_Int_DoArithOp( opcode >> 3, State, State->AX.D, dword, 32 );
+			ret = RME_Int_DoArithOp32( opcode >> 3, State, &State->AX.D, dword );
 		} else {
 			READ_INSTR16( pt2 );
 			DEBUG_S("%s (AIX) AX 0x%04x", casArithOps[opcode >> 3], pt2);
-			RME_Int_DoArithOp( opcode >> 3, State, State->AX.W, pt2, 16 );
+			ret = RME_Int_DoArithOp16( opcode >> 3, State, &State->AX.W, pt2 );
 		}
+		if(ret)	return ret;
 		break;
 
 	// <op> RI
@@ -490,7 +501,8 @@ decode:
 		if(ret)	return ret;
 		READ_INSTR8( pt2 );
 		DEBUG_S(" 0x%02x", pt2);
-		RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *toB, pt2, 8 );
+		ret = RME_Int_DoArithOp8( (byte2 >> 3) & 7, State, toB, pt2 );
+		if(ret)	return ret;
 		break;
 	// <op> RIX
 	case 0x81:
@@ -501,12 +513,13 @@ decode:
 		if(State->Decoder.bOverrideOperand) {
 			READ_INSTR32( dword );
 			DEBUG_S(" 0x%08x", dword);
-			RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *to.D, dword, 32 );
+			ret = RME_Int_DoArithOp32( (byte2 >> 3) & 7, State, to.D, dword );
 		} else {
 			READ_INSTR16( pt2 );
 			DEBUG_S(" 0x%04x", pt2);
-			RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *to.W, pt2, 16 );
+			ret = RME_Int_DoArithOp16( (byte2 >> 3) & 7, State, to.W, pt2 );
 		}
+		if(ret)	return ret;
 		break;
 	
 	// 0x82 MAY be a valid instruction, with the same effect as 0x80 (<op> RI)
@@ -520,12 +533,13 @@ decode:
 		if(State->Decoder.bOverrideOperand) {
 			READ_INSTR8S( dword );
 			DEBUG_S(" 0x%08x", dword);
-			RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *to.D, dword, 32 );
+			ret = RME_Int_DoArithOp32( (byte2 >> 3) & 7, State, to.D, dword );
 		} else {
 			READ_INSTR8S( pt2 );
 			DEBUG_S(" 0x%04x", pt2);
-			RME_Int_DoArithOp( (byte2 >> 3) & 7, State, *to.W, pt2, 16 );
+			ret = RME_Int_DoArithOp16( (byte2 >> 3) & 7, State, to.W, pt2 );
 		}
+		if(ret)	return ret;
 		break;
 
 	// ==== Logic Functions (Shifts) ===
@@ -652,7 +666,8 @@ decode:
 	// <op> RIX
 	case 0xF7:	//Register Immidate Extended
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
-		switch( (byte2>>3) & 7 ) {
+		switch( (byte2>>3) & 7 )
+		{
 		case 0:	// TEST r/m16, Imm16
 			DEBUG_S("TEST (RIX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);
@@ -772,7 +787,8 @@ decode:
 
 	case 0xFF:	//Register Extended
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
-		switch( (byte2>>3) & 7 ) {
+		switch( (byte2>>3) & 7 )
+		{
 		case 0:
 			DEBUG_S("INC (RX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
@@ -1617,6 +1633,31 @@ static inline int RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs,
 	ret = RME_Int_GetPtr(State, Seg, Ofs, (void**)&ptr);
 	if(ret)	return ret;
 	*(uint32_t*)ptr = Val;
+	return 0;
+}
+
+/**
+ * \brief Do an arithmatic operation on an 8-bit integer
+ */
+static inline int RME_Int_DoArithOp8(int Num, tRME_State *State, uint8_t *Dest, uint8_t Src)
+{
+	RME_Int_DoArithOp(Num, State, *Dest, Src, 8);
+	return 0;
+}
+/**
+ * \brief Do an arithmatic operation on a 16-bit integer
+ */
+static inline int RME_Int_DoArithOp16(int Num, tRME_State *State, uint16_t *Dest, uint16_t Src)
+{
+	RME_Int_DoArithOp(Num, State, *Dest, Src, 16);
+	return 0;
+}
+/**
+ * \brief Do an arithmatic operation on a 32-bit integer
+ */
+static inline int RME_Int_DoArithOp32(int Num, tRME_State *State, uint32_t *Dest, uint32_t Src)
+{
+	RME_Int_DoArithOp(Num, State, *Dest, Src, 32);
 	return 0;
 }
 
