@@ -22,8 +22,10 @@
 
 /**
  * \brief Size of a memory block
+ * \note Feel free to edit this value, just make sure it stays a power
+ *       of two.
  */
-#define RME_BLOCK_SIZE	(32*1024)
+#define RME_BLOCK_SIZE	0x1000
 
 /**
  * \brief Magic return Instruction Pointer
@@ -49,6 +51,16 @@ enum eRME_Errors
 	RME_ERR_LAST	//!< Last Error
 };
 
+typedef union uGPR
+{
+	uint32_t	D;
+	uint16_t	W;
+	struct {
+		uint8_t	L;
+		uint8_t	H;
+	}	B;
+}	tGPR;
+
 /**
  * \brief Emulator state structure
  */
@@ -56,14 +68,7 @@ typedef struct
 {
 	//! \brief General Purpose Registers
 	//! \{
-	union {
-		uint32_t	D;
-		uint16_t	W;
-		struct {
-			uint8_t	L;
-			uint8_t	H;
-		}	B;
-	}	AX, CX, DX, BX, SP, BP, SI, DI;
+	tGPR	AX, CX, DX, BX, SP, BP, SI, DI;
 	
 	//! \}
 
@@ -74,9 +79,11 @@ typedef struct
 	uint16_t	ES;	//!< Extra Segment
 	//! \}
 
-
+	//! \brief Program Counter
+	//! \{
 	uint16_t	CS;	//!< Code Segment
 	uint16_t	IP;	//!< Instruction Pointer
+	//! \}
 
 	uint16_t	Flags;	//!< State Flags
 
@@ -89,7 +96,7 @@ typedef struct
 	 * NOTE: There is no write protection on these blocks
 	 * \note A value of NULL in a block indicates that the block is invalid
 	 */
-	uint8_t	*Memory[32];	// 1Mib in 32 32 KiB blocks
+	uint8_t	*Memory[0x100000/RME_BLOCK_SIZE];	// 1Mib in 256 4 KiB blocks
 
 	 int	InstrNum;	//!< Total executed instructions
 

@@ -39,10 +39,10 @@
  */
 #define FLAG_CF	0x001	//!< Carry Flag
 #define FLAG_PF	0x004	//!< Pairity Flag
-#define FLAG_AF	0x010	//!< ?
+#define FLAG_AF	0x010	//!< Adjust Flag
 #define FLAG_ZF	0x040	//!< Zero Flag
 #define FLAG_SF	0x080	//!< Sign Flag
-#define FLAG_TF	0x100	//!< ?
+#define FLAG_TF	0x100	//!< Trap Flag (for single stepping)
 #define FLAG_IF	0x200	//!< Interrupt Flag
 #define FLAG_DF	0x400	//!< Direction Flag
 #define FLAG_OF	0x800	//!< Overflow Flag
@@ -102,6 +102,7 @@
 	else	State->Flags |= (PAIRITY16(v) ^ PAIRITY16((v)>>16)) ? FLAG_PF : 0;\
 	}while(0)
 #define SET_COMM_FLAGS(State,v,w) do{\
+	State->Flags &= ~(FLAG_ZF|FLAG_SF|FLAG_CF);\
 	State->Flags |= ((v) == 0) ? FLAG_ZF : 0;\
 	State->Flags |= ((v) >> ((w)-1)) ? FLAG_SF : 0;\
 	SET_PF(State, (v), (w));\
@@ -110,6 +111,7 @@
 // --- Operations
 /**
  * \brief 0 - Add
+ * \todo Set AF
  */
 #define RME_Int_DoAdd(State, to, from, width)	do{\
 	(to) += (from);\
@@ -337,7 +339,7 @@ int RME_CallInt(tRME_State *State, int Num)
 }
 
 /**
- * Call a realmode function (a jump to a magic location is used as the return)
+ * \brief Call a realmode function (a jump to a magic location is used as the return)
  */
 int RME_Call(tRME_State *State)
 {
@@ -605,22 +607,34 @@ decode:
 		switch( (byte2>>3) & 7 )
 		{
 		case 0:	// TEST r/m8, Imm8
-			DEBUG_S("TEST (RI)");
+			DEBUG_S("TEST (MI)");
 			ret = RME_Int_ParseModRM(State, NULL, &toB);
 			if(ret)	return ret;
 			READ_INSTR8(pt2);
 			DEBUG_S(" 0x%02x", pt2);
 			RME_Int_DoTest(State, *toB, pt2, 8);
 			break;
-		case 1:	// Undef
-			ERROR_S("0xF6 /1 Undefined\n");
-			return RME_ERR_UNDEFOPCODE;
-		//case 2:	break;	// NOT r/m8
-		//case 3:	break;	// NEG r/m8
+		// Undefined Opcode
+		case 1:	DEBUG_S("0xF6 /1 Undefined\n");	return RME_ERR_UNDEFOPCODE;
+		// NOT r/m8
+		case 2:	DEBUG_S("NOT (M)");
+			ret = RME_Int_ParseModRM(State, NULL, &toB);
+			if(ret)	return ret;
+			*toB = ~*toB;
+			break;
+		// NEG r/m8
+		case 3:	DEBUG_S("NEG (M)");
+			ret = RME_Int_ParseModRM(State, NULL, &toB);
+			if(ret)	return ret;
+			*toB = -*toB;
+			State->Flags &= ~FLAG_OF;
+			State->Flags |= (*toB == 0) ? FLAG_CF : 0;
+			SET_COMM_FLAGS(State, *toB, 8);
+			break;
 		//case 4:	break;	// MUL AX = AL * r/m8
 		//case 5:	break;	// IMUL AX = AL * r/m8
 		case 6:	// DIV AX, r/m8 (unsigned)
-			DEBUG_S("DIV (RI) AX");
+			DEBUG_S("DIV (MI) AX");
 			ret = RME_Int_ParseModRM(State, NULL, &fromB);
 			if(ret)	return ret;
 			if(*fromB == 0)	return RME_Int_Expt_DivideError(State);
@@ -654,11 +668,37 @@ decode:
 				RME_Int_DoTest(State, *to.W, pt2, 16);
 			}
 			break;
-		case 1:
-			ERROR_S("0xF7 /1 Undefined\n");
-			return RME_ERR_UNDEFOPCODE;
-		//case 2:	break;	// NOT r/m16
-		//case 3:	break;	// NEG r/m16
+		// Undefined Opcode
+		case 1:	DEBUG_S("0xF7 /1 Undefined\n");	return RME_ERR_UNDEFOPCODE;
+		// NOT r/m16
+		case 2:	DEBUG_S("NOT (MX)");
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);
+			if(!ret)	return ret;
+			if(State->Decoder.bOverrideOperand)
+			{
+				*to.D = ~*to.D;
+			} else {
+				*to.W = ~*to.W;
+			}
+			break;
+		// NEG r/m16
+		case 3:	DEBUG_S("NEG (MX)");
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);
+			if(!ret)	return ret;
+			if(State->Decoder.bOverrideOperand)
+			{
+				*to.D = -*to.D;
+				State->Flags &= ~FLAG_OF;
+				State->Flags |= (*to.D == 0) ? FLAG_CF : 0;
+				SET_COMM_FLAGS(State, *to.D, 32);
+			}
+			else {
+				*to.W = -*to.W;
+				State->Flags &= ~FLAG_OF;
+				State->Flags |= (*to.W == 0) ? FLAG_CF : 0;
+				SET_COMM_FLAGS(State, *to.W, 16);
+			}
+			break;
 		//case 4:	break;	// MUL AX, r/m16
 		case 5:	// IMUL AX, r/m16
 			{
@@ -1498,7 +1538,14 @@ ret:
 	return 0;
 }
 
-static inline int RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint16_t Ofs, void **Ptr)
+/**
+ * \brief Convert an eumulated Segment:Offset address into a host pointer
+ * \param State	Emulator State
+ * \param Seg	Segment
+ * \param Offset	Offset
+ * \param Ptr	Pointer to a void* where the final pointer will be stored
+ */
+static inline int RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint16_t Ofs, void* *Ptr)
 {
 	uint32_t	addr = Seg * 16 + Ofs;
 	#if RME_DO_NULL_CHECK

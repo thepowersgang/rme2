@@ -27,7 +27,7 @@ int main()
 	printf("Kernel up and running\n");
 
 	lowCache = malloc( RME_BLOCK_SIZE );
-	memcpy(lowCache, zeroptr, RME_BLOCK_SIZE+1);
+	memcpy(lowCache, zeroptr, RME_BLOCK_SIZE);
 
 	emu = RME_CreateState();
 
