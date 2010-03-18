@@ -108,70 +108,7 @@
 	SET_PF(State, (v), (w));\
 	}while(0)
 
-// --- Operations
-/**
- * \brief 0 - Add
- * \todo Set AF
- */
-#define RME_Int_DoAdd(State, to, from, width)	do{\
-	(to) += (from);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	State->Flags |= ((to) < (from)) ? FLAG_OF|FLAG_CF : 0;\
-	}while(0)
-/**
- * \brief 1 - Bitwise OR
- */
-#define RME_Int_DoOr(State, to, from, width)	do{\
-	(to) |= (from);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	}while(0)
-/**
- * \brief 2 - Add with Carry
- */
-#define RME_Int_DoAdc(State, to, from, width)	do{\
-	(to) += (from) + ((State->Flags&FLAG_CF)?1:0);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	State->Flags |= ((to) < (from)) ? FLAG_OF|FLAG_CF : 0;\
-	}while(0)
-/**
- * \brief 3 - Subtract with borrow
- */
-#define RME_Int_DoSbb(State, to, from, width)	do{\
-	(to) -= (from) + ((State->Flags&FLAG_CF)?1:0);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	State->Flags |= ((to) > (from)) ? FLAG_OF|FLAG_CF : 0;\
-	}while(0)
-// 4: Bitwise AND
-#define RME_Int_DoAnd(State, to, from, width)	do{\
-	(to) &= (from);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	}while(0)
-// 5: Subtract
-#define RME_Int_DoSub(State, to, from, width)	do{\
-	(to) -= (from);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	State->Flags |= ((to) > (from)) ? FLAG_OF|FLAG_CF : 0;\
-	}while(0)
-// 6: Bitwise XOR
-#define RME_Int_DoXor(State, to, from, width)	do{\
-	(to) ^= (from);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	}while(0)
-// 7: Compare (Set flags according to SUB)
-#define RME_Int_DoCmp(State, to, from, width)	do{\
-	int v = (to)-(from);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,v,(width));\
-	State->Flags |= (v < 0) ? FLAG_OF|FLAG_CF : 0;\
-	}while(0)
-
+// --- OPERATIONS ---
 // Logical TEST (Set flags according to AND)
 #define RME_Int_DoTest(State, to, from, width)	do{\
 	int v = (to) & (from);\
@@ -190,23 +127,6 @@
 	SET_COMM_FLAGS(State,(to),(width));\
 	State->Flags |= ((to) & 1) ? FLAG_CF : 0;\
 	}while(0)
-
-/**
- * \brief Delegates an Arithmatic Operation to the required helper
- */
-#define RME_Int_DoArithOp(num, State, to, from, width)	do{\
-	switch( (num) ) {\
-	case 0:	RME_Int_DoAdd(State, (to), (from), (width));	break;\
-	case 1:	RME_Int_DoOr (State, (to), (from), (width));	break;\
-	case 2:	RME_Int_DoAdc(State, (to), (from), (width));	break;\
-	case 3:	RME_Int_DoSbb(State, (to), (from), (width));	break;\
-	case 4:	RME_Int_DoAnd(State, (to), (from), (width));	break;\
-	case 5:	RME_Int_DoSub(State, (to), (from), (width));	break;\
-	case 6:	RME_Int_DoXor(State, (to), (from), (width));	break;\
-	case 7:	RME_Int_DoCmp(State, (to), (from), (width));	break;\
-	default: DEBUG_S(" - Undef DoArithOP %i\n", (num));	return RME_ERR_BUG;\
-	}}while(0)
-
 
 // --- Memory Helpers
 /**
@@ -1636,6 +1556,84 @@ static inline int RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs,
 	return 0;
 }
 
+/**
+ * \brief 0 - Add
+ * \todo Set AF
+ */
+#define RME_Int_DoAdd(State, to, from, width)	do{\
+	(to) += (from);\
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
+	SET_COMM_FLAGS(State,(to),(width));\
+	State->Flags |= ((to) < (from)) ? FLAG_OF|FLAG_CF : 0;\
+	}while(0)
+/**
+ * \brief 1 - Bitwise OR
+ */
+#define RME_Int_DoOr(State, to, from, width)	do{\
+	(to) |= (from);\
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
+	SET_COMM_FLAGS(State,(to),(width));\
+	}while(0)
+/**
+ * \brief 2 - Add with Carry
+ */
+#define RME_Int_DoAdc(State, to, from, width)	do{\
+	(to) += (from) + ((State->Flags&FLAG_CF)?1:0);\
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
+	SET_COMM_FLAGS(State,(to),(width));\
+	State->Flags |= ((to) < (from)) ? FLAG_OF|FLAG_CF : 0;\
+	}while(0)
+/**
+ * \brief 3 - Subtract with borrow
+ */
+#define RME_Int_DoSbb(State, to, from, width)	do{\
+	(to) -= (from) + ((State->Flags&FLAG_CF)?1:0);\
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
+	SET_COMM_FLAGS(State,(to),(width));\
+	State->Flags |= ((to) > (from)) ? FLAG_OF|FLAG_CF : 0;\
+	}while(0)
+// 4: Bitwise AND
+#define RME_Int_DoAnd(State, to, from, width)	do{\
+	(to) &= (from);\
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
+	SET_COMM_FLAGS(State,(to),(width));\
+	}while(0)
+// 5: Subtract
+#define RME_Int_DoSub(State, to, from, width)	do{\
+	(to) -= (from);\
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
+	SET_COMM_FLAGS(State,(to),(width));\
+	State->Flags |= ((to) > (from)) ? FLAG_OF|FLAG_CF : 0;\
+	}while(0)
+// 6: Bitwise XOR
+#define RME_Int_DoXor(State, to, from, width)	do{\
+	(to) ^= (from);\
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
+	SET_COMM_FLAGS(State,(to),(width));\
+	}while(0)
+// 7: Compare (Set flags according to SUB)
+#define RME_Int_DoCmp(State, to, from, width)	do{\
+	int v = (to)-(from);\
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
+	SET_COMM_FLAGS(State,v,(width));\
+	State->Flags |= (v < 0) ? FLAG_OF|FLAG_CF : 0;\
+	}while(0)
+
+/**
+ * \brief Delegates an Arithmatic Operation to the required helper
+ */
+#define RME_Int_DoArithOp(num, State, to, from, width)	do{\
+	switch( (num) ) {\
+	case 0:	RME_Int_DoAdd(State, (to), (from), (width));	break;\
+	case 1:	RME_Int_DoOr (State, (to), (from), (width));	break;\
+	case 2:	RME_Int_DoAdc(State, (to), (from), (width));	break;\
+	case 3:	RME_Int_DoSbb(State, (to), (from), (width));	break;\
+	case 4:	RME_Int_DoAnd(State, (to), (from), (width));	break;\
+	case 5:	RME_Int_DoSub(State, (to), (from), (width));	break;\
+	case 6:	RME_Int_DoXor(State, (to), (from), (width));	break;\
+	case 7:	RME_Int_DoCmp(State, (to), (from), (width));	break;\
+	default: DEBUG_S(" - Undef DoArithOP %i\n", (num));	return RME_ERR_BUG;\
+	}}while(0)
 /**
  * \brief Do an arithmatic operation on an 8-bit integer
  */
