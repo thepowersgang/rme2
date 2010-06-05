@@ -228,10 +228,17 @@ tRME_State *RME_CreateState(void)
 void RME_DumpRegs(tRME_State *State)
 {
 	DEBUG_S("\n");
+	#if USE_SIZE_OVERRIDES == 1
 	DEBUG_S("EAX %08x  ECX %08x  EDX %08x  EBX %08x\n",
 		State->AX.D, State->BX.D, State->CX.D, State->DX.D);
 	DEBUG_S("ESP %08x  EBP %08x  ESI %08x  EDI %08x\n",
 		State->SP.D, State->BP.D, State->SI.D, State->DI.D);
+	#else
+	DEBUG_S("AX %04x  CX %04x  DX %04x  BX %04x\n",
+		State->AX.W, State->BX.W, State->CX.W, State->DX.W);
+	DEBUG_S("SP %04x  BP %04x  SI %04x  DI %04x\n",
+		State->SP.W, State->BP.W, State->SI.W, State->DI.W);
+	#endif
 	DEBUG_S("SS %04x  DS %04x  ES %04x\n",
 		State->SS, State->DS, State->ES);
 	DEBUG_S("CS:IP = 0x%04x:%04x\n", State->CS, State->IP);
@@ -287,18 +294,21 @@ int RME_Call(tRME_State *State)
 int RME_Int_DoOpcode(tRME_State *State)
 {
 	uint16_t	pt2, pt1 = 0;	// Spare Words, used for values read from memory
-	uint16_t	seg;
-	uint32_t	dword;
-	
+	uint16_t	seg;	// Segment value
+	#if USE_SIZE_OVERRIDES == 1
+	uint32_t	dword;	// Spare Double Word
+	#endif
+	// Destination/Source pointers (word sized)
 	union {
 		uint32_t	*D;
 		uint16_t	*W;
 	}	to, from;
+	// Destination/Source pointers (byte sized)
 	 uint8_t	*toB, *fromB;
-	 uint8_t	repType = 0;
-	 uint8_t	opcode, byte2;
-	 int	ret;
-
+	 uint8_t	repType = 0;	// Repeat flag
+	 uint8_t	opcode, byte2;	// Current opcode and second byte
+	 int	ret;	// Return value from functions
+	// Initial CPU State
 	uint16_t	startIP, startCS;
 
 	startIP = State->IP;
@@ -318,6 +328,7 @@ decode:
 	{
 
 	// Prefixes
+	// - Segment Overrides
 	case OVR_CS:
 		DEBUG_S("<CS> ");
 		State->Decoder.OverrideSegment = SREG_CS;
@@ -334,14 +345,21 @@ decode:
 		DEBUG_S("<ES> ");
 		State->Decoder.OverrideSegment = SREG_ES;
 		goto decode;
-
-	// Size Overrides are not implemented
-	case 0x66:	//Operand Size Override
-		DEBUG_S("PREFIX: OPERAND OVERRIDE");
+	
+	#if USE_SIZE_OVERRIDES == 1
+	case 0x66:	// Operand Size Override
+		DEBUG_S("<OPER> ");
+		State->Decoder.bOverrideOperand = 1;
+		goto decode;
+	case 0x67:	// Memory Size Override
+		DEBUG_S("<ADDR> ");
+		State->Decoder.bOverrideAddress = 1;
 		return RME_ERR_UNDEFOPCODE;
-	case 0x67:	//Memory Size Override
-		DEBUG_S("PREFIX: ADDR OVERRIDE");
-		return RME_ERR_UNDEFOPCODE;
+	#elif USE_SIZE_OVERRIDES == 0
+	case 0x66:	// Operand Size Override
+	case 0x67:	// Memory Size Override
+		goto decode;
+	#endif
 
 	// Repeat Prefix
 	case REP:	DEBUG_S("REP ");
@@ -351,7 +369,7 @@ decode:
 		repType = REPNZ;
 		goto decode;
 
-	// <op> MR
+	// <op> MR - Memory from Register
 	CASE8K(0x00, 0x8):
 		DEBUG_S("%s (MR)", casArithOps[opcode >> 3]);
 		ret = RME_Int_ParseModRM(State, &fromB, &toB);
@@ -359,19 +377,21 @@ decode:
 		ret = RME_Int_DoArithOp8( opcode >> 3, State, toB, *fromB );
 		if(ret)	return ret;
 		break;
-	// <op> MRX
+	// <op> MRX - Memory from Register (Word)
 	CASE8K(0x01, 0x8):
 		DEBUG_S("%s (MRX)", casArithOps[opcode >> 3]);
 		ret = RME_Int_ParseModRMX(State, &from.W, &to.W);
 		if(ret)	return ret;
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			ret = RME_Int_DoArithOp32( opcode >> 3, State, to.D, *from.D );
 		else
+		#endif
 			ret = RME_Int_DoArithOp16( opcode >> 3, State, to.W, *from.W );
 		if(ret)	return ret;
 		break;
 
-	// <op> RM
+	// <op> RM - Register from Memory
 	CASE8K(0x02, 0x8):
 		DEBUG_S("%s (RM)", casArithOps[opcode >> 3]);
 		ret = RME_Int_ParseModRM(State, &toB, &fromB);
@@ -379,19 +399,21 @@ decode:
 		ret = RME_Int_DoArithOp8( opcode >> 3, State, toB, *fromB );
 		if(ret)	return ret;
 		break;
-	// <op> RMX
+	// <op> RMX - Register from Memory (Word)
 	CASE8K(0x03, 0x8):
 		DEBUG_S("%s (RM)", casArithOps[opcode >> 3]);
 		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			ret = RME_Int_DoArithOp32( opcode >> 3, State, to.D, *from.D );
 		else
+		#endif
 			ret = RME_Int_DoArithOp16( opcode >> 3, State, to.W, *from.W );
 		if(ret)	return ret;
 		break;
 
-	// <op> AI
+	// <op> AI - Accumulator from Immedate
 	CASE8K(0x04, 8):
 		READ_INSTR8( pt2 );
 		DEBUG_S("%s (AI) AL 0x%02x", casArithOps[opcode >> 3], pt2);
@@ -399,21 +421,25 @@ decode:
 		if(ret)	return ret;
 		break;
 
-	// <op> AIX
+	// <op> AIX - Accumulator from Immedate (Word)
 	CASE8K(0x05, 8):
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand) {
 			READ_INSTR32( dword );
-			DEBUG_S("%s (AIX) AX.D 0x%08x", casArithOps[opcode >> 3], dword);
+			DEBUG_S("%s (AIX) EAX 0x%08x", casArithOps[opcode >> 3], dword);
 			ret = RME_Int_DoArithOp32( opcode >> 3, State, &State->AX.D, dword );
 		} else {
+		#endif
 			READ_INSTR16( pt2 );
 			DEBUG_S("%s (AIX) AX 0x%04x", casArithOps[opcode >> 3], pt2);
 			ret = RME_Int_DoArithOp16( opcode >> 3, State, &State->AX.W, pt2 );
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		if(ret)	return ret;
 		break;
 
-	// <op> RI
+	// <op> RI - Register from Immediate
 	case 0x80:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RI)", casArithOps[(byte2 >> 3) & 7]);
@@ -424,41 +450,49 @@ decode:
 		ret = RME_Int_DoArithOp8( (byte2 >> 3) & 7, State, toB, pt2 );
 		if(ret)	return ret;
 		break;
-	// <op> RIX
+	// <op> RIX - Register from Immediate (Word)
 	case 0x81:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RIX)", casArithOps[(byte2 >> 3) & 7]);
-		ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
+		ret = RME_Int_ParseModRMX(State, NULL, &to.W);	// Get Register Value
 		if(ret)	return ret;
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand) {
 			READ_INSTR32( dword );
 			DEBUG_S(" 0x%08x", dword);
 			ret = RME_Int_DoArithOp32( (byte2 >> 3) & 7, State, to.D, dword );
 		} else {
+		#endif
 			READ_INSTR16( pt2 );
 			DEBUG_S(" 0x%04x", pt2);
 			ret = RME_Int_DoArithOp16( (byte2 >> 3) & 7, State, to.W, pt2 );
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		if(ret)	return ret;
 		break;
 	
 	// 0x82 MAY be a valid instruction, with the same effect as 0x80 (<op> RI)
 	
-	// <op> RI8X
+	// <op> RI8X - Register from Imm8 (Word)
 	case 0x83:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RI8X)", casArithOps[(byte2 >> 3) & 7]);
 		ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 		if(ret)	return ret;
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand) {
 			READ_INSTR8S( dword );
 			DEBUG_S(" 0x%08x", dword);
 			ret = RME_Int_DoArithOp32( (byte2 >> 3) & 7, State, to.D, dword );
 		} else {
+		#endif
 			READ_INSTR8S( pt2 );
 			DEBUG_S(" 0x%04x", pt2);
 			ret = RME_Int_DoArithOp16( (byte2 >> 3) & 7, State, to.W, pt2 );
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		if(ret)	return ret;
 		break;
 
@@ -469,7 +503,7 @@ decode:
 		case 5:	RME_Int_DoShr(State, (to), (from), (width));	break;\
 		default: ERROR_S(" - DoLogicOp Undef %i\n", (num)); return RME_ERR_UNDEFOPCODE;\
 		}}while(0)
-	// <op> RI8
+	// <op> RI8 - Register by Imm8
 	case 0xC0:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RI8)", casLogicOps[(byte2 >> 3) & 7]);
@@ -479,7 +513,7 @@ decode:
 		DEBUG_S("0x%02x", pt2);
 		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toB, pt2, 8 );
 		break;
-	// <op> RI8X
+	// <op> RI8X - Register by Imm8 (Word)
 	case 0xC1:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RI8X)", casLogicOps[(byte2 >> 3) & 7]);
@@ -487,12 +521,14 @@ decode:
 		if(ret)	return ret;
 		READ_INSTR8( pt2 );
 		DEBUG_S("0x%02x", pt2);
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *to.D, pt2, 32 );
 		else
+		#endif
 			RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *to.W, pt2, 16 );
 		break;
-	// <op> R1
+	// <op> R1 - Register by 1
 	case 0xD0:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (R1)", casLogicOps[(byte2 >> 3) & 7]);
@@ -501,19 +537,21 @@ decode:
 		DEBUG_S(" 1");
 		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toB, 1, 8 );
 		break;
-	// <op> R1X
+	// <op> R1X - Register by 1 (Word)
 	case 0xD1:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (R1X)", casLogicOps[(byte2 >> 3) & 7]);
 		ret = RME_Int_ParseModRMX(State, NULL, &to.W);
 		if(ret)	return ret;
 		DEBUG_S(" 1");
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *to.D, 1, 32 );
 		else
+		#endif
 			RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *to.W, 1, 16 );
 		break;
-	// <op> RCl
+	// <op> RCl - Register by CL
 	case 0xD2:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RCl)", casLogicOps[(byte2 >> 3) & 7]);
@@ -522,21 +560,24 @@ decode:
 		DEBUG_S(" CL");
 		RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *toB, State->CX.B.L, 8 );
 		break;
-	// <op> RClX
+	// <op> RClX - Register by CL (Word)
 	case 0xD3:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		DEBUG_S("%s (RClX)", casLogicOps[(byte2 >> 3) & 7]);
 		ret = RME_Int_ParseModRMX(State, NULL, &to.W);
 		if(ret)	return ret;
 		DEBUG_S(" CL");
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *to.D, State->CX.B.L, 32 );
 		else
+		#endif
 			RME_Int_DoLogicOp( (byte2 >> 3) & 7, State, *to.W, State->CX.B.L, 16 );
 		break;
 
-	// <op> RI
-	case 0xF6:	//Register Immidate
+	// ==== Misc ALU ====
+	// <op> RI - Register by Immediate
+	case 0xF6:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		switch( (byte2>>3) & 7 )
 		{
@@ -565,8 +606,13 @@ decode:
 			State->Flags |= (*toB == 0) ? FLAG_CF : 0;
 			SET_COMM_FLAGS(State, *toB, 8);
 			break;
-		//case 4:	break;	// MUL AX = AL * r/m8
-		//case 5:	break;	// IMUL AX = AL * r/m8
+		// TODO: MUL and IMUL
+		case 4:	// MUL AX = AL * r/m8
+			ERROR_S("0xF6 /4 - MUL AL, r/m8 unimplemented\n");
+			return RME_ERR_UNDEFOPCODE;
+		case 5:	// IMUL AX = AL * r/m8
+			ERROR_S("0xF6 /5 - IMUL AL, r/m8 unimplemented\n");
+			return RME_ERR_UNDEFOPCODE;
 		case 6:	// DIV AX, r/m8 (unsigned)
 			DEBUG_S("DIV (MI) AX");
 			ret = RME_Int_ParseModRM(State, NULL, &fromB);
@@ -577,14 +623,13 @@ decode:
 			pt2 |= (State->AX.W - pt2 * (*fromB)) << 8;
 			State->AX.W = pt2;
 			break;
-		//case 7:	break;	// IDIV AX, r/m8 (signed)
-		default:
-			ERROR_S("0xF6 /%x unknown\n", (byte2>>3) & 7);
+		case 7:	// IDIV AX, r/m8 (signed)
+			ERROR_S("0xF6 /7 - IDIV AL, r/m8 unimplemented\n");
 			return RME_ERR_UNDEFOPCODE;
 		}
 		break;
-	// <op> RIX
-	case 0xF7:	//Register Immidate Extended
+	// <op> RIX - Register by Immediate (Word)
+	case 0xF7:
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		switch( (byte2>>3) & 7 )
 		{
@@ -592,34 +637,45 @@ decode:
 			DEBUG_S("TEST (RIX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);
 			if(ret)	return ret;
+			#if USE_SIZE_OVERRIDES == 1
 			if(State->Decoder.bOverrideOperand)
 			{
 				READ_INSTR32(dword);
 				DEBUG_S(" 0x%08x", dword);
 				RME_Int_DoTest(State, *to.D, dword, 32);
 			} else {
+			#endif
 				READ_INSTR16(pt2);
 				DEBUG_S(" 0x%04x", pt2);
 				RME_Int_DoTest(State, *to.W, pt2, 16);
+			#if USE_SIZE_OVERRIDES == 1
 			}
+			#endif
 			break;
 		// Undefined Opcode
-		case 1:	DEBUG_S("0xF7 /1 Undefined\n");	return RME_ERR_UNDEFOPCODE;
+		case 1:
+			DEBUG_S("0xF7 /1 Undefined\n");
+			return RME_ERR_UNDEFOPCODE;
 		// NOT r/m16
 		case 2:	DEBUG_S("NOT (MX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);
 			if(!ret)	return ret;
+			#if USE_SIZE_OVERRIDES == 1
 			if(State->Decoder.bOverrideOperand)
 			{
 				*to.D = ~*to.D;
 			} else {
+			#endif
 				*to.W = ~*to.W;
+			#if USE_SIZE_OVERRIDES == 1
 			}
+			#endif
 			break;
 		// NEG r/m16
 		case 3:	DEBUG_S("NEG (MX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);
 			if(!ret)	return ret;
+			#if USE_SIZE_OVERRIDES == 1
 			if(State->Decoder.bOverrideOperand)
 			{
 				*to.D = -*to.D;
@@ -628,19 +684,26 @@ decode:
 				SET_COMM_FLAGS(State, *to.D, 32);
 			}
 			else {
+			#endif
 				*to.W = -*to.W;
 				State->Flags &= ~FLAG_OF;
 				State->Flags |= (*to.W == 0) ? FLAG_CF : 0;
 				SET_COMM_FLAGS(State, *to.W, 16);
+			#if USE_SIZE_OVERRIDES == 1
 			}
+			#endif
 			break;
-		//case 4:	break;	// MUL AX, r/m16
+		case 4:	// MUL AX, r/m16
+			ERROR_S("0xF7 /4 - MUL AX, r/m16 unimplemented\n");
+			return RME_ERR_UNDEFOPCODE;
 		case 5:	// IMUL AX, r/m16
 			{
 			uint32_t	dword;
 			DEBUG_S("IMUL (RIX) AX");
 			
+			#if USE_SIZE_OVERRIDES == 1
 			if(State->Decoder.bOverrideOperand)	return RME_ERR_UNDEFOPCODE;
+			#endif
 			
 			ret = RME_Int_ParseModRMX(State, NULL, &from.W);
 			if(ret)	return ret;
@@ -659,7 +722,9 @@ decode:
 			uint32_t	dword, dword2;
 			DEBUG_S("DIV (RIX) DX:AX");
 			
+			#if USE_SIZE_OVERRIDES == 1
 			if(State->Decoder.bOverrideOperand)	return RME_ERR_UNDEFOPCODE;
+			#endif
 			
 			ret = RME_Int_ParseModRMX(State, NULL, &from.W);
 			if(ret)	return ret;
@@ -671,16 +736,21 @@ decode:
 			State->DX.W = dword - dword2 * (*from.W);
 			}
 			break;
-		//case 7:	break;	// IDIV DX:AX, r/m16
+		case 7:	// IDIV DX:AX, r/m16
+			ERROR_S("0xF7 /7 - IDIV DX:AX, r/m16 unimplemented\n");
+			return RME_ERR_UNDEFOPCODE;
 		default:
 			ERROR_S("0xF7 /%x unknown\n", (byte2>>3) & 7);
 			return RME_ERR_UNDEFOPCODE;
 		}
 		break;
 
-	case 0xFE:	//Register
+	// ==== Unary ALU ===
+	// <op> R
+	case 0xFE:	// Register
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
-		switch( (byte2>>3) & 7 ) {
+		switch( (byte2>>3) & 7 )
+		{
 		case 0:
 			DEBUG_S("INC (R)");
 			ret = RME_Int_ParseModRM(State, NULL, &toB);	//Get Register Value
@@ -705,40 +775,51 @@ decode:
 		}
 		break;
 
-	case 0xFF:	//Register Extended
+	// <op> RX
+	case 0xFF:	// Register (Word)
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 		switch( (byte2>>3) & 7 )
 		{
+		// Increment
 		case 0:
 			DEBUG_S("INC (RX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 			if(ret)	return ret;
 			
 			State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
+			#if USE_SIZE_OVERRIDES == 1
 			if(State->Decoder.bOverrideOperand) {
 				(*to.D) ++;
 				SET_COMM_FLAGS(State, *to.D, 32);
 			} else {
+			#endif
 				(*to.W) ++;
 				SET_COMM_FLAGS(State, *to.W, 16);
+			#if USE_SIZE_OVERRIDES == 1
 			}
+			#endif
 			State->Flags |= (State->Flags & FLAG_ZF) ? FLAG_OF : 0;
 			break;
+		// Decrement
 		case 1:
 			DEBUG_S("DEC (RX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
 			if(ret)	return ret;
 			
 			State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
+			#if USE_SIZE_OVERRIDES == 1
 			if(State->Decoder.bOverrideOperand) {
 				(*to.D) --;
 				SET_COMM_FLAGS(State, *to.D, 32);
 				State->Flags |= (*to.D == 0xFFFFFFFF) ? FLAG_OF : 0;
 			} else {
+			#endif
 				(*to.W) --;
 				SET_COMM_FLAGS(State, *to.W, 16);
 				State->Flags |= (*to.W == 0xFFFF) ? FLAG_OF : 0;
+			#if USE_SIZE_OVERRIDES == 1
 			}
+			#endif
 			break;
 		case 2:
 			DEBUG_S("CALL (RX) NEAR");
@@ -773,18 +854,20 @@ decode:
 		}
 		break;
 
-	//TEST Family
-	case TEST_RM:	DEBUG_S("TEST (RR)");	//Test Register
+	// --- TEST ---
+	case TEST_RM:	DEBUG_S("TEST (RM)");	//Test Register
 		ret = RME_Int_ParseModRM(State, &toB, &fromB);
 		if(ret)	return ret;
 		RME_Int_DoTest(State, *toB, *fromB, 8);
 		break;
-	case TEST_RMX:	DEBUG_S("TEST (RRX)");	//Test Register Extended
+	case TEST_RMX:	DEBUG_S("TEST (RMX)");	//Test Register Extended
 		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			RME_Int_DoTest(State, *to.D, *from.D, 32);
 		else
+		#endif
 			RME_Int_DoTest(State, *to.W, *from.W, 16);
 		break;
 	case TEST_AI:	DEBUG_S("TEST (AI)");
@@ -792,15 +875,19 @@ decode:
 		RME_Int_DoTest(State, State->AX.B.L, pt2, 8);
 		break;
 	case TEST_AIX:	DEBUG_S("TEST (AIX)");
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand) {
 			READ_INSTR32( dword );
 			DEBUG_S(" EAX 0x%08x", dword);
 			RME_Int_DoTest(State, State->AX.D, dword, 32);
 		} else {
+		#endif
 			READ_INSTR16( pt2 );
 			DEBUG_S(" AX 0x%04x", pt2);
 			RME_Int_DoTest(State, State->AX.W, pt2, 16);
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		break;
 
 	// Flag Control
@@ -822,13 +909,17 @@ decode:
 		DEBUG_S("INC ");
 		to.W = RegW(State, opcode&7);
 		State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand) {
 			(*to.D) ++;
 			SET_COMM_FLAGS(State, *to.D, 32);
 		} else {
+		#endif
 			(*to.W) ++;
 			SET_COMM_FLAGS(State, *to.W, 16);
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		State->Flags |= (State->Flags & FLAG_ZF) ? FLAG_OF : 0;
 		break;
 	// DEC Register
@@ -836,17 +927,22 @@ decode:
 		DEBUG_S("DEC ");
 		to.W = RegW(State, opcode&7);
 		State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand) {
 			(*to.D) --;
 			SET_COMM_FLAGS(State, *to.D, 32);
 			State->Flags |= (*to.D == 0xFFFFFFFF) ? FLAG_OF : 0;
 		} else {
+		#endif
 			(*to.W) --;
 			SET_COMM_FLAGS(State, *to.W, 16);
 			State->Flags |= (*to.W == 0xFFFF) ? FLAG_OF : 0;
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		break;
 
+	// ==== Port IO ====
 	// IN <port>, A
 	case IN_AI:	// Imm8, AL
 		READ_INSTR8( pt2 );
@@ -856,13 +952,17 @@ decode:
 		break;
 	case IN_AIX:	// Imm8, AX
 		READ_INSTR8( pt2 );
+		#if USE_SIZE_OVERRIDES == 1
 		if( State->Decoder.bOverrideOperand ) {
 			DEBUG_S("IN (AIX) 0x%02x EAX", pt2);
 			ret = inD( State, pt2, &State->AX.D );
 		} else {
+		#endif
 			DEBUG_S("IN (AIX) 0x%02x AX", pt2);
 			ret = inW( State, pt2, &State->AX.W );
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		if(ret)	return ret;
 		break;
 	case IN_ADx:	// DX, AL
@@ -871,13 +971,17 @@ decode:
 		if(ret)	return ret;
 		break;
 	case IN_ADxX:	// DX, AX
+		#if USE_SIZE_OVERRIDES == 1
 		if( State->Decoder.bOverrideOperand ) {
 			DEBUG_S("IN (ADxX) DX EAX");
 			ret = inD(State, State->DX.W, &State->AX.D);
 		} else {
+		#endif
 			DEBUG_S("IN (ADxX) DX AX");
 			ret = inW(State, State->DX.W, &State->AX.W);
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		if(ret)	return ret;
 		break;
 	
@@ -890,13 +994,17 @@ decode:
 		break;
 	case OUT_IAX:	// Imm8, AX
 		READ_INSTR8( pt2 );
+		#if USE_SIZE_OVERRIDES == 1
 		if( State->Decoder.bOverrideOperand ) {
 			DEBUG_S("OUT (IAX) 0x%02x EAX", pt2);
 			ret = outD( State, pt2, State->AX.D );
 		} else {
+		#endif
 			DEBUG_S("OUT (IAX) 0x%02x AX", pt2);
 			ret = outW( State, pt2, State->AX.W );
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		if(ret)	return ret;
 		break;
 	case OUT_DxA:	// DX, AL
@@ -905,17 +1013,21 @@ decode:
 		if(ret)	return ret;
 		break;
 	case OUT_DxAX:	// DX, AX
+		#if USE_SIZE_OVERRIDES == 1
 		if( State->Decoder.bOverrideOperand ) {
 			DEBUG_S("OUT (DxAX) DX EAX");
 			ret = outD( State, State->DX.W, State->AX.D );
 		} else {
+		#endif
 			DEBUG_S("OUT (DxAX) DX AX");
 			ret = outW( State, State->DX.W, State->AX.W );
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		if(ret)	return ret;
 		break;
 
-	//INT Family
+	// ==== Software Interrupts ====
 	case INT3:
 		DEBUG_S("INT 3");
 		ret = RME_Int_Read16(State, 0, 3*4, &pt1);	// Offset
@@ -931,9 +1043,9 @@ decode:
 	case INT_I:
 		READ_INSTR8( byte2 );
 		DEBUG_S("INT 0x%02x", byte2);
-		ret = RME_Int_Read16(State, 0, byte2*4, &pt1);	// Offset
+		ret = RME_Int_Read16(State, 0, (int)byte2*4, &pt1);	// Offset
 		if(ret)	return ret;
-		ret = RME_Int_Read16(State, 0, byte2*4+2, &pt2);	// Segment
+		ret = RME_Int_Read16(State, 0, (int)byte2*4+2, &pt2);	// Segment
 		if(ret)	return ret;
 		PUSH( State->Flags );
 		PUSH( State->CS );
@@ -947,8 +1059,9 @@ decode:
 		POP( State->Flags );
 		goto ret;
 
-	//MOV Family
-	case MOV_MoA:	DEBUG_S("MOV (MoA)");	// Store AL at Memory Offset
+	// ==== MOV ====
+	case MOV_MoA:	// Store AL at Memory Offset
+		DEBUG_S("MOV (MoA)");
 		seg = (State->Decoder.OverrideSegment==-1) ? SREG_DS : State->Decoder.OverrideSegment;
 		seg = *Seg(State, seg);
 		READ_INSTR16( pt2 );
@@ -956,21 +1069,27 @@ decode:
 		ret = RME_Int_Write8(State, seg, pt2, State->AX.W & 0xFF);
 		if(ret)	return ret;
 		break;
-	case MOV_MoAX:	DEBUG_S("MOV (MoAX)");	//Store AX at Memory Offset
+	case MOV_MoAX:	// Store AX at Memory Offset
+		DEBUG_S("MOV (MoAX)");
 		seg = (State->Decoder.OverrideSegment==-1) ? SREG_DS : State->Decoder.OverrideSegment;
 		seg = *Seg(State, seg);
 		READ_INSTR16( pt2 );
 		DEBUG_S(":0x%04x", pt2);
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand) {
 			DEBUG_S(" EAX");
 			ret = RME_Int_Write32(State, seg, pt2, State->AX.D);
 		} else {
+		#endif
 			DEBUG_S(" AX");
 			ret = RME_Int_Write16(State, seg, pt2, State->AX.W);
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		if(ret)	return ret;
 		break;
-	case MOV_AMo:	DEBUG_S("MOV (AMo) AL");	//Memory Offset to AL
+	case MOV_AMo:	// Memory Offset to AL
+		DEBUG_S("MOV (AMo) AL");
 		seg = (State->Decoder.OverrideSegment==-1) ? SREG_DS : State->Decoder.OverrideSegment;
 		seg = *Seg(State, seg);
 		READ_INSTR16( pt2 );
@@ -978,40 +1097,50 @@ decode:
 		ret = RME_Int_Read8(State, seg, pt2, (uint8_t*)&State->AX.W);
 		if(ret)	return ret;
 		break;
-	case MOV_AMoX:	//Memory Offset to AX
+	case MOV_AMoX:	// Memory Offset to AX
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			DEBUG_S("MOV (AMoX) EAX");
 		else
+		#endif
 			DEBUG_S("MOV (AMoX) AX");
 		seg = (State->Decoder.OverrideSegment==-1) ? SREG_DS : State->Decoder.OverrideSegment;
 		seg = *Seg(State, seg);
 		READ_INSTR16( pt2 );
 		DEBUG_S(":0x%04x", pt2);
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			ret = RME_Int_Read32(State, State->DS, pt2, &State->AX.D);
 		else
+		#endif
 			ret = RME_Int_Read16(State, State->DS, pt2, &State->AX.W);
 		if(ret)	return ret;
 		break;
-	case MOV_MI:	DEBUG_S("MOV (RI)");
+	case MOV_MI:	// Store Immediate at Memory
+		DEBUG_S("MOV (RI)");
 		ret = RME_Int_ParseModRM(State, &toB, NULL);
 		if(ret)	return ret;
 		READ_INSTR8( pt2 );
 		DEBUG_S(" 0x%02x", pt2);
 		*toB = pt2;
 		break;
-	case MOV_MIX:	DEBUG_S("MOV (RIX)");
+	case MOV_MIX:	// Store Immediate at Memory
+		DEBUG_S("MOV (RIX)");
 		ret = RME_Int_ParseModRMX(State, &to.W, NULL);
 		if(ret)	return ret;
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand) {
 			READ_INSTR32( dword );
 			DEBUG_S(" 0x%08x", dword);
 			*to.D = dword;
 		} else {
+		#endif
 			READ_INSTR16( pt2 );
 			DEBUG_S(" 0x%04x", pt2);
 			*to.W = pt2;
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		break;
 	case MOV_RM:	DEBUG_S("MOV (RM)");
 		ret = RME_Int_ParseModRM(State, &toB, &fromB);
@@ -1021,9 +1150,11 @@ decode:
 	case MOV_RMX:	DEBUG_S("MOV (RMX)");
 		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			*to.D = *from.D;
 		else
+		#endif
 			*to.W = *from.W;
 		break;
 	case MOV_MR:	DEBUG_S("MOV (RM) REV");
@@ -1034,9 +1165,11 @@ decode:
 	case MOV_MRX:	DEBUG_S("MOV (RMX) REV");
 		ret = RME_Int_ParseModRMX(State, &from.W, &to.W);
 		if(ret)	return ret;
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			*to.D = *from.D;
 		else
+		#endif
 			*to.W = *from.W;
 		break;
 
@@ -1057,17 +1190,22 @@ decode:
 	case MOV_RI_SI:	case MOV_RI_DI:
 		DEBUG_S("MOV (RIX)");
 		to.W = RegW(State, opcode&7);
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand) {
 			READ_INSTR16( dword );
 			DEBUG_S(" 0x%08x", dword);
 			*to.D = dword;
 		} else {
+		#endif
 			READ_INSTR16( pt2 );
 			DEBUG_S(" 0x%04x", pt2);
 			*to.W = pt2;
+		#if USE_SIZE_OVERRIDES == 1
 		}
+		#endif
 		break;
 
+	// Segment Registers
 	case MOV_RS:
 		DEBUG_S("MOV (RS)");
 		READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
@@ -1113,14 +1251,18 @@ decode:
 	case XCHG_AD:	case XCHG_AB:
 	case XCHG_ASp:	case XCHG_ABp:
 	case XCHG_ASi:	case XCHG_ADi:
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			DEBUG_S("XCHG EAX");
 		else
+		#endif
 			DEBUG_S("XCHG AX");
 		from.W = RegW(State, opcode&7);
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			XCHG(State->AX.D, *from.D);
 		else
+		#endif
 			XCHG(State->AX.W, *from.W);
 		break;
 
@@ -1128,9 +1270,11 @@ decode:
 		DEBUG_S("XCHG (RM)");
 		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
+		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			XCHG(*to.D, *from.D);
 		else
+		#endif
 			XCHG(*to.W, *from.W);
 		break;
 
@@ -1240,12 +1384,15 @@ decode:
 		break;
 	case STOSW:	DEBUG_S("STOS");
 		DEBUG_S(" ES:[DI]");
+		#if USE_SIZE_OVERRIDES == 1
 		if( State->Decoder.bOverrideOperand )
 			DEBUG_S(" EAX");
 		else
+		#endif
 			DEBUG_S(" AX");
 		
 		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX.W);
+		#if USE_SIZE_OVERRIDES == 1
 		if( State->Decoder.bOverrideOperand )
 		{
 			 int	step = 4;
@@ -1256,7 +1403,9 @@ decode:
 				State->DI.W += step;
 			} while(repType == REP && State->CX.W && State->CX.W--);
 		}
-		else {
+		else
+		#endif
+		{
 			 int	step = 2;
 			if(State->Flags & FLAG_DF)	step = -step;
 			do {
@@ -1283,14 +1432,17 @@ decode:
 		repType = 0;
 		break;
 	case LODSW:	DEBUG_S("LODS");
+		#if USE_SIZE_OVERRIDES == 1
 		if( State->Decoder.bOverrideOperand )
 			DEBUG_S(" EAX");
 		else
+		#endif
 			DEBUG_S(" AX");
 		DEBUG_S(" DS:[SI]");
 		
 		if( repType == REP )	DEBUG_S(" (0x%x times)", State->CX.W);
 		
+		#if USE_SIZE_OVERRIDES == 1
 		if( State->Decoder.bOverrideOperand )
 		{
 			 int	step = 4;
@@ -1301,7 +1453,9 @@ decode:
 				State->SI.W += step;
 			} while(repType == REP && State->CX.W && State->CX.W--);
 		}
-		else {
+		else
+		#endif
+		{
 			 int	step = 2;
 			if(State->Flags & FLAG_DF)	step = -step;
 			do {
@@ -1332,7 +1486,7 @@ decode:
 		case 2:	// 16-bit
 			READ_INSTR16(pt1);
 			break;
-		case 3:
+		case 3:	// Register -- ERROR!!!
 			return RME_ERR_UNDEFOPCODE;
 		default:
 			return RME_ERR_BUG;
@@ -1687,6 +1841,7 @@ static inline uint8_t *RegB(tRME_State *State, int num)
  */
 static inline uint16_t *RegW(tRME_State *State, int num)
 {
+	#if USE_SIZE_OVERRIDES == 1
 	if(State->Decoder.bOverrideOperand) {
 		switch(num)
 		{
@@ -1700,6 +1855,7 @@ static inline uint16_t *RegW(tRME_State *State, int num)
 		case 7:	DEBUG_S(" EDI");	return &State->DI.W;
 		}
 	} else {
+	#endif
 		switch(num)
 		{
 		case 0:	DEBUG_S(" AX");	return &State->AX.W;
@@ -1711,7 +1867,9 @@ static inline uint16_t *RegW(tRME_State *State, int num)
 		case 6:	DEBUG_S(" SI");	return &State->SI.W;
 		case 7:	DEBUG_S(" DI");	return &State->DI.W;
 		}
+	#if USE_SIZE_OVERRIDES == 1
 	}
+	#endif
 	return 0;
 }
 

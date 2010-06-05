@@ -20,6 +20,16 @@
  *
  */
 
+
+/**
+ * \brief Enable the use of size overrides
+ * \note Disabling this will speed up emulation, but may cause undefined
+ *       behavior with some BIOSes.
+ * 
+ * If set to -1, size overrides will cause a #UD
+ */
+#define USE_SIZE_OVERRIDES	0
+
 /**
  * \brief Size of a memory block
  * \note Feel free to edit this value, just make sure it stays a power
@@ -53,7 +63,9 @@ enum eRME_Errors
 
 typedef union uGPR
 {
+	#if USE_SIZE_OVERRIDES == 1
 	uint32_t	D;
+	#endif
 	uint16_t	W;
 	struct {
 		uint8_t	L;
@@ -206,9 +218,6 @@ enum opcodes {
 	DIV_R = 0xFA,	DIV_RX = 0xFB,
 	DIV_M = 0xFA,	DIV_MX = 0xFB,
 
-	IN_AI = 0xE4,	IN_AIX = 0xE5,
-	IN_ADx = 0xEC,	IN_ADxX = 0xED,
-
 
 	INT3 = 0xCC,	INT_I = 0xCD,
 	IRET = 0xCF,
@@ -217,8 +226,8 @@ enum opcodes {
 	MOV_AMo = 0xA0,	MOV_AMoX = 0xA1,
 	OPCODE_RI(MOV, 0xB0),
 	MOV_MI = 0xC6,	MOV_MIX = 0xC7,
-	MOV_RM = 0x8A,	MOV_RMX = 0x8B,
 	MOV_MR = 0x88,	MOV_MRX = 0x89,
+	MOV_RM = 0x8A,	MOV_RMX = 0x8B,
 	MOV_RS = 0x8C,	MOV_SR = 0x8E,
 	MOV_MS = 0x8C,	MOV_SM = 0x8E,
 
@@ -235,6 +244,9 @@ enum opcodes {
 	NOT_R = 0xF6,	NOT_RX = 0xF7,
 	NOT_M = 0xF6,	NOT_MX = 0xF7,
 
+
+	IN_AI = 0xE4,	IN_AIX = 0xE5,
+	IN_ADx = 0xEC,	IN_ADxX = 0xED,
 	OUT_IA = 0xE6,	OUT_IAX = 0xE7,
 	OUT_DxA = 0xEE,	OUT_DxAX = 0xEF,
 

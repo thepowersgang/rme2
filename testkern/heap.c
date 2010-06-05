@@ -11,7 +11,7 @@
 void	*gHeapPtr;
 
 // === CODE ===
-void Heap_Init()
+void Heap_Init(void)
 {
 	gHeapPtr = &gKernelEnd;
 }
