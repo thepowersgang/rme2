@@ -28,7 +28,7 @@
  * 
  * If set to -1, size overrides will cause a #UD
  */
-#define USE_SIZE_OVERRIDES	0
+#define USE_SIZE_OVERRIDES	1
 
 /**
  * \brief Size of a memory block
@@ -76,7 +76,7 @@ typedef union uGPR
 /**
  * \brief Emulator state structure
  */
-typedef struct
+typedef struct sRME_State
 {
 	//! \brief General Purpose Registers
 	//! \{
@@ -109,6 +109,16 @@ typedef struct
 	 * \note A value of NULL in a block indicates that the block is invalid
 	 */
 	uint8_t	*Memory[0x100000/RME_BLOCK_SIZE];	// 1Mib in 256 4 KiB blocks
+
+	/**
+	 * \brief High-Level Emulation Callback
+	 * \param State	Emulation state at the interrupt
+	 * \param IntNum	Interrupt number
+	 * \return 1 if the call was handled, 0 if it should be emulated
+	 * 
+	 * Called on all in-emulator INT calls
+	 */
+	 int	(*HLECallbacks[256])(struct sRME_State *State, int IntNum);
 
 	 int	InstrNum;	//!< Total executed instructions
 
@@ -279,6 +289,8 @@ enum opcodes {
 	JMP_MF = 0xFF,	JMP_N = 0xE9,
 	JMP_S = 0xEB,	JMP_F = 0xEA,
 
+	LES = 0xC4,
+	LDS = 0xC5,
 	LEA = 0x8D,
 
 	CLC = 0xF8,	STC = 0xF9,
@@ -288,9 +300,13 @@ enum opcodes {
 	TEST_RM = 0x84,	TEST_RMX = 0x85,
 	TEST_AI = 0xA8,	TEST_AIX = 0xA9,
 
+	MOVSB = 0xA4,	MOVSW = 0xA5,
+	CMPSB = 0xA6,	CMPSW = 0xA7,
 	STOSB = 0xAA,	STOSW = 0xAB,
 	LODSB = 0xAC,	LODSW = 0xAD,
+	SCASB = 0xAE,	SCASW = 0xAF,
 	INSB = 0x6C,	INSW = 0x6D,
+	OUTSB = 0x6E,	OUTSW = 0x6F,
 
 	// --- Overrides
 	OVR_ES = 0x26,
