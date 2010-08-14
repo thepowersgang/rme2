@@ -735,6 +735,10 @@ decode:
 			
 			ret = RME_Int_ParseModRMX(State, NULL, &from.W);
 			if(ret)	return ret;
+			#if DEBUG >= 2
+			DEBUG_S(" (0x%04x)", *from.W);
+			#endif
+			
 			dword = State->AX.W * *from.W;
 			if(dword == State->AX.W)
 				State->Flags &= ~(FLAG_CF|FLAG_OF);
@@ -790,6 +794,9 @@ decode:
 			{
 				uint32_t	dword, dword2;			
 				if( *from.W == 0 )	return RME_Int_Expt_DivideError(State);
+				#if DEBUG >= 2
+				DEBUG_S(" /= 0x%04x", *from.W);
+				#endif
 				dword = (State->DX.W << 16) | State->AX.W;
 				dword2 = dword / *from.W;
 				if(dword2 > 0xFFFF)	return RME_Int_Expt_DivideError(State);
@@ -1485,14 +1492,14 @@ decode:
 		// Check for initial CX of zero
 		if(repType && State->CX.W == 0) { repType = 0; break; }
 		// Check for break conditions
-		if(repType == REP && !(State->Flags & FLAG_ZF) ) {
+		/*if(repType == REP && !(State->Flags & FLAG_ZF) ) {
 			repType = 0;
 			break;
 		}
 		if(repType == REPNZ && (State->Flags & FLAG_ZF) ) {
 			repType = 0;
 			break;
-		}
+		}*/
 		// Do the operation
 		do {
 			uint8_t	byte1, byte2;
@@ -1501,6 +1508,10 @@ decode:
 			if(ret)	return ret;
 			ret = RME_Int_Read8(State, State->ES, State->DI.W, &byte2);
 			if(ret)	return ret;
+			
+			#if DEBUG >= 2
+			DEBUG_S(" %02x==%02x", byte1, byte2);
+			#endif
 			
 			// Increment
 			if(State->Flags & FLAG_DF) {
