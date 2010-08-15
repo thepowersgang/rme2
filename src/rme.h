@@ -102,13 +102,15 @@ typedef struct sRME_State
 	/**
 	 * \brief Emulator's Memory
 	 *
-	 * The 1MiB realmode address space is broken into blocks of
+	 * The ~1MiB realmode address space is broken into blocks of
 	 * ::RME_BLOCK_SIZE bytes that can each point to different areas
 	 * of memory.
 	 * NOTE: There is no write protection on these blocks
 	 * \note A value of NULL in a block indicates that the block is invalid
+	 * \note 0x110000 bytes is all that is accessable using the realmode
+	 *       segmentation scheme (true max is 0xFFFF0+0xFFFF = 0x10FFEF)
 	 */
-	uint8_t	*Memory[0x100000/RME_BLOCK_SIZE];	// 1Mib in 256 4 KiB blocks
+	uint8_t	*Memory[0x110000/RME_BLOCK_SIZE];	// 1Mib,64KiB in 256 4 KiB blocks
 
 	/**
 	 * \brief High-Level Emulation Callback
@@ -307,6 +309,9 @@ enum opcodes {
 	SCASB = 0xAE,	SCASW = 0xAF,
 	INSB = 0x6C,	INSW = 0x6D,
 	OUTSB = 0x6E,	OUTSW = 0x6F,
+
+	// --- Unimplementeds
+	FPU_ARITH	= 0xDC,
 
 	// --- Overrides
 	OVR_ES = 0x26,

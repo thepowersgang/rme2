@@ -774,7 +774,12 @@ decode:
 			}
 			break;
 		case 6:	// DIV DX:AX, r/m16
-			DEBUG_S("DIV (RIX) DX:AX");
+			#if USE_SIZE_OVERRIDES == 1
+			if(State->Decoder.bOverrideOperand)
+				DEBUG_S("DIV (RIX) EDX:EAX");
+			else
+			#endif
+				DEBUG_S("DIV (RIX) DX:AX");
 			
 			ret = RME_Int_ParseModRMX(State, NULL, &from.W);
 			if(ret)	return ret;
@@ -783,8 +788,11 @@ decode:
 			if(State->Decoder.bOverrideOperand) {
 				uint64_t	qword, qword2;
 				if( *from.D == 0 )	return RME_Int_Expt_DivideError(State);
+				#if DEBUG >= 2
+				DEBUG_S(" /= 0x%08x", *from.D);
+				#endif
 				qword = ((uint64_t)State->DX.D << 32) | State->AX.D;
-				qword2 = dword / *from.D;
+				qword2 = qword / *from.D;
 				if(qword2 > 0xFFFFFFFF)	return RME_Int_Expt_DivideError(State);
 				State->AX.D = qword2;
 				State->DX.D = qword - qword2 * (*from.D);
@@ -1480,8 +1488,43 @@ decode:
 		repType = 0;
 		break;
 	case MOVSW:	DEBUG_S("MOVSW");
-		ERROR_S(" TODO: Implement MOVSW");
-		return RME_ERR_UNDEFOPCODE;
+		DEBUG_S(" DS:[SI]");	// TODO: Address Overrides
+		DEBUG_S(" ES:[DI]");
+		if( repType == REP ) {
+			DEBUG_S(" (0x%x times)", State->CX.W);
+			if( State->CX.W == 0 ) {	repType = 0;	break;	}
+		}
+		#if USE_SIZE_OVERRIDES == 1
+		if( State->Decoder.bOverrideOperand )
+		{
+			 int	step = 4;
+			if(State->Flags & FLAG_DF)	step = -step;
+			do {
+				uint32_t	tmp;
+				ret = RME_Int_Read32(State, State->DS, State->SI.W, &tmp);
+				if(ret)	return ret;
+				ret = RME_Int_Write32(State, State->ES, State->DI.W, tmp);
+				if(ret)	return ret;
+				State->DI.W += step;
+				State->SI.W += step;
+			} while(repType == REP && --State->CX.W);
+		}
+		else
+		#endif
+		{
+			 int	step = 2;
+			if(State->Flags & FLAG_DF)	step = -step;
+			do {
+				uint16_t	tmp;
+				ret = RME_Int_Read16(State, State->DS, State->SI.W, &tmp);
+				if(ret)	return ret;
+				ret = RME_Int_Write16(State, State->ES, State->DI.W, tmp);
+				if(ret)	return ret;
+				State->DI.W += step;
+				State->SI.W += step;
+			} while(repType && --State->CX.W);
+		}
+		repType = 0;
 		break;
 	
 	// Compare String
@@ -1491,15 +1534,6 @@ decode:
 		if(repType)		DEBUG_S(" (limit 0x%x)", State->CX.W);
 		// Check for initial CX of zero
 		if(repType && State->CX.W == 0) { repType = 0; break; }
-		// Check for break conditions
-		/*if(repType == REP && !(State->Flags & FLAG_ZF) ) {
-			repType = 0;
-			break;
-		}
-		if(repType == REPNZ && (State->Flags & FLAG_ZF) ) {
-			repType = 0;
-			break;
-		}*/
 		// Do the operation
 		do {
 			uint8_t	byte1, byte2;
@@ -1956,10 +1990,12 @@ static inline int RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs,
  * \brief 3 - Subtract with borrow
  */
 #define RME_Int_DoSbb(State, to, from, width)	do{\
-	(to) -= (from) + ((State->Flags&FLAG_CF)?1:0);\
+	int v = (to) - (from) + ((State->Flags&FLAG_CF)?1:0);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
 	SET_COMM_FLAGS(State,(to),(width));\
-	State->Flags |= ((to) > (from)) ? FLAG_OF|FLAG_CF : 0;\
+	State->Flags |= ((to)<(from) || (from)==((1<<((width)-1)-1)|(1<<((width)-1)))) ? FLAG_CF : 0;\
+	State->Flags |= (((((to) ^ (from)) & ((to) ^ (v))) & (1<<((width)-1))) != 0) ? FLAG_OF : 0;\
+	(to) = v;\
 	}while(0)
 // 4: Bitwise AND
 #define RME_Int_DoAnd(State, to, from, width)	do{\
@@ -1969,10 +2005,12 @@ static inline int RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs,
 	}while(0)
 // 5: Subtract
 #define RME_Int_DoSub(State, to, from, width)	do{\
-	(to) -= (from);\
+	int v = (to) - (from);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
 	SET_COMM_FLAGS(State,(to),(width));\
-	State->Flags |= ((to) > (from)) ? FLAG_OF|FLAG_CF : 0;\
+	State->Flags |= ((to)<(from)) ? FLAG_CF : 0;\
+	State->Flags |= (((((to) ^ (from)) & ((to) ^ (v))) & (1<<((width)-1))) != 0) ? FLAG_OF : 0;\
+	(to) = v;\
 	}while(0)
 // 6: Bitwise XOR
 #define RME_Int_DoXor(State, to, from, width)	do{\
@@ -1985,7 +2023,8 @@ static inline int RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs,
 	int v = (to)-(from);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
 	SET_COMM_FLAGS(State,v,(width));\
-	State->Flags |= (v < 0) ? FLAG_OF|FLAG_CF : 0;\
+	State->Flags |= ((to)<(from)) ? FLAG_CF : 0;\
+	State->Flags |= (((((to) ^ (from)) & ((to) ^ (v))) & (1<<((width)-1))) != 0) ? FLAG_OF : 0;\
 	}while(0)
 
 /**
