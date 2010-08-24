@@ -275,7 +275,7 @@ enum opcodes {
 	PUSH_CX = 0x50|CL,	PUSH_DX = 0x50|DL,
 	PUSH_SP = 0x50|AH,	PUSH_BP = 0x50|CH,
 	PUSH_SI = 0x50|DH,	PUSH_DI = 0x50|BH,
-	PUSH_MX = 0xFF,
+	// PUSH_MX = 0xFF,	// - TODO: Check (maybe 0x87)
 	PUSH_ES = 6|(SREG_ES<<3),	PUSH_CS = 6|(SREG_CS<<3),
 	PUSH_SS = 6|(SREG_SS<<3),	PUSH_DS = 6|(SREG_DS<<3),
 	PUSH_I8 = 0x6A,	PUSH_I = 0x68,

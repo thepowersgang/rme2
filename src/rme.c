@@ -1434,6 +1434,13 @@ decode:
 	case POP_SS:	DEBUG_S("POP SS");	POP(State->SS);	break;
 	case POP_DS:	DEBUG_S("POP DS");	POP(State->DS);	break;
 
+	case POP_MX:
+		DEBUG_S("POP (MX)");
+		ret = RME_Int_ParseModRMX(State, NULL, &to.W);
+		if(ret)	return ret;
+		POP(*to.W);
+		break;
+
 	//  === CALL Family ===
 	case CALL_N:
 		READ_INSTR16( pt2 );
