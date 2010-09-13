@@ -26,7 +26,7 @@
  * \note Disabling this will speed up emulation, but may cause undefined
  *       behavior with some BIOSes.
  * 
- * If set to -1, size overrides will cause a #UD
+ * If set to -1, size overrides will cause a \#UD
  */
 #define USE_SIZE_OVERRIDES	1
 
@@ -146,9 +146,9 @@ extern tRME_State	*RME_CreateState(void);
 /**
  * \brief Calls an interrupt
  * \param State	State returned from ::RME_CreateState
- * \param Number	Interrupt number
+ * \param Num	Interrupt number
  */
-extern int	RME_CallInt(tRME_State *State, int Number);
+extern int	RME_CallInt(tRME_State *State, int Num);
 
 /**
  * \brief Executes the emulator until RME_MAGIC_CS:RME_MAGIC_IP is reached
