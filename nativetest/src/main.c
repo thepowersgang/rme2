@@ -7,7 +7,7 @@
 #include <string.h>
 #include <signal.h>
 #include <rme.h>
-#include "dosexe.h"
+//#include "dosexe.h"
 #include <SDL/SDL.h>
 
 #define PACKED	__attribute__((packed))
@@ -25,6 +25,7 @@ extern void	LoadDosExe(const char *file);
 
 // === PROTOTYPES ===
  int	HLECall10(tRME_State *State, int IntNum);
+ int	HLECall12(tRME_State *State, int IntNum);
  int	HLECall(tRME_State *State, int IntNum);
 void	PutChar(uint8_t ch, uint32_t FGC);
 
@@ -65,6 +66,18 @@ int main(int argc, char *argv[])
 	}
 
 	// Create BIOS Structures
+	// - BIOS Entrypoint (All BIOS calls are HLE, so trap them)
+	gaMemory[0xF0000] = 0x67;	// XCHG (RMX)
+	gaMemory[0xF0001] = 0311;	// r BX BX
+	// - Interrupt Vector Table
+	for( i = 0; i < 0x100; i ++ )
+	{
+		gaMemory[i*4+0] = 0x00;
+		gaMemory[i*4+1] = 0xF0;
+		gaMemory[i*4+2] = 0x00;
+		gaMemory[i*4+3] = 0x00;
+	}
+	// - Disk Paramter Block
 	{
 		struct {
 			uint16_t	Length;
@@ -76,7 +89,7 @@ int main(int argc, char *argv[])
 			uint16_t	BytesPerSector;
 		}	__attribute__((packed))	*DiskInfo;
 	
-		DiskInfo = (void*)&gaMemory[0xF0000];
+		DiskInfo = (void*)&gaMemory[0xF1000];
 		DiskInfo[0].Length = 0x1A;
 		DiskInfo[0].Flags = 1;	// CHS Info is valid
 		DiskInfo[1].NumCyl = 80;
@@ -88,8 +101,8 @@ int main(int argc, char *argv[])
 
 	// Create and initialise RME State
 	emu = RME_CreateState();
-
 	emu->HLECallbacks[0x10] = HLECall10;
+	emu->HLECallbacks[0x12] = HLECall12;
 	emu->HLECallbacks[0x13] = HLECall;
 	emu->HLECallbacks[0x16] = HLECall;
 	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
@@ -214,8 +227,13 @@ int ReadDiskLBA(int Disk, int LBAAddr, int Count, void *Data)
 	switch(Disk)
 	{
 	case 0:
-		if( fseek(gaFDDs[0], LBAAddr * 512, SEEK_SET) )
-			perror("fseek failed");
+		if( fseek(gaFDDs[0], LBAAddr * 512, SEEK_SET) ) {
+			fprintf(stderr, "fseek(gaFDDs[0], 0x%x*512, SEEK_SET)\n", LBAAddr);
+			fprintf(stdout, "fseek(gaFDDs[0], 0x%x*512, SEEK_SET)\n", LBAAddr);
+			perror("fseek failed");	
+			memset(Data, 0, 512);
+			return 0;
+		}
 //		printf("ftell() = 0x%x\n", ftell(gaFDDs[0]));
 		return fread(Data, 512, Count, gaFDDs[0]);
 	default:
@@ -250,6 +268,7 @@ int ReadDiskCHS(int Disk, int Cylinder, int Head, int Sector, int Count, void *D
 	// Multi-track reads allowed (because they are easy)
 	
 	lbaAddr = Cylinder * nHead * spt + Head * spt + Sector - 1;
+	printf(" lbaAddr = %x\n", lbaAddr);
 	
 	return ReadDiskLBA(Disk, lbaAddr, Count, DataPtr);
 }
@@ -273,6 +292,15 @@ int HLECall10(tRME_State *State, int IntNum)
 	return 0;	// Silently ignore VGA BIOS calls
 }
 
+
+/**
+ * \brief Do a HLE call (Get memory size)
+ */
+int HLECall12(tRME_State *State, int IntNum)
+{
+	State->AX.W = 0xA0000/1024 - 1;
+	return 0;
+}
 /**
  * \brief Do a HLE call
  */
@@ -285,6 +313,7 @@ int HLECall(tRME_State *State, int IntNum)
 		switch(State->AX.B.H)
 		{
 		case 0x00:	// Reset Disk Subsystem
+			printf("Reset disk subsystem\n");
 			// Does anything need to be done here?
 			break;
 		
@@ -298,7 +327,7 @@ int HLECall(tRME_State *State, int IntNum)
 			// ES:BX - Destination Buffer
 			
 			// Zero count?
-			if( (State->CX.B.L & 0x3F) == 0 ) {
+			if( (State->AX.B.L & 0x3F) == 0 ) {
 				printf(" 0x13:0x02 Zero sectors\n");
 				State->Flags |= 1;
 				break;
@@ -355,7 +384,7 @@ int HLECall(tRME_State *State, int IntNum)
 				State->DX.B.L = 1;	// DL - Number of drives
 				State->DX.B.H = heads;	// DH - Maximum Head Number
 				// Disk Parameter block
-				State->ES = 0xF000;	State->DI.W = 0x0000;
+				State->ES = 0xF100;	State->DI.W = 0x0000;
 			}
 			break;
 		
@@ -375,7 +404,8 @@ int HLECall(tRME_State *State, int IntNum)
 				laddr = packet->Buffer.Segment*16 + packet->Buffer.Offset;
 				
 				
-				printf(" packet = {Size:%i,Count=%i,Buffer=%04x:%04x,LBAStart=0x%lx,BufferLong=0x%lx}\n",
+				printf(" packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,LBAStart=0x%"PRIx64",BufferLong=0x%"PRIx64"}\n",
+					packet,
 					packet->Size, packet->Count,
 					packet->Buffer.Segment, packet->Buffer.Offset,
 					packet->LBAStart, packet->BufferLong);

@@ -62,7 +62,8 @@
 
 // --- Stack Primiatives ---
 #define PUSH(v)	do{\
-	ret=RME_Int_Write16(State,State->SS,State->SP.W-=2,(v));\
+	State->SP.W -= 2; \
+	ret=RME_Int_Write16(State,State->SS,State->SP.W,(v));\
 	if(ret)return ret;\
 	}while(0)
 #define POP(dst)	do{\
@@ -368,7 +369,7 @@ decode:
 		DEBUG_S("<OPER> ");
 		State->Decoder.bOverrideOperand = 1;
 		goto decode;
-	case 0x67:	// Memory Size Override
+	case 0x67:	// Address Size Override
 		DEBUG_S("<ADDR> ");
 		State->Decoder.bOverrideAddress = 1;
 		return RME_ERR_UNDEFOPCODE;
@@ -615,6 +616,7 @@ decode:
 			ret = RME_Int_ParseModRM(State, NULL, &toB);
 			if(ret)	return ret;
 			*toB = ~*toB;
+			// No flags affected
 			break;
 		// NEG r/m8
 		case 3:	DEBUG_S("NEG (M)");
@@ -631,7 +633,13 @@ decode:
 			if(ret)	return ret;
 			pt2 = (Uint16)State->AX.B.L * (*fromB);
 			State->AX.W = pt2;
-			// TODO: Flags
+			// OF/CF Set to (AH?1:0), rest undefined
+			if( State->AX.W > 0xFF ) {
+				State->Flags |= FLAG_OF|FLAG_CF;
+			}
+			else {
+				State->Flags &= ~(FLAG_OF|FLAG_CF);
+			}
 			break;
 		case 5:	// IMUL AX = AL * r/m8 (signed)
 			DEBUG_S("IMUL (MI) AL");
@@ -699,6 +707,8 @@ decode:
 			}
 			#endif
 			// TODO: Flags
+			#warning "TODO: Implement flags for NOT (MX)"
+			ERROR_S("TODO: Set flags for NOT (MX)");
 			break;
 		// NEG r/m16
 		case 3:	DEBUG_S("NEG (MX)");
@@ -739,12 +749,15 @@ decode:
 			DEBUG_S(" (0x%04x)", *from.W);
 			#endif
 			
-			dword = State->AX.W * *from.W;
-			if(dword == State->AX.W)
-				State->Flags &= ~(FLAG_CF|FLAG_OF);
-			else
+			dword = (uint32_t)State->AX.W * *from.W;
+			if(dword >> 16)
 				State->Flags |= FLAG_CF|FLAG_OF;
+			else
+				State->Flags &= ~(FLAG_CF|FLAG_OF);
+			// SF, ZF, AF and PF are undefined
 			// TODO: More flags?
+			#warning "TODO: Check if more flags are needef for MUL (RIX)"
+			ERROR_S("TODO: Check if more flags are needef for MUL (RIX)");
 			State->DX.W = dword >> 16;
 			State->AX.W = dword & 0xFFFF;
 			}
@@ -762,13 +775,16 @@ decode:
 			
 			ret = RME_Int_ParseModRMX(State, NULL, &from.W);
 			if(ret)	return ret;
-			dword = (int16_t)State->AX.W * (int16_t)*from.W;
+			dword = (int32_t)(int16_t)State->AX.W * (int16_t)*from.W;
 			DEBUG_S(" %04x * %04x = %08x", State->AX.W, *from.W, dword);
 			if((int32_t)dword == (int16_t)State->AX.W)
 				State->Flags &= ~(FLAG_CF|FLAG_OF);
 			else
 				State->Flags |= FLAG_CF|FLAG_OF;
+			// SF, ZF, AF and PF are undefined
 			// TODO: More flags?
+			#warning "TODO: Check if more flags are needef for IMUL (RIX)"
+			ERROR_S("TODO: Check if more flags are needef for IMUL (RIX)");
 			State->DX.W = dword >> 16;
 			State->AX.W = dword & 0xFFFF;
 			}
@@ -810,12 +826,13 @@ decode:
 				if(dword2 > 0xFFFF)	return RME_Int_Expt_DivideError(State);
 				State->AX.W = dword2;
 				State->DX.W = dword - dword2 * (*from.W);
-				#warning "Implement Flags for DIV (RIX)"
 			}
+			// FLAGS: CF, OF, SF, ZF, AF and PF are undefined
 			break;
 		case 7:	// IDIV DX:AX, r/m16
 			#warning "TODO: IDIV RIX"
 			ERROR_S("0xF7 /7 - IDIV DX:AX, r/m16 unimplemented\n");
+			// FLAGS: CF, OF, SF, ZF, AF and PF are undefined
 			return RME_ERR_UNDEFOPCODE;
 		default:
 			ERROR_S("0xF7 /%x unknown\n", (byte2>>3) & 7);
@@ -1360,11 +1377,23 @@ decode:
 			XCHG(State->AX.W, *from.W);
 		break;
 
+
 	case XCHG_RM:
 		DEBUG_S("XCHG (RM)");
+		ret = RME_Int_ParseModRM(State, &toB, &fromB);
+		if(ret)	return ret;
+		XCHG(*toB, *fromB);
+		break;
+
+	case XCHG_RMX:
+		DEBUG_S("XCHG (RMX)");
 		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
 		// Note: Check for BX-BX for a breakpoint?
+		#if USE_MAGIC_BREAK
+		if( to.W == &State->BX.W && from.W == &State->BX.W )
+			return RME_ERR_BREAKPOINT;
+		#endif
 		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			XCHG(*to.D, *from.D);
@@ -1383,8 +1412,9 @@ decode:
 		pt2 = State->SP.W;
 		PUSH(State->AX.W);	PUSH(State->CX.W);
 		PUSH(State->DX.W);	PUSH(State->BX.W);
-		PUSH(pt2);	PUSH(State->BP.W);
+		PUSH(pt2);        	PUSH(State->BP.W);
 		PUSH(State->SI.W);	PUSH(State->DI.W);
+		DEBUG_S(" DI = %x", State->DI.W);
 		break;
 	case PUSH_AX:	DEBUG_S("PUSH AX");	PUSH(State->AX.W);	break;
 	case PUSH_BX:	DEBUG_S("PUSH BX");	PUSH(State->BX.W);	break;
@@ -1471,8 +1501,8 @@ decode:
 	// -- String Operations --
 	// Move
 	case MOVSB:	DEBUG_S("MOVS");
-		DEBUG_S(" DS:[SI]");	// TODO: Address Overrides
 		DEBUG_S(" ES:[DI]");
+		DEBUG_S(" DS:[SI]");	// TODO: Address Overrides
 		if( repType == REP ) {
 			DEBUG_S(" (0x%x times)", State->CX.W);
 			if( State->CX.W == 0 ) {	repType = 0;	break;	}
@@ -1495,8 +1525,8 @@ decode:
 		repType = 0;
 		break;
 	case MOVSW:	DEBUG_S("MOVSW");
-		DEBUG_S(" DS:[SI]");	// TODO: Address Overrides
 		DEBUG_S(" ES:[DI]");
+		DEBUG_S(" DS:[SI]");	// TODO: Address Overrides
 		if( repType == REP ) {
 			DEBUG_S(" (0x%x times)", State->CX.W);
 			if( State->CX.W == 0 ) {	repType = 0;	break;	}
@@ -1792,6 +1822,17 @@ decode:
 		}
 		*to.W = pt1;
 		break;
+	
+	// Convert Byte to Word/DWord
+	case CBW:
+		#if USE_SIZE_OVERRIDES == 1
+		if( State->Decoder.bOverrideOperand )
+			State->AX.D = (uint32_t)( (int8_t)State->AX.B.L );
+		else
+		#endif
+			State->AX.W = (uint16_t)( (int8_t)State->AX.B.L );
+		break;
+
 
 	// -- Loops --
 	case LOOP:	DEBUG_S("LOOP ");
@@ -1894,6 +1935,15 @@ ret:
 static inline int RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint16_t Ofs, void* *Ptr)
 {
 	uint32_t	addr = Seg * 16 + Ofs;
+	#if 1	// IVT Checks
+	if( addr < 0x400 ) {
+		DEBUG_S(" IVT Access INT 0x%x + %i", addr/4, addr%4);
+		//return RME_ERR_BADMEM;	// DEBUG!
+	}
+	//if( addr == 0x1fee ) {	// DEBUG!
+	//	DEBUG_S(" ??DI??");
+	//}
+	#endif
 	#if RME_DO_NULL_CHECK
 	# if RME_ALLOW_ZERO_TO_BE_NULL
 	if(addr/RME_BLOCK_SIZE && State->Memory[addr/RME_BLOCK_SIZE] == NULL)
