@@ -925,8 +925,15 @@ decode:
 			State->IP = *to.W;
 			goto ret;
 		case 3:
-			ERROR_S("CALL (MX) FAR --NI--\n");
-			return RME_ERR_UNDEFOPCODE;
+			ERROR_S("CALL (MX) FAR");
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	// Get m16:16
+			if(ret)	return ret;
+			DEBUG_S(" (0x%04x:0x%04x)", to.W[1], *to.W);
+			PUSH( State->CS );
+			PUSH( State->IP + State->Decoder.IPOffset );
+			State->CS = to.W[1];
+			State->IP = to.W[0];
+			goto ret;
 		case 4:
 			DEBUG_S("JMP (RX) NEAR");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
@@ -935,8 +942,13 @@ decode:
 			State->IP = *to.W;
 			goto ret;
 		case 5:
-			ERROR_S("JMP (MX) FAR --NI--\n");
-			return RME_ERR_UNDEFOPCODE;
+			ERROR_S("JMP (MX) FAR");
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	// Get m16:16
+			if(ret)	return ret;
+			DEBUG_S(" (0x%04x:0x%04x)", to.W[1], *to.W);
+			State->CS = to.W[1];
+			State->IP = to.W[0];
+			goto ret;
 		case 6:
 			DEBUG_S("PUSH (RX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
@@ -1940,9 +1952,9 @@ static inline int RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint16_t Ofs, 
 		DEBUG_S(" IVT Access INT 0x%x + %i", addr/4, addr%4);
 		//return RME_ERR_BADMEM;	// DEBUG!
 	}
-	//if( addr == 0x1fee ) {	// DEBUG!
-	//	DEBUG_S(" ??DI??");
-	//}
+	if( addr == 0x27A5A ) {	// DEBUG! (FreeDos)
+		DEBUG_S(" ??JMP??");
+	}
 	#endif
 	#if RME_DO_NULL_CHECK
 	# if RME_ALLOW_ZERO_TO_BE_NULL
@@ -2228,9 +2240,13 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, void *ptr)
 
 	seg = *Seg(State, seg);
 
+	// Only keep the (mod=0) flag when R/M = 6
+	if( (mmm & 7) != 6 )
+		mmm &= 7;
+
 	switch(mmm)
 	{
-	case -1:	// R/M == 6 when Mod == 0
+	case 6|8:	// R/M == 6 when Mod == 0
 		READ_INSTR16( disp );
 		DEBUG_S(":[0x%x]", disp);
 		addr = disp;
@@ -2275,6 +2291,124 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, void *ptr)
 }
 
 /**
+ * \brief Performs a memory addressing function (32-bit, with SIB if nessesary)
+ * \param State	Emulator State
+ * \param mmm	Function ID (mmm field from ModR/M byte)
+ * \param disp	Displacement
+ * \param ptr	Destination for final pointer
+ */
+static int DoFunc32(tRME_State *State, int mmm, int32_t disp, void *ptr)
+{
+	uint32_t	addr;
+	uint16_t	seg;
+	uint8_t	sib;
+
+	switch(mmm){
+	case 2:	case 3:	case 6:
+		seg = SREG_SS;
+		break;
+	default:
+		seg = SREG_DS;
+		break;
+	}
+
+	if(State->Decoder.OverrideSegment != -1)
+		seg = State->Decoder.OverrideSegment;
+
+	seg = *Seg(State, seg);
+
+	// Only keep the (mod=0) flag when R/M = 5
+	if( (mmm & 7) != 5 )
+		mmm &= 7;
+
+	switch(mmm & 7)
+	{
+	case 0:
+		DEBUG_S(":[EAX+0x%x]", disp);
+		addr = State->AX.D + disp;
+		break;
+	case 1:
+		DEBUG_S(":[ECX+0x%x]", disp);
+		addr = State->CX.D + disp;
+		break;
+	case 2:
+		DEBUG_S(":[EDX+0x%x]", disp);
+		addr = State->DX.D + disp;
+		break;
+	case 3:
+		DEBUG_S(":[EBX+0x%x]", disp);
+		addr = State->BX.D + disp;
+		break;
+	case 4:	// SIB
+		READ_INSTR8(sib);
+		DEBUG_S(":[");
+		// Index Reg
+		switch( (sib >> 3) & 7 )
+		{
+		case 0:	DEBUG_S("EAX");	addr = State->AX.D;	break;
+		case 1:	DEBUG_S("ECX");	addr = State->CX.D;	break;
+		case 2:	DEBUG_S("EDX");	addr = State->DX.D;	break;
+		case 3:	DEBUG_S("EBX");	addr = State->BX.D;	break;
+		case 4:	DEBUG_S("EIZ");	addr = 0;	break;
+		case 5:	DEBUG_S("EBP");	addr = State->BP.D;	break;
+		case 6:	DEBUG_S("ESI");	addr = State->SI.D;	break;
+		case 7:	DEBUG_S("EDI");	addr = State->DI.D;	break;
+		}
+		// Scale
+		DEBUG_S("*%i", 1 << (sib >> 6));
+		addr <<= (sib >> 6);
+		// Base
+		switch( sib & 7 )
+		{
+		case 0:	DEBUG_S("+EAX");	addr += State->AX.D;	break;
+		case 1:	DEBUG_S("+ECX");	addr += State->CX.D;	break;
+		case 2:	DEBUG_S("+EDX");	addr += State->DX.D;	break;
+		case 3:	DEBUG_S("+EBX");	addr += State->BX.D;	break;
+		case 4:	DEBUG_S("+ESP");	addr += State->SP.D;	break;
+		case 5:	// SPECIAL CASE
+			if( mmm & 8 ) {
+				READ_INSTR32(disp);
+			}
+			else
+			{
+				DEBUG_S("+EBP");
+				addr += State->BP.D;
+			}
+			break;
+		case 6:	DEBUG_S("+ESI");	addr += State->SI.D;	break;
+		case 7:	DEBUG_S("+EDI");	addr += State->DI.D;	break;
+		}
+		DEBUG_S("+0x%x]", disp);
+		addr += disp;
+		break;
+	case 5:
+		if( mmm & 8 )
+		{
+			// R/M == 5 when Mod == 0
+			READ_INSTR32( addr );
+			DEBUG_S(":[0x%x]", addr);
+		}
+		else
+		{
+			DEBUG_S(":[EBP+0x%x]", disp);
+			addr = State->BP.D + disp;
+		}
+		break;
+	case 6:
+		DEBUG_S(":[ESI+0x%x]", disp);
+		addr = State->SI.D + disp;
+		break;
+	case 7:
+		DEBUG_S(":[EDI+0x%x]", disp);
+		addr = State->DI.D + disp;
+		break;
+	default:
+		return RME_ERR_BUG;
+	}
+	return RME_Int_GetPtr(State, seg, addr, ptr);
+}
+
+/**
  * \brief Parses the ModR/M byte as a 8-bit value
  * \param State	Emulator State
  * \param to	R field destination (ignored if NULL)
@@ -2292,10 +2426,7 @@ int RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from)
 	case 0:	//No Offset
 		if(to) *to = RegB( State, (d>>3) & 7 );
 		if(from) {
-			if((d & 7) == 6)
-				ret = DoFunc( State, -1, 0, from );
-			else
-				ret = DoFunc( State, d & 7, 0, from );
+			ret = DoFunc( State, (d & 7) | 8, 0, from );
 			if(ret)	return ret;
 		}
 		return 0;
