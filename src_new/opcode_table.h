@@ -81,7 +81,7 @@ const tOperation	caOperations[256] = {
 	/*  0xAC*/	DEF_OP(LOD,SB), DEF_OP(LOD,SW), DEF_OP(SCA,SB), DEF_OP(SCA,SW),
 	/* 0xB0 */	DEF_REGB_OP(MOV),
 	/* 0xB8 */	DEF_REG_OP(MOV),
-	/* 0xC0 */	UNDEF_OP, UNDEF_OP, DEF_OP(RET,iN), DEF_OP(RET,N),
+	/* 0xC0 */	UNDEF_OP, DEF_OP(Logic, MI8X), DEF_OP(RET,iN), DEF_OP(RET,N),
 	/*  0xC4*/	DEF_OP(LES,z), DEF_OP(LDS,z), DEF_OP(MOV,MI), DEF_OP(MOV,MIX),
 	/* 0xC8 */	UNDEF_OP, UNDEF_OP, DEF_OP(RET,iF), DEF_OP(RET,F),
 	/*  0xCC*/	DEF_OP(INT,3), DEF_OP(INT,I), UNDEF_OP, DEF_OP(IRET,z),
@@ -94,7 +94,7 @@ const tOperation	caOperations[256] = {
 	/* 0xE8 */	DEF_OP(CALL,N), DEF_OP(JMP,N), DEF_OP(JMP,F), DEF_OP(JMP,S),
 	/*  0xEC*/	DEF_OP(IN,ADx), DEF_OP(IN,ADxX), DEF_OP(OUT,DxA), DEF_OP(OUT,DxAX),
 	/* 0xF0 */	UNDEF_OP, UNDEF_OP, DEF_OP(Prefix, REP), DEF_OP(Prefix, REPNZ),
-	/*  0xF4*/	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
+	/*  0xF4*/	UNDEF_OP, UNDEF_OP, DEF_OP(ArithMisc, MI), DEF_OP(ArithMisc, MIX),
 	/* 0xF8 */	DEF_OP(Flag, CLC), DEF_OP(Flag, STC), DEF_OP(Flag, CLI), DEF_OP(Flag, STI),
 	/*  0xFC*/	DEF_OP(Flag, CLD), DEF_OP(Flag, STD), UNDEF_OP, UNDEF_OP
 	/*0x100 */

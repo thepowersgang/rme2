@@ -106,8 +106,7 @@ DEF_OPCODE_FCN(JMP, N)
 
 DEF_OPCODE_FCN(JMP, F)
 {
-	uint16_t	seg;
-	uint16_t	ofs;
+	uint16_t	seg, ofs;
 	READ_INSTR16( ofs );
 	READ_INSTR16( seg );
 	DEBUG_S("0x%04x:%04x", seg, ofs);
@@ -123,6 +122,5 @@ DEF_OPCODE_FCN(JMP, S)
 	READ_INSTR8S( ofs );
 	DEBUG_S(".+0x%02x", ofs&0xFF);
 	State->IP += ofs;
-	State->Decoder.bDontChangeIP = 1;
 	return 0;
 }

@@ -123,12 +123,12 @@ DEF_OPCODE_FCN(MOV, AMo)
 	
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
-		READ_INSTR16( ofs );
-		DEBUG_S(":0x%04x", ofs);
-	}
-	else {
 		READ_INSTR32( ofs );
 		DEBUG_S(":0x%08x", ofs);
+	}
+	else {
+		READ_INSTR16( ofs );
+		DEBUG_S(":0x%04x", ofs);
 	}
 	DEBUG_S(" AL");
 	ret = RME_Int_Write8(State, seg, ofs, State->AX.W & 0xFF);
@@ -144,12 +144,12 @@ DEF_OPCODE_FCN(MOV, AMoX)
 	
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
-		READ_INSTR16( ofs );
-		DEBUG_S(":0x%04x ", ofs);
-	}
-	else {
 		READ_INSTR32( ofs );
 		DEBUG_S(":0x%08x ", ofs);
+	}
+	else {
+		READ_INSTR16( ofs );
+		DEBUG_S(":0x%04x ", ofs);
 	}
 	
 	if( State->Decoder.bOverrideOperand )
@@ -326,7 +326,7 @@ DEF_OPCODE_FCN(XCHG, RMX)
 	}
 	return 0;
 }
-DEF_OPCODE_FCN(XCHG, AR)
+DEF_OPCODE_FCN(XCHG, Reg)	// A with Reg
 {
 	union {
 		uint16_t	*W;

@@ -628,7 +628,7 @@ decode:
 			SET_COMM_FLAGS(State, *toB, 8);
 			break;
 		case 4:	// MUL AX = AL * r/m8
-			ERROR_S("MUL (MI) AL");
+			DEBUG_S("MUL (MI) AL");
 			ret = RME_Int_ParseModRM(State, NULL, &fromB);
 			if(ret)	return ret;
 			pt2 = (Uint16)State->AX.B.L * (*fromB);
@@ -1946,7 +1946,7 @@ ret:
  */
 static inline int RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint16_t Ofs, void* *Ptr)
 {
-	uint32_t	addr = Seg * 16 + Ofs;
+	uint32_t	addr = (int)Seg * 16 + Ofs;
 	#if 1	// IVT Checks
 	if( addr < 0x400 ) {
 		DEBUG_S(" IVT Access INT 0x%x + %i", addr/4, addr%4);
@@ -2061,10 +2061,10 @@ static inline int RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs,
 #define RME_Int_DoSbb(State, to, from, width)	do{\
 	int v = (to) - (from) + ((State->Flags&FLAG_CF)?1:0);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
 	State->Flags |= ((to)<(from) || (from)==((1<<((width)-1)-1)|(1<<((width)-1)))) ? FLAG_CF : 0;\
 	State->Flags |= (((((to) ^ (from)) & ((to) ^ (v))) & (1<<((width)-1))) != 0) ? FLAG_OF : 0;\
 	(to) = v;\
+	SET_COMM_FLAGS(State,(to),(width));\
 	}while(0)
 // 4: Bitwise AND
 #define RME_Int_DoAnd(State, to, from, width)	do{\
@@ -2076,10 +2076,10 @@ static inline int RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs,
 #define RME_Int_DoSub(State, to, from, width)	do{\
 	int v = (to) - (from);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
 	State->Flags |= ((to)<(from)) ? FLAG_CF : 0;\
 	State->Flags |= (((((to) ^ (from)) & ((to) ^ (v))) & (1<<((width)-1))) != 0) ? FLAG_OF : 0;\
 	(to) = v;\
+	SET_COMM_FLAGS(State,(to),(width));\
 	}while(0)
 // 6: Bitwise XOR
 #define RME_Int_DoXor(State, to, from, width)	do{\

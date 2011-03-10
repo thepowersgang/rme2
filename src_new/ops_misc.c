@@ -25,26 +25,26 @@ static inline int _LDS_LES_internal(tRME_State *State, uint16_t *SegRegPtr)
 	 int	ret;
 	uint16_t	seg, *src, *dest;
 	uint32_t	addr;
-	uint8_t	modrm_byte;
+	 int	mod, rrr, mmm;
 	
-	READ_INSTR8(modrm_byte);
+	RME_Int_GetModRM(State, &mod, &rrr, &mmm);
 	
-	if( (modrm_byte >> 6) == 3 )
+	if( mod == 3 )
 		return RME_ERR_UNDEFOPCODE;	// Source cannot be a register
 	
-	ret = RME_Int_GetMMM(State, modrm_byte >> 6, modrm_byte & 7, &seg, &addr);
+	ret = RME_Int_GetMMM(State, mod, mmm, &seg, &addr);
 	if(ret)	return ret;
+	dest = RegW(State, rrr);
 	
 	// Get segment
 	ret = RME_Int_GetPtr(State, seg, addr, (void**)&src);
 	if(ret)	return ret;
 	*SegRegPtr = *src;
+	
 	// Get address of the destination
 	addr += 2;
 	ret = RME_Int_GetPtr(State, seg, addr, (void**)&src);
 	if(ret)	return ret;
-	
-	dest = RegW(State, (modrm_byte >> 3) & 7);
 	
 	if( State->Decoder.bOverrideOperand )
 	{
@@ -72,21 +72,16 @@ DEF_OPCODE_FCN(LEA, z)
 	 int	ret;
 	uint16_t	seg, *dest;
 	uint32_t	addr;
-	uint8_t	modrm_byte;
-	 int	modrm_mod, modrm_rrr, modrm_mmm;
+	 int	mod, rrr, mmm;
 	
-	READ_INSTR8(modrm_byte);
+	RME_Int_GetModRM(State, &mod, &rrr, &mmm);
 	
-	modrm_mod = modrm_byte >> 6;
-	modrm_rrr = (modrm_byte >> 3) & 7;
-	modrm_mmm = modrm_byte & 7;
-	
-	if( modrm_mod == 3 )
+	if( mod == 3 )
 		return RME_ERR_UNDEFOPCODE;	// Source cannot be a register
 	
-	dest = RegW(State, modrm_rrr);
+	dest = RegW(State, rrr);
 	
-	ret = RME_Int_GetMMM(State, modrm_mod, modrm_mmm, &seg, &addr);
+	ret = RME_Int_GetMMM(State, mod, mmm, &seg, &addr);
 	if(ret)	return ret;
 	
 	if( State->Decoder.bOverrideOperand )

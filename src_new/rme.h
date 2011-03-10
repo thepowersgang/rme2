@@ -11,6 +11,8 @@
 #ifndef _RME_H_
 #define _RME_H_
 
+#include <rme_config.h>
+
 #include <stdint.h>
 
 #ifndef NULL

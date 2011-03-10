@@ -7,7 +7,6 @@
 #include <string.h>
 #include <signal.h>
 #include <rme.h>
-//#include "dosexe.h"
 #include <SDL/SDL.h>
 
 #define PACKED	__attribute__((packed))
@@ -466,3 +465,10 @@ int HLECall(tRME_State *State, int IntNum)
 	return 0;	// Emulate
 }
 
+
+uint8_t inb(uint16_t port) { return 0; }
+uint16_t inw(uint16_t port) { return 0; }
+uint32_t inl(uint16_t port) { return 0; }
+void outb(uint16_t port, uint8_t val) { return ; }
+void outw(uint16_t port, uint16_t val) { return ; }
+void outl(uint16_t port, uint32_t val) { return ; }

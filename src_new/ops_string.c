@@ -5,12 +5,14 @@
 #include "rme.h"
 #include "rme_internal.h"
 #include "opcode_prototypes.h"
-#include "ops_alu.h"
+#include "ops_alu.h"	// For ALU_OPCODE_CMP_CODE
+#include "ops_io.h"	// for inB/inW/...
 
 #define STRING_HEAD(__check_zf, __use_di, __use_si, __before, __after)	do{\
+	const int __using_di=__use_di,__using_si=__use_si; \
 	uint32_t	srcOfs, destOfs; \
 	uint32_t	mask; \
-	DEBUG_S(__before); \
+	DEBUG_S("%s",__before); \
 	if( State->Decoder.bOverrideAddress ) { \
 		mask = 0xFFFFFFFF; \
 		srcOfs = State->SI.D;	destOfs = State->SI.D; \
@@ -22,7 +24,7 @@
 		if(__use_di)	DEBUG_S(" ES:[DI]"); \
 		if(__use_si)	DEBUG_S(" DS:[SI]"); \
 	} \
-	DEBUG_S(__after); \
+	DEBUG_S("%s",__after); \
 	if( !__check_zf && State->Decoder.RepeatType == REP ) { \
 		DEBUG_S(" (max 0x%x times)", State->CX.W); \
 		if( State->CX.W == 0 ) { \
@@ -49,6 +51,13 @@
 		} \
 		srcOfs &= mask; destOfs &= mask; \
 	} while(State->Decoder.RepeatType); \
+	if( State->Decoder.bOverrideAddress ) { \
+		if(__using_di)	State->SI.D = destOfs; \
+		if(__using_si)	State->SI.D = srcOfs; \
+	} else { \
+		if(__using_di)	State->SI.W = destOfs; \
+		if(__using_si)	State->SI.W = srcOfs; \
+	} \
 	State->Decoder.RepeatType = 0; \
 	} while(0)
 
@@ -242,6 +251,89 @@ DEF_OPCODE_FCN(SCA, SW)
 		if(ret)	return ret;
 		
 		{ALU_OPCODE_CMP_CODE}
+	}
+	
+	STRING_FOOTER();
+	return 0;
+}
+
+DEF_OPCODE_FCN(IN, SB)
+{
+	 int	ret;
+	STRING_HEAD(0, 1, 0, "", " DX");
+	
+	uint8_t	tmp;
+	
+	ret = inB(State, State->DX.W, &tmp);
+	if(ret)	return ret;
+	
+	ret = RME_Int_Write8(State, State->ES, destOfs, tmp);
+	if(ret)	return ret;
+	
+	STRING_FOOTER();
+	return 0;
+}
+DEF_OPCODE_FCN(IN, SW)
+{
+	 int	ret;
+	STRING_HEAD(0, 1, 0, "", " DX");
+	
+	if( State->Decoder.bOverrideOperand )
+	{
+		uint32_t	tmp;
+		ret = inD(State, State->DX.W, &tmp);
+		if(ret)	return ret;
+		ret = RME_Int_Write32(State, State->ES, destOfs, tmp);
+		if(ret)	return ret;
+	}
+	else
+	{
+		uint16_t	tmp;
+		ret = inW(State, State->DX.W, &tmp);
+		if(ret)	return ret;
+		ret = RME_Int_Write16(State, State->ES, destOfs, tmp);
+		if(ret)	return ret;
+	}
+	
+	STRING_FOOTER();
+	return 0;
+}
+DEF_OPCODE_FCN(OUT, SB)
+{
+	 int	ret;
+	STRING_HEAD(0, 0, 1, " DX", "");
+	
+	uint8_t	tmp;
+	
+	ret = RME_Int_Read8(State, State->DS, srcOfs, &tmp);
+	if(ret)	return ret;
+	
+	ret = outB(State, State->DX.W, tmp);
+	if(ret)	return ret;
+	
+	STRING_FOOTER();
+	return 0;
+}
+DEF_OPCODE_FCN(OUT, SW)
+{
+	 int	ret;
+	STRING_HEAD(0, 0, 1, " DX", "");
+	
+	if( State->Decoder.bOverrideOperand )
+	{
+		uint32_t	tmp;
+		if(ret)	return ret;
+		ret = RME_Int_Read32(State, State->ES, destOfs, &tmp);
+		if(ret)	return ret;
+		ret = outD(State, State->DX.W, tmp);
+	}
+	else
+	{
+		uint16_t	tmp;
+		ret = RME_Int_Read16(State, State->ES, destOfs, &tmp);
+		if(ret)	return ret;
+		ret = outW(State, State->DX.W, tmp);
+		if(ret)	return ret;
 	}
 	
 	STRING_FOOTER();

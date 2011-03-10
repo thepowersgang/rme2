@@ -229,6 +229,7 @@ enum opcodes {
  * \brief Read a word from the instruction stream
  * Reads 2 bytes as an unsigned integer from CS:IP and increases IP by 2.
  */
+//	printf(" CS:IP+%i ", State->Decoder.IPOffset);
 #define READ_INSTR16(dst)	do{int r;uint16_t v;\
 	r=RME_Int_Read16(State,State->CS,State->IP+State->Decoder.IPOffset,&v);\
 	if(r)	return r;\
@@ -315,6 +316,16 @@ static inline WARN_UNUSED_RET int	RME_Int_Write32(tRME_State *State, uint16_t Se
 	return 0;
 }
 
+static inline int RME_Int_GetModRM(tRME_State *State, int *Mod, int *RRR, int *MMM)
+{
+	uint8_t	byte;
+	READ_INSTR8(byte);
+	if(Mod)	*Mod = byte >> 6;
+	if(RRR)	*RRR = (byte >> 3) & 7;
+	if(MMM)	*MMM = byte & 7;
+	return 0;
+}
+
 // --- Stack Primiatives ---
 // TODO: Possible support for non 16-bit stack segment
 #define PUSH(v)	do{\
@@ -330,7 +341,7 @@ static inline WARN_UNUSED_RET int	RME_Int_Write32(tRME_State *State, uint16_t Se
 	(dst)=v;\
 	}while(0)
 
-
+// --- Register Selecting ---
 static inline uint16_t	*Seg(tRME_State *State, int code)
 {
 	switch(code) {
