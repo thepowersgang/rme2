@@ -15,7 +15,7 @@ DEF_OPCODE_FCN(MOV, MR)
 {
 	 int	ret;
 	uint8_t	*dest, *src;
-	ret = RME_Int_ParseModRM(State, &dest, &src, 0);
+	ret = RME_Int_ParseModRM(State, &src, &dest, 1);
 	if(ret)	return ret;
 	
 	*dest = *src;
@@ -26,7 +26,7 @@ DEF_OPCODE_FCN(MOV, MRX)
 {
 	 int	ret;
 	void	*destPtr, *srcPtr;
-	ret = RME_Int_ParseModRMX(State, (uint16_t**)&destPtr, (uint16_t**)&srcPtr, 0);
+	ret = RME_Int_ParseModRMX(State, (uint16_t**)&srcPtr, (uint16_t**)&destPtr, 1);
 	if(ret)	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
@@ -48,7 +48,7 @@ DEF_OPCODE_FCN(MOV, RM)
 {
 	 int	ret;
 	uint8_t	*dest, *src;
-	ret = RME_Int_ParseModRM(State, &dest, &src, 1);
+	ret = RME_Int_ParseModRM(State, &dest, &src, 0);
 	if(ret)	return ret;
 	
 	*dest = *src;
@@ -59,7 +59,7 @@ DEF_OPCODE_FCN(MOV, RMX)
 {
 	 int	ret;
 	void	*destPtr, *srcPtr;
-	ret = RME_Int_ParseModRMX(State, (uint16_t**)&destPtr, (uint16_t**)&srcPtr, 1);
+	ret = RME_Int_ParseModRMX(State, (uint16_t**)&destPtr, (uint16_t**)&srcPtr, 0);
 	if(ret)	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
@@ -121,6 +121,8 @@ DEF_OPCODE_FCN(MOV, AMo)
 	uint16_t	seg;
 	uint32_t	ofs;
 	
+	DEBUG_S(" AL");
+	
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR32( ofs );
@@ -130,8 +132,8 @@ DEF_OPCODE_FCN(MOV, AMo)
 		READ_INSTR16( ofs );
 		DEBUG_S(":0x%04x", ofs);
 	}
-	DEBUG_S(" AL");
-	ret = RME_Int_Write8(State, seg, ofs, State->AX.W & 0xFF);
+	
+	ret = RME_Int_Read8(State, seg, ofs, &State->AX.B.L);
 	if(ret)	return ret;
 	
 	return 0;
@@ -141,6 +143,11 @@ DEF_OPCODE_FCN(MOV, AMoX)
 	 int	ret;
 	uint16_t	seg;
 	uint32_t	ofs;
+	
+	if( State->Decoder.bOverrideOperand )
+		DEBUG_S("EAX ");
+	else
+		DEBUG_S("AX ");
 	
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
@@ -153,14 +160,9 @@ DEF_OPCODE_FCN(MOV, AMoX)
 	}
 	
 	if( State->Decoder.bOverrideOperand )
-		DEBUG_S("EAX ");
+		ret = RME_Int_Read32(State, seg, ofs, &State->AX.D);
 	else
-		DEBUG_S("AX ");
-	
-	if( State->Decoder.bOverrideOperand )
-		ret = RME_Int_Write32(State, seg, ofs, State->AX.D);
-	else
-		ret = RME_Int_Write16(State, seg, ofs, State->AX.W);
+		ret = RME_Int_Read16(State, seg, ofs, &State->AX.W);
 		
 	if(ret)	return ret;
 	
@@ -173,7 +175,7 @@ DEF_OPCODE_FCN(MOV, MoA)
 	 int	ret;
 	uint16_t	seg;
 	uint32_t	ofs;
-	DEBUG_S("AL ");
+	
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR16( ofs );
@@ -183,7 +185,8 @@ DEF_OPCODE_FCN(MOV, MoA)
 		READ_INSTR32( ofs );
 		DEBUG_S(":0x%08x", ofs);
 	}
-	ret = RME_Int_Read8(State, seg, ofs, &State->AX.B.L);
+	DEBUG_S("AL ");
+	ret = RME_Int_Write8(State, seg, ofs, State->AX.B.L);
 	if(ret)	return ret;
 	
 	return 0;
@@ -194,11 +197,6 @@ DEF_OPCODE_FCN(MOV, MoAX)
 	uint16_t	seg;
 	uint32_t	ofs;
 	
-	if( State->Decoder.bOverrideOperand )
-		DEBUG_S("EAX ");
-	else
-		DEBUG_S("AX ");
-	
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR16( ofs );
@@ -210,9 +208,14 @@ DEF_OPCODE_FCN(MOV, MoAX)
 	}
 	
 	if( State->Decoder.bOverrideOperand )
-		ret = RME_Int_Read32(State, seg, ofs, &State->AX.D);
+		DEBUG_S("EAX ");
 	else
-		ret = RME_Int_Read16(State, seg, ofs, &State->AX.W);
+		DEBUG_S("AX ");
+	
+	if( State->Decoder.bOverrideOperand )
+		ret = RME_Int_Write32(State, seg, ofs, State->AX.D);
+	else
+		ret = RME_Int_Write16(State, seg, ofs, State->AX.W);
 		
 	if(ret)	return ret;
 	
@@ -297,6 +300,49 @@ DEF_OPCODE_FCN(MOV, Reg)
 	}
 	return 0;
 }
+
+// Move and Zero Extend
+DEF_OPCODE_FCN(MOV,Z)
+{
+	uint8_t	*src;
+	void	*dest;
+	 int	ret, rrr;
+	
+	ret = RME_Int_GetModRM(State, NULL, &rrr, NULL);	State->Decoder.IPOffset --;
+	if( ret )	return ret;
+	
+	dest = RegW(State, rrr);
+	ret = RME_Int_ParseModRM(State, NULL, &src, 0);
+	if( ret )	return ret;
+	
+	if( State->Decoder.bOverrideOperand )
+		*(uint32_t*)dest = *src;
+	else
+		*(uint16_t*)dest = *src;
+	
+	return 0;
+}
+DEF_OPCODE_FCN(MOV,ZX)
+{
+	uint16_t	*src;
+	void	*dest;
+	 int	ret, rrr;
+	
+	ret = RME_Int_GetModRM(State, NULL, &rrr, NULL);	State->Decoder.IPOffset --;
+	if( ret )	return ret;
+	
+	dest = RegW(State, rrr);
+	ret = RME_Int_ParseModRMX(State, NULL, &src, 0);
+	if( ret )	return ret;
+	
+	if( State->Decoder.bOverrideOperand )
+		*(uint32_t*)dest = *src;
+	else
+		*(uint16_t*)dest = *src;
+	
+	return 0;
+}
+
 // Exchange Family
 DEF_OPCODE_FCN(XCHG, RM)
 {

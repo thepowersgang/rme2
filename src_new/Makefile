@@ -6,7 +6,7 @@ RME_BIN = rme.a
 RME_DEPS := $(RME_OBJ:%.o=%.dep)
 RME_DEPS := $(filter %.dep,$(RME_DEPS))
 
-CFLAGS = -Wall
+CFLAGS = -Wall -O2
 CPPFLAGS = -I .
 
 all: $(RME_BIN)

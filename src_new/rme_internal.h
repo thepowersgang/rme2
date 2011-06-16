@@ -12,6 +12,7 @@
 #define _RME_INTERNAL_H_
 
 #include <stdint.h>
+#include <rme_config.h>
 
 /**
  */
@@ -179,12 +180,12 @@ enum opcodes {
 
 // --- Debug Macro ---
 #if DEBUG
-# define DEBUG_S(...)	printf(__VA_ARGS__)
+# define DEBUG_S(v...)	printf(v)
 #else
 # define DEBUG_S(...)
 #endif
 #if ERR_OUTPUT
-# define ERROR_S(...)	printf(__VA_ARGS__)
+# define ERROR_S(v...)	printf(v)
 #else
 # define ERROR_S(...)
 #endif
@@ -198,7 +199,7 @@ enum opcodes {
 	else	State->Flags |= (PAIRITY16(v) ^ PAIRITY16((v)>>16)) ? 0 : FLAG_PF;\
 	}while(0)
 #define SET_COMM_FLAGS(State,v,w) do{\
-	State->Flags &= ~(FLAG_ZF|FLAG_SF|FLAG_CF);\
+	State->Flags &= ~(FLAG_ZF|FLAG_SF|FLAG_PF);\
 	State->Flags |= ((v) == 0) ? FLAG_ZF : 0;\
 	State->Flags |= ((v) >> ((w)-1)) ? FLAG_SF : 0;\
 	SET_PF(State, (v), (w));\
@@ -357,48 +358,26 @@ static inline uint16_t	*Seg(tRME_State *State, int code)
 
 static inline uint8_t	*RegB(tRME_State *State, int num)
 {
-	switch(num)
-	{
-	case 0:	DEBUG_S(" AL");	return &State->AX.B.L;
-	case 1:	DEBUG_S(" CL");	return &State->CX.B.L;
-	case 2:	DEBUG_S(" DL");	return &State->DX.B.L;
-	case 3:	DEBUG_S(" BL");	return &State->BX.B.L;
-	case 4:	DEBUG_S(" AH");	return &State->AX.B.H;
-	case 5:	DEBUG_S(" CH");	return &State->CX.B.H;
-	case 6:	DEBUG_S(" DH");	return &State->DX.B.H;
-	case 7:	DEBUG_S(" BH");	return &State->BX.B.H;
-	}
-	return 0;
+	static const char regnamesB[][3] = {"AL","CL","DL","BL","AH","CH","DH","BH"};
+	DEBUG_S(" %s", regnamesB[num]);
+	if(num > 7 || num < 0)	return NULL;
+	if( num >= 4 )
+		return &State->GPRs[num-4].B.H;
+	else
+		return &State->GPRs[num].B.L;
 }
 
 static inline uint16_t	*RegW(tRME_State *State, int num)
 {
+	static const char regnamesD[][4] = {"EAX","ECX","EDX","EBX","ESP","EBP","ESI","EDI"};
+	static const char regnamesW[][3] = {"AX","CX","DX","BX","SP","BP","SI","DI"};
+	if(num > 7 || num < 0)	return NULL;
 	if(State->Decoder.bOverrideOperand) {
-		switch(num)
-		{
-		case 0:	DEBUG_S(" EAX");	return &State->AX.W;
-		case 1:	DEBUG_S(" ECX");	return &State->CX.W;
-		case 2:	DEBUG_S(" EDX");	return &State->DX.W;
-		case 3:	DEBUG_S(" EBX");	return &State->BX.W;
-		case 4:	DEBUG_S(" ESP");	return &State->SP.W;
-		case 5:	DEBUG_S(" EBP");	return &State->BP.W;
-		case 6:	DEBUG_S(" ESI");	return &State->SI.W;
-		case 7:	DEBUG_S(" EDI");	return &State->DI.W;
-		}
+		DEBUG_S(" %s", regnamesD[num]);
 	} else {
-		switch(num)
-		{
-		case 0:	DEBUG_S(" AX");	return &State->AX.W;
-		case 1:	DEBUG_S(" CX");	return &State->CX.W;
-		case 2:	DEBUG_S(" DX");	return &State->DX.W;
-		case 3:	DEBUG_S(" BX");	return &State->BX.W;
-		case 4:	DEBUG_S(" SP");	return &State->SP.W;
-		case 5:	DEBUG_S(" BP");	return &State->BP.W;
-		case 6:	DEBUG_S(" SI");	return &State->SI.W;
-		case 7:	DEBUG_S(" DI");	return &State->DI.W;
-		}
+		DEBUG_S(" %s", regnamesW[num]);
 	}
-	return 0;
+	return &State->GPRs[num].W;
 }
 
 #endif

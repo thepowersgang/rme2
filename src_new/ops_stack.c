@@ -38,7 +38,7 @@ DEF_OPCODE_FCN(POP, Reg)
 	 int	ret;
 	uint16_t	*ptr = RegW(State, Param);
 	if( State->Decoder.bOverrideOperand )	return RME_ERR_UNDEFOPCODE;
-	PUSH(*ptr);
+	POP(*ptr);
 	return 0;
 }
 

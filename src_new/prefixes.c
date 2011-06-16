@@ -35,17 +35,15 @@ DEF_OPCODE_FCN(Ovr, AddrSize)
 
 DEF_OPCODE_FCN(Prefix, REP)
 {
-	if( State->Decoder.RepeatType != -1 )
+	if( State->Decoder.RepeatType != 0 )
 		return RME_ERR_UNDEFOPCODE;
-	DEBUG_S("REP ");
 	State->Decoder.RepeatType = REP;
 	return RME_ERR_CONTINUE;
 }
 DEF_OPCODE_FCN(Prefix, REPNZ)
 {
-	if( State->Decoder.RepeatType != -1 )
+	if( State->Decoder.RepeatType != 0 )
 		return RME_ERR_UNDEFOPCODE;
-	DEBUG_S("REPNZ ");
 	State->Decoder.RepeatType = REPNZ;
 	return RME_ERR_CONTINUE;
 }

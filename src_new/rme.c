@@ -20,6 +20,7 @@ typedef int16_t	Sint16;
 typedef int8_t	Sint8;
 
 #include "rme.h"
+#include "ops_alu.h"
 
 // Settings
 #define RME_DO_NULL_CHECK	1
@@ -31,56 +32,8 @@ typedef int8_t	Sint8;
 // === CONSTANTS ===
 #define FLAG_DEFAULT	0x2
 
-/**
- * \name Exception Handlers
- * \{
- */
-#define	RME_Int_Expt_DivideError(State)	(RME_ERR_DIVERR)
-/**
- * \}
- */
-
 // === MACRO VOODOO ===
 #define XCHG(a,b)	do{uint32_t t=(a);(a)=(b);(b)=(t);}while(0)
-// --- Case Helpers
-#define CASE4(b)	case(b):case((b)+1):case((b)+2):case((b)+3)
-#define CASE8(b)	CASE4(b):CASE4((b)+4)
-#define CASE16(b)	CASE4(b):CASE4((b)+4):CASE4((b)+8):CASE4((b)+12)
-#define CASE4K(b,k)	case(b):case((b)+1*(k)):case((b)+2*(k)):case((b)+3*(k))
-#define CASE8K(b,k)	CASE4K(b,k):CASE4K((b)+4*(k),k)
-#define CASE16K(b,k)	CASE4K(b,k):CASE4K((b)+4*(k),k):CASE4K((b)+8*(k),k):CASE4K((b)+12*(k),k)
-
-// --- OPERATIONS ---
-// Logical TEST (Set flags according to AND)
-#define RME_Int_DoTest(State, to, from, width)	do{\
-	int v = (to) & (from);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,v,(width));\
-	}while(0)
-#define RME_Int_DoRol(State, to, from, width)	do{\
-	(to) = ((to) << (from)) | ((to) >> ((width)-(from)));\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	State->Flags |= ((to) >> ((width)-1)) ? FLAG_CF : 0;\
-	}while(0)
-#define RME_Int_DoRor(State, to, from, width)	do{\
-	(to) = ((to) >> (from)) | ((to) << ((width)-(from)));\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	State->Flags |= ((to) >> ((width)-1)) ? FLAG_CF : 0;\
-	}while(0)
-#define RME_Int_DoShl(State, to, from, width)	do{\
-	(to) <<= (from);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	State->Flags |= ((to) >> ((width)-1)) ? FLAG_CF : 0;\
-	}while(0)
-#define RME_Int_DoShr(State, to, from, width)	do{\
-	(to) >>= (from);\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
-	State->Flags |= ((to) & 1) ? FLAG_CF : 0;\
-	}while(0)
 
 // === TYPES ===
 typedef int (*tOpcodeFcn)(tRME_State *State, int Param);
@@ -92,18 +45,7 @@ void	RME_DumpRegs(tRME_State *State);
  int	RME_Call(tRME_State *State);
 static int	RME_Int_DoOpcode(tRME_State *State);
 
-#if 0
-static inline WARN_UNUSED_RET int	RME_Int_DoArithOp8(int Num, tRME_State *State, uint8_t *Dest, uint8_t Src);
-static inline WARN_UNUSED_RET int	RME_Int_DoArithOp16(int Num, tRME_State *State, uint16_t *Dest, uint16_t Src);
-static inline WARN_UNUSED_RET int	RME_Int_DoArithOp32(int Num, tRME_State *State, uint32_t *Dest, uint32_t Src);
-#endif
-
 // === GLOBALS ===
-#if DEBUG
-static const char *casArithOps[] = {"ADD", "OR", "ADC", "SBB", "AND", "SUB", "XOR", "CMP"};
-static const char *casLogicOps[] = {"ROL", "ROR", "RCL", "RCR", "SHL", "SHR", "L6-", "L7-"};
-#endif
-
 #include "opcode_table.h"
 
 // === CODE ===
@@ -146,7 +88,17 @@ void RME_DumpRegs(tRME_State *State)
 	DEBUG_S("SS %04x  DS %04x  ES %04x\n",
 		State->SS, State->DS, State->ES);
 	DEBUG_S("CS:IP = 0x%04x:%04x\n", State->CS, State->IP);
-	DEBUG_S("Flags = %04x\n", State->Flags);
+	DEBUG_S("Flags = %04x", State->Flags);
+	if(State->Flags & FLAG_OF)	DEBUG_S(" OF");
+	if(State->Flags & FLAG_DF)	DEBUG_S(" DF");
+	if(State->Flags & FLAG_IF)	DEBUG_S(" IF");
+	if(State->Flags & FLAG_TF)	DEBUG_S(" TF");
+	if(State->Flags & FLAG_SF)	DEBUG_S(" SF");
+	if(State->Flags & FLAG_ZF)	DEBUG_S(" ZF");
+	if(State->Flags & FLAG_AF)	DEBUG_S(" AF");
+	if(State->Flags & FLAG_PF)	DEBUG_S(" PF");
+	if(State->Flags & FLAG_CF)	DEBUG_S(" CF");
+	DEBUG_S("\n");
 }
 
 /**
@@ -226,6 +178,8 @@ int RME_Int_DoOpcode(tRME_State *State)
 		ret = caOperations[opcode].Function(State, caOperations[opcode].Arg);
 	} while( ret == RME_ERR_CONTINUE );	// RME_ERR_CONTINUE is returned by prefixes
 	
+	if( ret )
+		return ret;
 
 	// repType is cleared if it is used, so if it's not used, it's invalid
 	if(State->Decoder.RepeatType)
@@ -237,6 +191,26 @@ int RME_Int_DoOpcode(tRME_State *State)
 	if( !State->Decoder.bDontChangeIP )
 		State->IP += State->Decoder.IPOffset;
 
+	// HACK: Detect more than one instance of 00 00 in a row
+	if( State->Decoder.IPOffset == 2 ) {
+		uint8_t	byte1=0xFF, byte2=0xFF;
+		ret = RME_Int_Read8(State, startCS, startIP+0, &byte1);
+		if(ret)	return ret;
+		ret = RME_Int_Read8(State, startCS, startIP+1, &byte2);
+		if(ret)	return ret;
+		
+		if( byte1 == 0 && byte2 == 0 )
+		{
+			if( State->bWasLastOperationNull )
+				return RME_ERR_BREAKPOINT;
+			State->bWasLastOperationNull = 1;
+		}
+		else
+			State->bWasLastOperationNull = 0;
+	}
+	else
+		State->bWasLastOperationNull = 0;
+
 	#if DEBUG
 	{
 		uint16_t	i = startIP;
@@ -246,6 +220,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 		DEBUG_S("\t;");
 		while(i < 0x10000 && j--) {
 			ret = RME_Int_Read8(State, startCS, i, &byte);
+			if(ret)	return ret;
 			DEBUG_S(" %02x", byte);
 			i ++;
 		}
@@ -253,6 +228,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 		{
 			while(j--) {
 				ret = RME_Int_Read8(State, startCS, i, &byte);
+				if(ret)	return ret;
 				DEBUG_S(" %02x", byte);
 				i ++;
 			}
@@ -263,6 +239,168 @@ int RME_Int_DoOpcode(tRME_State *State)
 	return 0;
 }
 
+DEF_OPCODE_FCN(Ext,0F)
+{
+	uint8_t	extra;
+	READ_INSTR8(extra);
+	
+	if( caOperations0F[extra].Function == NULL )
+	{
+		ERROR_S("Unkown Opcode 0x0F 0x%02x", extra);
+		return RME_ERR_UNDEFOPCODE;
+	}
+	
+	DEBUG_S("%s ", caOperations0F[extra].Name);
+	return caOperations0F[extra].Function(State, caOperations0F[extra].Arg);
+}
+
+DEF_OPCODE_FCN(Unary, MI)	// INC/DEC r/m8
+{
+	const int	width = 8;
+	 int	ret, op_num;
+	uint8_t	*dest;
+	
+	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);
+	if(ret)	return ret;
+	State->Decoder.IPOffset --;
+	
+	switch(op_num)
+	{
+	case 0:	// INC
+		DEBUG_S("INC");
+		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
+		if(ret)	return ret;
+		{ALU_OPCODE_INC_CODE}
+		SET_COMM_FLAGS(State, *dest, width);
+		break;
+	case 1:	// DEC
+		DEBUG_S("DEC");
+		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
+		if(ret)	return ret;
+		{ALU_OPCODE_DEC_CODE}
+		SET_COMM_FLAGS(State, *dest, width);
+		break;
+	default:
+		ERROR_S(" - Unary MI /%i unimplemented\n", op_num);
+		return RME_ERR_UNDEFOPCODE;
+	}
+	
+	return 0;
+}
+
+DEF_OPCODE_FCN(Unary, MIX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
+{
+	 int	ret, op_num, mod, mmm;
+	
+	ret = RME_Int_GetModRM(State, &mod, &op_num, &mmm);
+	if(ret)	return ret;
+	State->Decoder.IPOffset --;
+	
+	if( State->Decoder.bOverrideOperand )
+	{
+		uint32_t	*dest;
+		const int	width = 32;	
+		switch( op_num )
+		{
+		case 0:
+			DEBUG_S("INC");
+			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);
+			if(ret)	return ret;
+			{ALU_OPCODE_INC_CODE}
+			SET_COMM_FLAGS(State, *dest, width);
+			break;
+		case 1:
+			DEBUG_S("DEC");
+			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);
+			if(ret)	return ret;
+			{ALU_OPCODE_DEC_CODE}
+			SET_COMM_FLAGS(State, *dest, width);
+			break;
+		case 6:
+			DEBUG_S("PUSH");
+			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);	//Get Register Value
+			if(ret)	return ret;
+			PUSH( *dest );
+			break;
+		default:
+			ERROR_S(" - Unary MIX (32) /%i unimplemented\n", op_num);
+			return RME_ERR_UNDEFOPCODE;
+		}
+	}
+	else
+	{
+		uint16_t	*dest;
+		const int	width = 16;	
+		switch( op_num )
+		{
+		case 0:
+			DEBUG_S("INC");
+			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			if(ret)	return ret;
+			{ALU_OPCODE_INC_CODE}
+			SET_COMM_FLAGS(State, *dest, width);
+			break;
+		case 1:
+			DEBUG_S("DEC");
+			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			if(ret)	return ret;
+			{ALU_OPCODE_DEC_CODE}
+			SET_COMM_FLAGS(State, *dest, width);
+			break;
+		case 2:	// Call Near Indirect
+			DEBUG_S("CALL (NI)");
+			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			if(ret)	return ret;
+			PUSH(State->IP);
+			State->IP = *dest;
+			State->Decoder.bDontChangeIP = 1;
+			break;
+		case 3:	// Call Far Indirect
+			DEBUG_S("CALL (FI)");
+			if( mod == 3 )	return RME_ERR_UNDEFOPCODE;	// TODO: Check this
+			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			if(ret)	return ret;
+			PUSH(State->CS);
+			PUSH(State->IP);
+			State->CS = dest[0];	// NOTE: Possible edge case on segment boundary
+			State->IP = dest[1];
+			State->Decoder.bDontChangeIP = 1;
+			break;
+		case 4:	// Jump Near Indirect
+			DEBUG_S("JMP (NI)");
+			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			if(ret)	return ret;
+			State->IP = *dest;
+			State->Decoder.bDontChangeIP = 1;
+			break;
+		case 5:	// Jump Far Indirect
+			DEBUG_S("JMP (FI)");
+			if( mod == 3 )	return RME_ERR_UNDEFOPCODE;	// TODO: Check this
+			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			if(ret)	return ret;
+			State->CS = dest[0];	// NOTE: Possible edge case on segment boundary
+			State->IP = dest[1];
+			State->Decoder.bDontChangeIP = 1;
+			break;
+		case 6:
+			DEBUG_S("PUSH (RX)");
+			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);	//Get Register Value
+			if(ret)	return ret;
+			PUSH( *dest );
+			break;
+			
+		default:
+			ERROR_S(" - Unary MIX (16) /%i unimplemented\n", op_num);
+			return RME_ERR_UNDEFOPCODE;
+		}
+	}
+	
+	return 0;
+}
+
+// =====================================================================
+//                 ModR/M and SIB Addressing Helpers
+// =====================================================================
 /**
  * \brief Performs a memory addressing function
  * \param State	Emulator State
@@ -337,7 +475,6 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, uint16_t *Segment, u
 		ERROR_S("Unknown mmm value passed to DoFunc (%i)", mmm);
 		return RME_ERR_BUG;
 	}
-	//return RME_Int_GetPtr(State, seg, addr, ptr);
 	*Segment = seg;
 	*Offset = addr;
 	return 0;
@@ -392,9 +529,10 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 		DEBUG_S(":[EBX+0x%x]", disp);
 		addr = State->BX.D + disp;
 		break;
-	case 4:	// SIB
+	case 4:	// SIB (uses ESP's slot)
 		READ_INSTR8(sib);
 		DEBUG_S(":[");
+		addr = 0;
 		// Index Reg
 		switch( (sib >> 3) & 7 )
 		{
@@ -437,7 +575,7 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 	case 5:
 		if( mmm & 8 )
 		{
-			// R/M == 5 when Mod == 0
+			// R/M == 5 and Mod == 0, disp32
 			READ_INSTR32( addr );
 			DEBUG_S(":[0x%x]", addr);
 		}
@@ -459,7 +597,6 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 		ERROR_S("Unknown mmm value passed to DoFunc32 (%i)", mmm);
 		return RME_ERR_BUG;
 	}
-	//return RME_Int_GetPtr(State, seg, addr, ptr);
 	*Segment = seg;
 	*Offset = addr;
 	return 0;
@@ -469,25 +606,58 @@ inline int RME_Int_GetMMM(tRME_State *State, int mod, int mmm, uint16_t *Segment
 {
 	uint16_t	ofs;
 	 int	ret;
-	switch(mod)
+	
+	if( State->Decoder.bOverrideAddress )
 	{
-	case 0:	// No Offset
-		ret = DoFunc( State, mmm | 8, 0, Segment, Offset );
-		if(ret)	return ret;
-		break;
-	case 1:	// 8 Bit
-		READ_INSTR8S( ofs );
-		ret = DoFunc( State, mmm, ofs, Segment, Offset);
-		if(ret)	return ret;
-		break;
-	case 2:	// 16 Bit
-		READ_INSTR16( ofs );
-		ret = DoFunc( State, mmm, ofs, Segment, Offset );
-		if(ret)	return ret;
-		break;
-	case 3:
-		ERROR_S("Unknown mod value passed to RME_Int_GetMMM (%i)", mod);
-		return RME_ERR_BUG;
+		switch(mod)
+		{
+		case 0:	// No Offset
+			ret = DoFunc32( State, mmm | 8, 0, Segment, Offset );
+			if(ret)	return ret;
+			break;
+		case 1:	// disp8
+			READ_INSTR8S( ofs );
+			ret = DoFunc32( State, mmm, ofs, Segment, Offset);
+			if(ret)	return ret;
+			break;
+		case 2:	// disp32
+			READ_INSTR32( ofs );
+			ret = DoFunc32( State, mmm, ofs, Segment, Offset );
+			if(ret)	return ret;
+			break;
+		case 3:
+			ERROR_S("mod=3 passed to RME_Int_GetMMM");
+			return RME_ERR_BUG;
+		default:
+			ERROR_S("Unknown mod value passed to RME_Int_GetMMM (%i)", mod);
+			return RME_ERR_BUG;
+		}
+	}
+	else
+	{
+		switch(mod)
+		{
+		case 0:	// No Offset
+			ret = DoFunc( State, mmm | 8, 0, Segment, Offset );
+			if(ret)	return ret;
+			break;
+		case 1:	// 8 Bit
+			READ_INSTR8S( ofs );
+			ret = DoFunc( State, mmm, ofs, Segment, Offset);
+			if(ret)	return ret;
+			break;
+		case 2:	// 16 Bit
+			READ_INSTR16( ofs );
+			ret = DoFunc( State, mmm, ofs, Segment, Offset );
+			if(ret)	return ret;
+			break;
+		case 3:
+			ERROR_S("mod=3 passed to RME_Int_GetMMM");
+			return RME_ERR_BUG;
+		default:
+			ERROR_S("Unknown mod value passed to RME_Int_GetMMM (%i)", mod);
+			return RME_ERR_BUG;
+		}
 	}
 	return 0;
 }
@@ -540,7 +710,7 @@ int RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from, int bRev
  * \param to	R field destination (ignored if NULL)
  * \param from	M field destination (ignored if NULL)
  */
-int RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from, int bReverse)
+int RME_Int_ParseModRMX(tRME_State *State, uint16_t **reg, uint16_t **mem, int bReverse)
 {
 	 int	ret;
 	 int	mod, rrr, mmm;
@@ -550,27 +720,27 @@ int RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from, int b
 	#if DEBUG
 	if(!bReverse) {
 	#endif
-		if(to) *to = RegW( State, rrr );
+		if(reg) *reg = RegW( State, rrr );
 	#if DEBUG
 	}
 	#endif
-	if(from)
+	if(mem)
 	{
 		if( mod == 3 )
-			*from = RegW( State, mmm );
+			*mem = RegW( State, mmm );
 		else
 		{
 			uint16_t	segment;
 			uint32_t	offset;
 			ret = RME_Int_GetMMM( State, mod, mmm, &segment, &offset );
 			if(ret)	return ret;
-			ret = RME_Int_GetPtr(State, segment, offset, (void**)from);
+			ret = RME_Int_GetPtr(State, segment, offset, (void**)mem);
 			if(ret)	return ret;
 		}
 	}
 	#if DEBUG
 	if(bReverse) {
-		if(to) *to = RegW( State, rrr );
+		if(reg) *reg = RegW( State, rrr );
 	}
 	#endif
 	return 0;

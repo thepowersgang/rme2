@@ -114,7 +114,12 @@ typedef struct sRME_State
 {
 	//! \brief General Purpose Registers
 	//! \{
-	tGPR	AX, CX, DX, BX, SP, BP, SI, DI;
+	union {
+		struct {
+			tGPR	AX, CX, DX, BX, SP, BP, SI, DI;
+		};
+		tGPR	GPRs[8];
+	};
 	
 	//! \}
 
@@ -159,6 +164,7 @@ typedef struct sRME_State
 	 int	InstrNum;	//!< Total executed instructions
 
 	// --- Decoder State ---
+	 int	bWasLastOperationNull;
 	/**
 	 * \brief Decoder State
 	 * \note Should not be touched except by the emulator

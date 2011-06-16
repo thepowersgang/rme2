@@ -37,7 +37,7 @@ const tOperation	caOperations[256] = {
 	/* ADD RM(X), PUSH ES, POP ES */
 	/* 0x00 */	DEF_ALU_OP(ADD), DEF_OP_X(PUSH,Seg,SREG_ES), DEF_OP_X(POP,Seg,SREG_ES),
 	/* OR RM(X), PUSH CS, #UD */
-	/* 0x08 */	DEF_ALU_OP(OR ), DEF_OP_X(PUSH,Seg,SREG_CS), DEF_OP_X(POP,Seg,SREG_CS),
+	/* 0x08 */	DEF_ALU_OP(OR ), DEF_OP_X(PUSH,Seg,SREG_CS), DEF_OP(Ext,0F),
 	/* ADC RM(X), PUSH SS, #UD (POP SS) */
 	/* 0x10 */	DEF_ALU_OP(ADC), DEF_OP_X(PUSH,Seg,SREG_SS), UNDEF_OP,
 	/* SBB RM(X), PUSH DS, POP DS */
@@ -68,8 +68,8 @@ const tOperation	caOperations[256] = {
 	/*  0x74*/	DEF_OP(JZ,S), DEF_OP(JNZ,S), DEF_OP(JBE,S), DEF_OP(JA ,S),
 	/* 0x78 */	DEF_OP(JS,S), DEF_OP(JNS,S), DEF_OP(JPE,S), DEF_OP(JPO,S),
 	/*  0x7C*/	DEF_OP(JL,S), DEF_OP(JGE,S), DEF_OP(JLE,S), DEF_OP(JG ,S),
-	/* 0x80 */	DEF_OP(Arith,RI), DEF_OP(Arith,RIX), UNDEF_OP, UNDEF_OP,
-	/*  0x84*/	UNDEF_OP, UNDEF_OP, DEF_OP(XCHG,RM), DEF_OP(XCHG,RMX),
+	/* 0x80 */	DEF_OP(Arith,RI), DEF_OP(Arith,RIX), UNDEF_OP, DEF_OP(Arith, RI8X),
+	/*  0x84*/	DEF_OP(TEST,MR), DEF_OP(TEST,MRX), DEF_OP(XCHG,RM), DEF_OP(XCHG,RMX),
 	/* 0x88 */	DEF_OP(MOV,MR), DEF_OP(MOV,MRX), DEF_OP(MOV,RM), DEF_OP(MOV,RMX),
 	/*  0x8C*/	DEF_OP(MOV,RS), DEF_OP(LEA,z), DEF_OP(MOV,SR), DEF_OP(POP,MX),
 	/* 0x90 */	DEF_REG_OP(XCHG),
@@ -81,11 +81,11 @@ const tOperation	caOperations[256] = {
 	/*  0xAC*/	DEF_OP(LOD,SB), DEF_OP(LOD,SW), DEF_OP(SCA,SB), DEF_OP(SCA,SW),
 	/* 0xB0 */	DEF_REGB_OP(MOV),
 	/* 0xB8 */	DEF_REG_OP(MOV),
-	/* 0xC0 */	UNDEF_OP, DEF_OP(Logic, MI8X), DEF_OP(RET,iN), DEF_OP(RET,N),
+	/* 0xC0 */	DEF_OP(Shift,MI), DEF_OP(Shift, MI8X), DEF_OP(RET,iN), DEF_OP(RET,N),
 	/*  0xC4*/	DEF_OP(LES,z), DEF_OP(LDS,z), DEF_OP(MOV,MI), DEF_OP(MOV,MIX),
 	/* 0xC8 */	UNDEF_OP, UNDEF_OP, DEF_OP(RET,iF), DEF_OP(RET,F),
 	/*  0xCC*/	DEF_OP(INT,3), DEF_OP(INT,I), UNDEF_OP, DEF_OP(IRET,z),
-	/* 0xD0 */	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
+	/* 0xD0 */	UNDEF_OP, DEF_OP(Shift,M1X), UNDEF_OP, DEF_OP(Shift,MClX),
 	/*  0xD4*/	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
 	/* 0xD8 */	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
 	/*  0xDC*/	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
@@ -96,8 +96,46 @@ const tOperation	caOperations[256] = {
 	/* 0xF0 */	UNDEF_OP, UNDEF_OP, DEF_OP(Prefix, REP), DEF_OP(Prefix, REPNZ),
 	/*  0xF4*/	UNDEF_OP, UNDEF_OP, DEF_OP(ArithMisc, MI), DEF_OP(ArithMisc, MIX),
 	/* 0xF8 */	DEF_OP(Flag, CLC), DEF_OP(Flag, STC), DEF_OP(Flag, CLI), DEF_OP(Flag, STI),
-	/*  0xFC*/	DEF_OP(Flag, CLD), DEF_OP(Flag, STD), UNDEF_OP, UNDEF_OP
+	/*  0xFC*/	DEF_OP(Flag, CLD), DEF_OP(Flag, STD), DEF_OP(Unary,MI), DEF_OP(Unary,MIX)
 	/*0x100 */
+};
+
+const tOperation	caOperations0F[256] = {
+	/* 0x00 */	REP_8(UNDEF_OP),	// 0x01 = LGDT
+	/* 0x08 */	REP_8(UNDEF_OP),
+	/* 0x10 */	REP_8(UNDEF_OP),
+	/* 0x18 */	REP_8(UNDEF_OP),
+	/* 0x20 */	REP_8(UNDEF_OP),
+	/* 0x28 */	REP_8(UNDEF_OP),
+	/* 0x30 */	REP_8(UNDEF_OP),
+	/* 0x38 */	REP_8(UNDEF_OP),
+	/* 0x40 */	REP_8(UNDEF_OP),
+	/* 0x48 */	REP_8(UNDEF_OP),
+	/* 0x50 */	REP_8(UNDEF_OP),
+	/* 0x58 */	REP_8(UNDEF_OP),
+	/* 0x60 */	REP_8(UNDEF_OP),
+	/* 0x68 */	REP_8(UNDEF_OP),
+	/* 0x70 */	REP_8(UNDEF_OP),
+	/* 0x78 */	REP_8(UNDEF_OP),
+	/* 0x80 */	DEF_OP(JO,N), DEF_OP(JNO,N), DEF_OP(JC ,N), DEF_OP(JNC,N),
+	/*  0x84*/	DEF_OP(JZ,N), DEF_OP(JNZ,N), DEF_OP(JBE,N), DEF_OP(JA ,N),
+	/* 0x88 */	DEF_OP(JS,N), DEF_OP(JNS,N), DEF_OP(JPE,N), DEF_OP(JPO,N),
+	/*  0x8C*/	DEF_OP(JL,N), DEF_OP(JGE,N), DEF_OP(JLE,N), DEF_OP(JG ,N),
+	/* 0x90 */	REP_8(UNDEF_OP),
+	/* 0x98 */	REP_8(UNDEF_OP),
+	/* 0xA0 */	REP_8(UNDEF_OP),
+	/* 0xA8 */	REP_8(UNDEF_OP),
+	/* 0xB0 */	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
+	/*  0xB4*/	UNDEF_OP, UNDEF_OP, DEF_OP(MOV,Z), DEF_OP(MOV,ZX),
+	/* 0xB8 */	REP_8(UNDEF_OP),
+	/* 0xC0 */	REP_8(UNDEF_OP),
+	/* 0xC8 */	REP_8(UNDEF_OP),
+	/* 0xD0 */	REP_8(UNDEF_OP),
+	/* 0xD8 */	REP_8(UNDEF_OP),
+	/* 0xE0 */	REP_8(UNDEF_OP),
+	/* 0xE8 */	REP_8(UNDEF_OP),
+	/* 0xF0 */	REP_8(UNDEF_OP),
+	/* 0xF8 */	REP_8(UNDEF_OP)
 };
 
 #endif

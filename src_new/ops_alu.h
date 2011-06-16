@@ -44,7 +44,9 @@
 	*dest ^= *src; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);
 // 7: Compare
-// NOTE: The variable `hack` is just used as dummy space
+// NOTE: The variable `hack` is just used as dummy space (and, yes it goes
+//       out of scope, but nothing else should come back in, so it doesn't
+//       matter)
 #define ALU_OPCODE_CMP_CODE	\
 	int v = *dest - *src; \
 	uint32_t hack = 0;\
@@ -61,21 +63,182 @@
 	dest = (void*)&hack; \
 	*dest &= *src; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);
+// x: NOT
+#define ALU_OPCODE_NOT_CODE	\
+	*dest = ~*dest;
+// x: NEG
+#define ALU_OPCODE_NEG_CODE	\
+	if( *dest == 0 )	State->Flags &= ~FLAG_CF; \
+	else { \
+		State->Flags |= FLAG_CF; \
+		*dest = -*dest; \
+	}
 
-// 1: Rotate Right
-#define ALU_OPCODE_ROR_CODE	\
-	*dest = (*dest >> *src) | (*dest << (width-*src)); \
+// x: Increment
+#define ALU_OPCODE_INC_CODE	\
+	(*dest) ++; \
+	State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF); \
+	if(*dest == 0)	State->Flags |= FLAG_OF;
+// x: Decrement
+#define ALU_OPCODE_DEC_CODE	\
+	(*dest) --; \
+	State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF); \
+	if(*dest + 1 == 0)	State->Flags |= FLAG_OF;
+
+// 0: Rotate Left
+#define ALU_OPCODE_ROL_CODE	\
+	 int	amt = (*src & 31) % width; \
+	*dest = (*dest << amt) | (*dest >> (width-amt)); \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
 	State->Flags |= (*dest >> (width-1)) ? FLAG_CF : 0;
+// 1: Rotate Right
+#define ALU_OPCODE_ROR_CODE	\
+	 int	amt = (*src & 31) % width; \
+	*dest = (*dest >> amt) | (*dest << (width-amt)); \
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
+	State->Flags |= (*dest >> (width-1)) ? FLAG_CF : 0;
+	
+// 2: Rotate Carry Left
+#define ALU_OPCODE_RCL_CODE	\
+	if(*src > 0) { \
+	 int	amt = (*src & 31) % width+1; \
+	uint64_t	carry = (State->Flags & FLAG_CF) ? 1 : 0; \
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
+	carry <<= amt; \
+	if( (*dest >> (width-amt)) & 1 )	State->Flags |= FLAG_CF; \
+	*dest = (*dest << amt) | (*dest >> (width-amt-1)) | carry; \
+	}
+// 3: Rotate Carry Right
+#define ALU_OPCODE_RCR_CODE	\
+	if(*src > 0) { \
+	 int	amt = (*src & 31) % width+1; \
+	uint64_t	carry = (State->Flags & FLAG_CF) ? 1 : 0; \
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
+	carry <<= (width-amt); \
+	if( (*dest >> (amt-1)) & 1 )	State->Flags |= FLAG_CF; \
+	*dest = (*dest >> amt) | (*dest << (width-amt-1)) | carry; \
+	}
 // 4: Shift Left
 #define ALU_OPCODE_SHL_CODE	\
-	*dest <<= *src;\
+	 int	amt = *src & 31; \
+	*dest <<= amt;\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
 	State->Flags |= (*dest >> (width-1)) ? FLAG_CF : 0;
-
+// 5: Shift Right
 #define ALU_OPCODE_SHR_CODE	\
-	*dest >>= *src;\
+	 int	amt = *src & 31; \
+	*dest >>= amt;\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
 	State->Flags |= (*dest & 1) ? FLAG_CF : 0;
+
+// Misc 4: MUL
+// CF,OF set if upper bits set; SF, ZF, AF and PF are undefined
+#define ALU_OPCODE_MUL_CODE \
+	uint64_t	result;\
+	switch(width) { \
+	case 8: \
+		result = (uint16_t)State->AX.B.L * *src; \
+		State->AX.W = result; \
+		break; \
+	case 16: \
+		result = (uint32_t)State->AX.W * (*src); \
+		State->DX.W = result >> 16; \
+		State->AX.W = result & 0xFFFF; \
+		break; \
+	case 32: \
+		result = (uint64_t)State->AX.D * (*src); \
+		State->DX.D = result >> 32; \
+		State->AX.D = result & 0xFFFFFFFF; \
+		break; \
+	} \
+	if(result >> width) \
+		State->Flags |= FLAG_CF|FLAG_OF; \
+	else \
+		State->Flags &= ~(FLAG_CF|FLAG_OF);
+// Misc 5: IMUL
+// CF,OF set if upper bits set; SF, ZF, AF and PF are undefined
+#define ALU_OPCODE_IMUL_CODE \
+	int64_t	result;\
+	switch(width) { \
+	case 8: \
+		result = (int16_t)State->AX.B.L * (*(int8_t*)src); \
+		State->AX.W = result; \
+		break; \
+	case 16: \
+		result = (int32_t)State->AX.W * (*(int16_t*)src); \
+		State->DX.W = result >> 16; \
+		State->AX.W = result & 0xFFFF; \
+		break; \
+	case 32: \
+		result = (uint64_t)State->AX.D * (*(int32_t*)src); \
+		State->DX.D = result >> 32; \
+		State->AX.D = result & 0xFFFFFFFF; \
+		break; \
+	} \
+	if(result >> width) \
+		State->Flags |= FLAG_CF|FLAG_OF; \
+	else \
+		State->Flags &= ~(FLAG_CF|FLAG_OF);
+
+// Misc 6: DIV
+// NOTE: DIV is a real special case, as it has substantially different
+//       behavior between different sizes (due to DX:AX)
+#define ALU_OPCODE_DIV_CODE if( *src == 0 )	return RME_ERR_DIVERR; \
+	switch(width) { \
+	case 8: { \
+		uint16_t	result; \
+		result = State->AX.W / *src; \
+		if(result > 0xFF)	return RME_ERR_DIVERR; \
+		State->AX.B.H = State->AX.W - result * (*src); \
+		State->AX.B.L = result; \
+		} break; \
+	case 16: { \
+		uint32_t	numerator, result; \
+		numerator = ((uint32_t)State->DX.W << 16) | State->AX.W; \
+		result = numerator / *src; \
+		if(result > 0xFFFF)	return RME_ERR_DIVERR; \
+		State->AX.W = result; \
+		State->DX.W = numerator - result * (*src); \
+		} break; \
+	case 32: { \
+		uint64_t	numerator, result; \
+		numerator = ((uint64_t)State->DX.D << 32) | State->AX.D; \
+		result = numerator / *src; \
+		if(result > 0xFFFFFFFF)	return RME_ERR_DIVERR; \
+		State->AX.D = result; \
+		State->DX.D = numerator - result * (*src); \
+		} break; \
+	}
+	
+// Misc 7: IDIV
+// NOTE: DIV is a real special case, as it has substantially different
+//       behavior between different sizes (due to DX:AX)
+// TODO: Test
+#define ALU_OPCODE_IDIV_CODE if( *src == 0 )	return RME_ERR_DIVERR; \
+	switch(width) { \
+	case 8: { \
+		int16_t	result; \
+		result = (int16_t)State->AX.W / *(int8_t*)src; \
+		if(result & 0xFF00)	return RME_ERR_DIVERR; \
+		State->AX.B.H = (int16_t)State->AX.W % *(int8_t*)src; \
+		State->AX.B.L = result; \
+		} break; \
+	case 16: { \
+		int32_t	numerator, result; \
+		numerator = (int32_t)( ((uint32_t)State->DX.W << 16) | State->AX.W ); \
+		result = numerator / *(int16_t*)src; \
+		if(result > 0x7FFF || result < -0x8000)	return RME_ERR_DIVERR; \
+		State->AX.W = result; \
+		State->DX.W = numerator % (*(int16_t*)src); \
+		} break; \
+	case 32: { \
+		int64_t	numerator, result; \
+		numerator = (int64_t)( ((uint64_t)State->DX.D << 32) | State->AX.D ); \
+		result = numerator / *(int32_t*)src; \
+		if(result > 0x7FFFFFFF || result < -0x80000000)	return RME_ERR_DIVERR; \
+		State->AX.D = result; \
+		State->DX.D = numerator % (*(int32_t*)src); \
+		} break; \
+	}
 
 #endif
