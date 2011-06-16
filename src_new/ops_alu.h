@@ -141,7 +141,7 @@
 	 int	amt = *src & 31; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
 	if(amt > 0 && amt <= width) \
-		State->Flags |= ((*dest >> amt-1) & 1) ? FLAG_CF : 0; \
+		State->Flags |= ((*dest >> (amt-1)) & 1) ? FLAG_CF : 0; \
 	if(amt > 0 && amt < width) { \
 		*dest >>= amt; \
 		if((*dest >> (width-amt)) & 1) \
