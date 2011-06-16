@@ -631,7 +631,7 @@ decode:
 			DEBUG_S("MUL (MI) AL");
 			ret = RME_Int_ParseModRM(State, NULL, &fromB);
 			if(ret)	return ret;
-			pt2 = (Uint16)State->AX.B.L * (*fromB);
+			pt2 = (uint16_t)State->AX.B.L * (*fromB);
 			State->AX.W = pt2;
 			// OF/CF Set to (AH?1:0), rest undefined
 			if( State->AX.W > 0xFF ) {
@@ -645,7 +645,7 @@ decode:
 			DEBUG_S("IMUL (MI) AL");
 			ret = RME_Int_ParseModRM(State, NULL, &fromB);
 			if(ret)	return ret;
-			pt2 = (Sint16)(Sint8)State->AX.B.L * (Sint8)*fromB;
+			pt2 = (int16_t)(int8_t)State->AX.B.L * (int8_t)*fromB;
 			State->AX.W = pt2;
 			// TODO: Flags
 			break;
