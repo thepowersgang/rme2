@@ -85,7 +85,7 @@ const tOperation	caOperations[256] = {
 	/*  0xC4*/	DEF_OP(LES,z), DEF_OP(LDS,z), DEF_OP(MOV,MI), DEF_OP(MOV,MIX),
 	/* 0xC8 */	UNDEF_OP, UNDEF_OP, DEF_OP(RET,iF), DEF_OP(RET,F),
 	/*  0xCC*/	DEF_OP(INT,3), DEF_OP(INT,I), UNDEF_OP, DEF_OP(IRET,z),
-	/* 0xD0 */	UNDEF_OP, DEF_OP(Shift,M1X), UNDEF_OP, DEF_OP(Shift,MClX),
+	/* 0xD0 */	DEF_OP(Shift,M1), DEF_OP(Shift,M1X), DEF_OP(Shift,MCl), DEF_OP(Shift,MClX),
 	/*  0xD4*/	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
 	/* 0xD8 */	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
 	/*  0xDC*/	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,

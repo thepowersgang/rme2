@@ -118,18 +118,35 @@
 	if( (*dest >> (amt-1)) & 1 )	State->Flags |= FLAG_CF; \
 	*dest = (*dest >> amt) | (*dest << (width-amt-1)) | carry; \
 	}
-// 4: Shift Left
+// 4: Shift Logical Left
 #define ALU_OPCODE_SHL_CODE	\
 	 int	amt = *src & 31; \
-	*dest <<= amt;\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	State->Flags |= (*dest >> (width-1)) ? FLAG_CF : 0;
-// 5: Shift Right
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
+	if(amt > 0 && amt <= width) \
+		State->Flags |= ((*dest >> (width-amt)) & 1) ? FLAG_CF : 0; \
+	if(amt > 0 && amt < width) \
+		*dest <<= amt;
+// 5: Shift Logical Right
 #define ALU_OPCODE_SHR_CODE	\
 	 int	amt = *src & 31; \
-	*dest >>= amt;\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	State->Flags |= (*dest & 1) ? FLAG_CF : 0;
+	if(amt > 0 && amt <= width) \
+		State->Flags |= ((*dest >> (amt-1)) & 1) ? FLAG_CF : 0; \
+	if(amt > 0 && amt < width) \
+		*dest >>= amt;
+// 6: Shift Arithmetic Left
+#define ALU_OPCODE_SAL_CODE	ALU_OPCODE_SHL_CODE
+// 7: Shift Arithmetic Right (applies sign extension)
+#define ALU_OPCODE_SAR_CODE	\
+	 int	amt = *src & 31; \
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
+	if(amt > 0 && amt <= width) \
+		State->Flags |= ((*dest >> amt-1) & 1) ? FLAG_CF : 0; \
+	if(amt > 0 && amt < width) { \
+		*dest >>= amt; \
+		if((*dest >> (width-amt)) & 1) \
+			*dest |= 0xFFFFFFFF >> width; \
+	}
 
 // Misc 4: MUL
 // CF,OF set if upper bits set; SF, ZF, AF and PF are undefined

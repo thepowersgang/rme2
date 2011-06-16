@@ -36,7 +36,9 @@ DEF_OPCODE_FCN(ArithMisc, MIX);	// 0xF7
 
 DEF_OPCODE_FCN(Shift, MI);	// 0xC0
 DEF_OPCODE_FCN(Shift, MI8X);	// 0xC1
+DEF_OPCODE_FCN(Shift, M1);	// 0xD0
 DEF_OPCODE_FCN(Shift, M1X);	// 0xD1
+DEF_OPCODE_FCN(Shift, MCl);	// 0xD2
 DEF_OPCODE_FCN(Shift, MClX);	// 0xD3
 
 DEF_OPCODE_FCN(INC, Reg);

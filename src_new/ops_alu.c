@@ -432,6 +432,30 @@ DEF_OPCODE_FCN(Shift, MI8X)
 	return 0;
 }
 
+// 0xD0 - Shift with 1
+DEF_OPCODE_FCN(Shift, M1)
+{
+	const int	width = 8;
+	 int	ret, op_num;
+	uint8_t	*dest;
+	uint8_t	srcData = 1, *src = &srcData;
+
+	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
+	if(ret)	return ret;
+	
+	DEBUG_S("%s", casLogicOps[op_num]);
+	
+	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
+	if(ret)	return ret;
+	
+	DEBUG_S(" 1");
+	
+	SHIFT_SELECT_OPERATION();
+	SET_COMM_FLAGS(State, *dest, width);
+	
+	return 0;
+}
+
 // 0xD1 - Shift Extended with 1
 DEF_OPCODE_FCN(Shift, M1X)
 {
@@ -467,6 +491,30 @@ DEF_OPCODE_FCN(Shift, M1X)
 		
 		SET_COMM_FLAGS(State, *dest, width);
 	}
+	
+	return 0;
+}
+
+// 0xD2 - Shift with CL
+DEF_OPCODE_FCN(Shift, MCl)
+{
+	const int	width = 8;
+	 int	ret, op_num;
+	uint8_t	*dest;
+	uint8_t	srcData = State->CX.B.L, *src = &srcData;
+
+	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
+	if(ret)	return ret;
+	
+	DEBUG_S("%s", casLogicOps[op_num]);
+	
+	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
+	if(ret)	return ret;
+	
+	DEBUG_S(" 1");
+	
+	SHIFT_SELECT_OPERATION();
+	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
