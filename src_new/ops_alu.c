@@ -134,8 +134,8 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	case 3:	{ ALU_OPCODE_RCR_CODE }	break; \
 	case 4:	{ ALU_OPCODE_SHL_CODE }	break; \
 	case 5:	{ ALU_OPCODE_SHR_CODE }	break; \
-	case 6:	DEBUG_S(" Shift /6 UNDEF");	return RME_ERR_UNDEFOPCODE; \
-	case 7:	DEBUG_S(" Shift /7 UNDEF");	return RME_ERR_UNDEFOPCODE; \
+	case 6:	{ ALU_OPCODE_SAL_CODE }	break; \
+	case 7:	{ ALU_OPCODE_SRL_CODE }	break; \
 	default: ERROR_S(" - Shift Undef %i\n", op_num); return RME_ERR_UNDEFOPCODE;\
 	} }while(0)
 #define _READIMM() do { switch(width) {\
