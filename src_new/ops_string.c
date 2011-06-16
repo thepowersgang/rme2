@@ -26,7 +26,7 @@
 		if(__use_si)	DEBUG_S(" DS:[SI]"); \
 	} \
 	DEBUG_S("%s",__after); \
-	if( !__check_zf && State->Decoder.RepeatType ) { \
+	if( State->Decoder.RepeatType ) { \
 		DEBUG_S(" (max 0x%x times)", State->CX.W); \
 		if( State->CX.W == 0 ) { \
 			State->Decoder.RepeatType = 0; \
@@ -38,7 +38,7 @@
 			break; \
 		if( __check_zf && State->Decoder.RepeatType == REP && !(State->Flags & FLAG_ZF) ) \
 			break; \
-		if( !__check_zf && State->Decoder.RepeatType && !State->CX.W ) \
+		if( State->Decoder.RepeatType && !State->CX.W ) \
 			break; \
 		-- State->CX.W; \
 		do { \
@@ -52,6 +52,8 @@
 		} \
 		srcOfs &= mask; destOfs &= mask; \
 	} while(State->Decoder.RepeatType); \
+	if( State->Decoder.RepeatType ) \
+		DEBUG_S(" (%i skipped)", State->CX.W); \
 	if( State->Decoder.bOverrideAddress ) { \
 		if(__using_di)	State->DI.D = destOfs; \
 		if(__using_si)	State->SI.D = srcOfs; \
@@ -185,6 +187,7 @@ DEF_OPCODE_FCN(CMP, SB)
 	if(ret)	return ret;
 	
 	{ALU_OPCODE_CMP_CODE}
+	SET_COMM_FLAGS(State, *dest, width);
 	
 	STRING_FOOTER();
 	return 0;

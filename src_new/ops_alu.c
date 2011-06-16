@@ -511,7 +511,7 @@ DEF_OPCODE_FCN(Shift, MCl)
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
 	
-	DEBUG_S(" 1");
+	DEBUG_S(" CL");
 	
 	SHIFT_SELECT_OPERATION();
 	SET_COMM_FLAGS(State, *dest, width);
