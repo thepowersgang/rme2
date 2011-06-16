@@ -17,6 +17,10 @@ typedef struct {
 } PACKED	t_farptr;
 
 //#define COL_WHITE	0x80808080
+#define COL_BLACK	0x00000000
+#define COL_RED 	0x00FF0000
+#define COL_GREEN	0x0000FF00
+#define COL_BLUE	0x000000FF
 #define COL_WHITE	0x00FFFFFF
 
 // === IMPORTS ===
@@ -26,7 +30,8 @@ extern void	LoadDosExe(const char *file);
  int	HLECall10(tRME_State *State, int IntNum);
  int	HLECall12(tRME_State *State, int IntNum);
  int	HLECall(tRME_State *State, int IntNum);
-void	PutChar(uint8_t ch, uint32_t FGC);
+void	PutChar(uint8_t ch, uint32_t BGC, uint32_t FGC);
+void	PutString(const char *String, uint32_t BGC, uint32_t FGC);
 
 // === GLOBALS ===
 SDL_Surface	*gScreen;
@@ -51,10 +56,7 @@ int main(int argc, char *argv[])
 	signal(SIGINT, exit);
 	
 	gScreen = SDL_SetVideoMode(80*8, 25*16, 32, SDL_HWSURFACE);
-	PutChar('R', COL_WHITE);
-	PutChar('M', COL_WHITE);
-	PutChar('E', COL_WHITE);
-	PutChar('\n', COL_WHITE);
+	PutString("RME NativeTest\r\n", COL_BLACK, COL_WHITE);
 
 	// Open FDD image
 	printf("Loading '%s'\n", gasFDDs[0]);
@@ -63,6 +65,10 @@ int main(int argc, char *argv[])
 		perror("Unable to open file");
 		return 1;
 	}
+
+	// Fill with a #UD
+	//memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
+	memset(gaMemory, 0xCC, sizeof(gaMemory));	// 0xCC = INT 3
 
 	// Create BIOS Structures
 	// - BIOS Entrypoint (All BIOS calls are HLE, so trap them)
@@ -100,10 +106,13 @@ int main(int argc, char *argv[])
 
 	// Create and initialise RME State
 	emu = RME_CreateState();
-	emu->HLECallbacks[0x10] = HLECall10;
-	emu->HLECallbacks[0x12] = HLECall12;
-	emu->HLECallbacks[0x13] = HLECall;
-	emu->HLECallbacks[0x16] = HLECall;
+	emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
+	emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
+	emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
+	emu->HLECallbacks[0x13] = HLECall;	// 0x13 - Disk IO
+	emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
+	emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
+	emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
 	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
 		emu->Memory[i/RME_BLOCK_SIZE] = &gaMemory[i];
 
@@ -155,7 +164,7 @@ int main(int argc, char *argv[])
 /**
  * \brief Screen output
  */
-void PutChar(uint8_t ch, uint32_t FGC)
+void PutChar(uint8_t ch, uint32_t BGC, uint32_t FGC)
 {
 	Uint8	*font;
 	Uint32	*buf;
@@ -201,6 +210,12 @@ void PutChar(uint8_t ch, uint32_t FGC)
 	}
 	
 	SDL_Flip(gScreen);
+}
+
+void PutString(const char *String, uint32_t BGC, uint32_t FGC)
+{
+	while(*String)
+		PutChar(*String++, BGC, FGC);
 }
 
 /**
@@ -281,7 +296,8 @@ int HLECall10(tRME_State *State, int IntNum)
 	switch(State->AX.B.H)
 	{
 	case 0x0E:
-		PutChar(State->AX.B.L, 0xFFFFFFFF);
+		// TODO: Better Colours
+		PutChar(State->AX.B.L, COL_BLACK, COL_WHITE);
 		break;
 	default:
 		printf("HLE Call INT 0x10\n");
@@ -307,12 +323,29 @@ int HLECall(tRME_State *State, int IntNum)
 {
 	 int	ret;
 	switch( IntNum )
-	{	
+	{
+	case 0x03:
+		printf("\nDebug Exception, press any key to exit\n");
+		{
+			SDL_Event	e;
+			SDL_WM_SetCaption("RME - Debug Exception, press any key to quit", "RME - Stopped");
+			while( SDL_WaitEvent(&e) )
+			{
+				if(e.type == SDL_QUIT)
+					exit(0);
+				else if(e.type == SDL_KEYDOWN)
+					exit(0);
+			}
+		}
+		break;
+		
 	case 0x13:
 		switch(State->AX.B.H)
 		{
 		case 0x00:	// Reset Disk Subsystem
-			printf("Reset disk subsystem\n");
+			printf(" 0x00 - Reset disk subsystem\n");
+			State->Flags &= ~FLAG_CF;
+			State->AX.B.H = 0;
 			// Does anything need to be done here?
 			break;
 		
@@ -371,8 +404,9 @@ int HLECall(tRME_State *State, int IntNum)
 					break;
 				}
 				
-				cyl --;	// Make `cyl` the max cylinder number
-				heads --;	// Same for `heads`
+				// Maximum values are wanted
+				cyl --;
+				heads --;
 				// Sector numbers are 1 based, so `sec` doesn't need to be changed
 				
 				// TODO: Use GetDiskParams here
@@ -455,6 +489,23 @@ int HLECall(tRME_State *State, int IntNum)
 			printf("HLE Call INT 0x16\n");
 			RME_DumpRegs(State);
 			exit(1);
+		}
+		break;
+	
+	// --- Diskless Boot Hook (Boot error) ---
+	case 0x18:
+	// --- System Bootstrap Loader (called by MSDOS to reboot) ---
+	case 0x19:
+		PutString("\r\n[BIOS] Boot Error. Press any key to terminate emulator", COL_BLACK, COL_RED);
+		{
+			SDL_Event	e;
+			while( SDL_WaitEvent(&e) )
+			{
+				if(e.type == SDL_QUIT)
+					exit(0);
+				else if(e.type == SDL_KEYDOWN)
+					exit(0);
+			}
 		}
 		break;
 	
