@@ -12,7 +12,7 @@ DEF_OPCODE_FCN(CALL, N)
 	 int	ret;
 	uint16_t	dist;
 	READ_INSTR16( dist );
-	DEBUG_S(".+0x%04x", dist);
+	DEBUG_S(" .+0x%04x", dist);
 	PUSH(State->IP + State->Decoder.IPOffset);
 	State->IP += dist;
 	return 0;
@@ -24,7 +24,7 @@ DEF_OPCODE_FCN(CALL, F)
 	uint16_t	ofs, seg;
 	READ_INSTR16( ofs );
 	READ_INSTR16( seg );
-	DEBUG_S("0x%04x:%04x", seg, ofs);
+	DEBUG_S(" 0x%04x:%04x", seg, ofs);
 	PUSH(State->CS);
 	PUSH(State->IP + State->Decoder.IPOffset);
 	State->CS = seg;
@@ -115,14 +115,13 @@ static inline int _CallInterrupt(tRME_State *State, int Num)
 // Interrupts
 DEF_OPCODE_FCN(INT, 3)	// INT 0x3 - Debug
 {
-	DEBUG_S("3");
 	return _CallInterrupt(State, 3);
 }
 DEF_OPCODE_FCN(INT, I)	// INT imm8
 {
 	uint8_t	num;
 	READ_INSTR8(num);
-	DEBUG_S("0x%x", num);
+	DEBUG_S(" 0x%x", num);
 	return _CallInterrupt(State, num);
 }
 DEF_OPCODE_FCN(IRET, z)	// Interrupt Return

@@ -9,7 +9,7 @@
 #define MAKE_COND_JUMP_S(__condition) do {\
 	uint16_t	dist; \
 	READ_INSTR8S( dist ); \
-	DEBUG_S(".+0x%02x", dist&0xFF);\
+	DEBUG_S(" .+0x%02x", dist&0xFF);\
 	if( (__condition)) { \
 		State->IP += dist; \
 	} \
@@ -19,7 +19,7 @@
 #define MAKE_COND_JUMP_N(__condition) do {\
 	uint16_t	dist; \
 	READ_INSTR16( dist ); \
-	DEBUG_S(".+0x%04x", dist);\
+	DEBUG_S(" .+0x%04x", dist);\
 	if( (__condition)) { \
 		State->IP += dist; \
 	} \
@@ -83,7 +83,7 @@ DEF_OPCODE_FCN(LOOPNZ, S)
 {
 	uint16_t	dist;
 	READ_INSTR8S( dist );
-	DEBUG_S(".+0x%02x", dist&0xFF);
+	DEBUG_S(" .+0x%02x", dist&0xFF);
 	
 	State->CX.W --;
 	if(State->CX.W != 0 && !(State->Flags & FLAG_ZF)) {
@@ -97,7 +97,7 @@ DEF_OPCODE_FCN(LOOPZ, S)
 {
 	uint16_t	dist;
 	READ_INSTR8S( dist );
-	DEBUG_S(".+0x%02x", dist&0xFF);
+	DEBUG_S(" .+0x%02x", dist&0xFF);
 	
 	State->CX.W --;
 	if(State->CX.W != 0 && State->Flags & FLAG_ZF) {
@@ -111,7 +111,7 @@ DEF_OPCODE_FCN(LOOP, S)
 {
 	uint16_t	dist;
 	READ_INSTR8S( dist );
-	DEBUG_S(".+0x%02x", dist&0xFF);
+	DEBUG_S(" .+0x%02x", dist&0xFF);
 	
 	State->CX.W --;
 	if(State->CX.W != 0) {
@@ -126,7 +126,7 @@ DEF_OPCODE_FCN(JMP, N)
 {
 	uint16_t	ofs;
 	READ_INSTR16( ofs );
-	DEBUG_S(".+0x%04x", ofs);
+	DEBUG_S(" .+0x%04x", ofs);
 	State->IP += ofs;
 	return 0;
 }
@@ -136,7 +136,7 @@ DEF_OPCODE_FCN(JMP, F)
 	uint16_t	seg, ofs;
 	READ_INSTR16( ofs );
 	READ_INSTR16( seg );
-	DEBUG_S("0x%04x:%04x", seg, ofs);
+	DEBUG_S(" 0x%04x:%04x", seg, ofs);
 	State->CS = seg;
 	State->IP = ofs;
 	State->Decoder.bDontChangeIP = 1;
@@ -147,7 +147,7 @@ DEF_OPCODE_FCN(JMP, S)
 {
 	uint16_t	ofs;
 	READ_INSTR8S( ofs );
-	DEBUG_S(".+0x%02x", ofs&0xFF);
+	DEBUG_S(" .+0x%02x", ofs&0xFF);
 	State->IP += ofs;
 	return 0;
 }

@@ -102,7 +102,7 @@ DEF_OPCODE_FCN(PUSH, I)
 	 int	ret;
 	uint16_t	val;
 	READ_INSTR16( val );
-	DEBUG_S("0x%04x", val);
+	DEBUG_S(" 0x%04x", val);
 	PUSH(val);
 	return 0;
 }
@@ -112,7 +112,7 @@ DEF_OPCODE_FCN(PUSH, I8)
 	 int	ret;
 	uint8_t	val;
 	READ_INSTR16( val );
-	DEBUG_S("0x%02x", val);
+	DEBUG_S(" 0x%02x", val);
 	PUSH(val);
 	return 0;
 }

@@ -164,17 +164,17 @@ int RME_Int_DoOpcode(tRME_State *State)
 	State->Decoder.IPOffset = 0;
 	State->InstrNum ++;
 
-	DEBUG_S("(%8i) [0x%x] %04x:%04x ", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
+	DEBUG_S("(%8i) [0x%x] %04x:%04x", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
 
 	do
 	{
 		READ_INSTR8( opcode );
 		if( caOperations[opcode].Function == NULL )
 		{
-			ERROR_S("Unkown Opcode 0x%02x", opcode);
+			ERROR_S(" Unkown Opcode 0x%02x", opcode);
 			return RME_ERR_UNDEFOPCODE;
 		}
-		DEBUG_S("%s ", caOperations[opcode].Name);
+		DEBUG_S(" %s", caOperations[opcode].Name);
 		ret = caOperations[opcode].Function(State, caOperations[opcode].Arg);
 	} while( ret == RME_ERR_CONTINUE );	// RME_ERR_CONTINUE is returned by prefixes
 	
@@ -184,7 +184,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 	// repType is cleared if it is used, so if it's not used, it's invalid
 	if(State->Decoder.RepeatType)
 	{
-		DEBUG_S("Prefix 0x%02x used with wrong opcode 0x%02x", State->Decoder.RepeatType, opcode);
+		DEBUG_S(" Prefix 0x%02x used with wrong opcode 0x%02x", State->Decoder.RepeatType, opcode);
 		return RME_ERR_UNDEFOPCODE;
 	}
 
@@ -246,11 +246,11 @@ DEF_OPCODE_FCN(Ext,0F)
 	
 	if( caOperations0F[extra].Function == NULL )
 	{
-		ERROR_S("Unkown Opcode 0x0F 0x%02x", extra);
+		ERROR_S(" Unkown Opcode 0x0F 0x%02x", extra);
 		return RME_ERR_UNDEFOPCODE;
 	}
 	
-	DEBUG_S("%s ", caOperations0F[extra].Name);
+	DEBUG_S(" %s", caOperations0F[extra].Name);
 	return caOperations0F[extra].Function(State, caOperations0F[extra].Arg);
 }
 
@@ -267,14 +267,14 @@ DEF_OPCODE_FCN(Unary, MI)	// INC/DEC r/m8
 	switch(op_num)
 	{
 	case 0:	// INC
-		DEBUG_S("INC");
+		DEBUG_S(" INC");
 		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 		if(ret)	return ret;
 		{ALU_OPCODE_INC_CODE}
 		SET_COMM_FLAGS(State, *dest, width);
 		break;
 	case 1:	// DEC
-		DEBUG_S("DEC");
+		DEBUG_S(" DEC");
 		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 		if(ret)	return ret;
 		{ALU_OPCODE_DEC_CODE}
@@ -303,14 +303,14 @@ DEF_OPCODE_FCN(Unary, MIX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 		switch( op_num )
 		{
 		case 0:
-			DEBUG_S("INC");
+			DEBUG_S(" INC");
 			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_INC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 1:
-			DEBUG_S("DEC");
+			DEBUG_S(" DEC");
 			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_DEC_CODE}
@@ -334,21 +334,21 @@ DEF_OPCODE_FCN(Unary, MIX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 		switch( op_num )
 		{
 		case 0:
-			DEBUG_S("INC");
+			DEBUG_S(" INC");
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_INC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 1:
-			DEBUG_S("DEC");
+			DEBUG_S(" DEC");
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_DEC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 2:	// Call Near Indirect
-			DEBUG_S("CALL (NI)");
+			DEBUG_S(" CALL (NI)");
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			PUSH(State->IP);
@@ -356,7 +356,7 @@ DEF_OPCODE_FCN(Unary, MIX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 3:	// Call Far Indirect
-			DEBUG_S("CALL (FI)");
+			DEBUG_S(" CALL (FI)");
 			if( mod == 3 )	return RME_ERR_UNDEFOPCODE;	// TODO: Check this
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
@@ -367,14 +367,14 @@ DEF_OPCODE_FCN(Unary, MIX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 4:	// Jump Near Indirect
-			DEBUG_S("JMP (NI)");
+			DEBUG_S(" JMP (NI)");
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			State->IP = *dest;
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 5:	// Jump Far Indirect
-			DEBUG_S("JMP (FI)");
+			DEBUG_S(" JMP (FI)");
 			if( mod == 3 )	return RME_ERR_UNDEFOPCODE;	// TODO: Check this
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
@@ -383,7 +383,7 @@ DEF_OPCODE_FCN(Unary, MIX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 6:
-			DEBUG_S("PUSH (RX)");
+			DEBUG_S(" PUSH (RX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);	//Get Register Value
 			if(ret)	return ret;
 			PUSH( *dest );
@@ -470,6 +470,7 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, uint16_t *Segment, u
 	case 7:
 		DEBUG_S(":[BX+0x%x]", disp);
 		addr = State->BX.W + disp;
+		DEBUG_S(" addr=%x", addr);
 		break;
 	default:
 		ERROR_S("Unknown mmm value passed to DoFunc (%i)", mmm);

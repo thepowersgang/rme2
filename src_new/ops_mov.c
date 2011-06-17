@@ -121,16 +121,16 @@ DEF_OPCODE_FCN(MOV, AMo)
 	uint16_t	seg;
 	uint32_t	ofs;
 	
-	DEBUG_S("AL ");
+	DEBUG_S(" AL");
 	
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR32( ofs );
-		DEBUG_S(":0x%08x ", ofs);
+		DEBUG_S(":[0x%x]", ofs);
 	}
 	else {
 		READ_INSTR16( ofs );
-		DEBUG_S(":0x%04x", ofs);
+		DEBUG_S(":[0x%x]", ofs);
 	}
 	
 	ret = RME_Int_Read8(State, seg, ofs, &State->AX.B.L);
@@ -145,18 +145,18 @@ DEF_OPCODE_FCN(MOV, AMoX)
 	uint32_t	ofs;
 	
 	if( State->Decoder.bOverrideOperand )
-		DEBUG_S("EAX ");
+		DEBUG_S(" EAX");
 	else
-		DEBUG_S("AX ");
+		DEBUG_S(" AX");
 	
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR32( ofs );
-		DEBUG_S(":0x%08x ", ofs);
+		DEBUG_S(":[0x%x]", ofs);
 	}
 	else {
 		READ_INSTR16( ofs );
-		DEBUG_S(":0x%04x ", ofs);
+		DEBUG_S(":[0x%x]", ofs);
 	}
 	
 	if( State->Decoder.bOverrideOperand )
@@ -179,13 +179,13 @@ DEF_OPCODE_FCN(MOV, MoA)
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR32( ofs );
-		DEBUG_S(":0x%08x", ofs);
+		DEBUG_S(":[0x%x]", ofs);
 	}
 	else {
 		READ_INSTR16( ofs );
-		DEBUG_S(":0x%04x", ofs);
+		DEBUG_S(":[0x%x]", ofs);
 	}
-	DEBUG_S("AL ");
+	DEBUG_S(" AL");
 	ret = RME_Int_Write8(State, seg, ofs, State->AX.B.L);
 	if(ret)	return ret;
 	
@@ -200,17 +200,17 @@ DEF_OPCODE_FCN(MOV, MoAX)
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR32( ofs );
-		DEBUG_S(":0x%08x ", ofs);
+		DEBUG_S(":[0x%x]", ofs);
 	}
 	else {
 		READ_INSTR16( ofs );
-		DEBUG_S(":0x%04x ", ofs);
+		DEBUG_S(":[0x%x]", ofs);
 	}
 	
 	if( State->Decoder.bOverrideOperand )
-		DEBUG_S("EAX ");
+		DEBUG_S(" EAX");
 	else
-		DEBUG_S("AX ");
+		DEBUG_S(" AX");
 	
 	if( State->Decoder.bOverrideOperand )
 		ret = RME_Int_Write32(State, seg, ofs, State->AX.D);
@@ -379,14 +379,14 @@ DEF_OPCODE_FCN(XCHG, Reg)	// A with Reg
 		uint32_t	*D;
 	}	src;
 	if( Param == 0 ) {
-		DEBUG_S("NOP");
+		DEBUG_S(" - NOP");
 		return 0;
 	}
 	
 	if(State->Decoder.bOverrideOperand)
-		DEBUG_S("EAX");
+		DEBUG_S(" EAX");
 	else
-		DEBUG_S("AX");
+		DEBUG_S(" AX");
 	
 	src.W = RegW(State, Param);
 	if(State->Decoder.bOverrideOperand)

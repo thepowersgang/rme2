@@ -236,6 +236,7 @@ int GetDiskParams(int Disk, int *NCyl, int *NHead, int *SPT)
 
 int ReadDiskLBA(int Disk, int LBAAddr, int Count, void *Data)
 {
+	 int	ret;
 	printf("ReadDiskLBA: (Disk=%i, LBAAddr=0x%x, Count=%i, Data=%p)\n",
 		Disk, LBAAddr, Count, Data);
 	switch(Disk)
@@ -245,11 +246,16 @@ int ReadDiskLBA(int Disk, int LBAAddr, int Count, void *Data)
 			fprintf(stderr, "fseek(gaFDDs[0], 0x%x*512, SEEK_SET)\n", LBAAddr);
 			fprintf(stdout, "fseek(gaFDDs[0], 0x%x*512, SEEK_SET)\n", LBAAddr);
 			perror("fseek failed");	
-			memset(Data, 0, 512);
+			memset(Data, 0, 512*Count);
 			return 0;
 		}
 //		printf("ftell() = 0x%x\n", ftell(gaFDDs[0]));
-		return fread(Data, 512, Count, gaFDDs[0]);
+		ret = fread(Data, 512, Count, gaFDDs[0]);
+//		printf("%02x %02x %02x %02x %02x %02x %02x %02x",
+//			((uint8_t*)Data)[0], ((uint8_t*)Data)[1], ((uint8_t*)Data)[2], ((uint8_t*)Data)[3],
+//			((uint8_t*)Data)[4], ((uint8_t*)Data)[5], ((uint8_t*)Data)[6], ((uint8_t*)Data)[7]
+//			);
+		return ret;
 	default:
 		return 0;
 	}
@@ -381,7 +387,7 @@ int HLECall(tRME_State *State, int IntNum)
 				break;
 			}
 			if( ret != State->AX.B.L ) {
-				printf(" 0x13:0x02 Incimplete read: %i/%i\n", ret, State->AX.B.L);
+				printf(" 0x13:0x02 Incomplete read: %i/%i\n", ret, State->AX.B.L);
 				State->AX.B.L = ret;
 				State->Flags |= 1;
 				break;
