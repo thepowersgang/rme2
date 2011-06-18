@@ -37,6 +37,7 @@ void	PutString(const char *String, uint32_t BGC, uint32_t FGC);
 SDL_Surface	*gScreen;
 char	*gasFDDs[4] = {"fdd.img", NULL, NULL, NULL};
 FILE	*gaFDDs[4];
+char	*gsBinaryFile;
 uint8_t	gaMemory[0x110000];
 
 // === CODE ===
@@ -47,10 +48,25 @@ int main(int argc, char *argv[])
 	FILE	*fp;
 	 int	ret, i;
 	 int	len, tmp;
+	 int	nFDDs = 0;
 
 	// TODO: Better parameter interpretation
-	for( i = 1; i < argc; i ++ ) {
-		gasFDDs[0] = argv[i];
+	for( i = 1; i < argc; i ++ )
+	{
+		if( argv[i][0] == '-' )
+		{
+			switch( argv[i][1] )
+			{
+			case 'b':
+				gsBinaryFile = argv[++i];
+				break;
+			}
+		}
+		else
+		{
+			if(nFDDs < 4)
+				gasFDDs[nFDDs++] = argv[i];
+		}
 	}
 
 	signal(SIGINT, exit);
@@ -116,21 +132,49 @@ int main(int argc, char *argv[])
 	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
 		emu->Memory[i/RME_BLOCK_SIZE] = &gaMemory[i];
 
-	// Read boot sector
-	if( fread( &gaMemory[0x7C00], 512, 1, gaFDDs[0] ) != 1 )
+	if( gsBinaryFile )
 	{
-		fprintf(stderr, "Disk image < 512 bytes\n");
-		return 0;
-	}
-	if( *(uint16_t*)&gaMemory[0x7DFE] != 0xAA55 )
-	{
-		fprintf(stderr, "Invalid boot signature on boot sector\n");
-		return 0;
-	}
+		FILE	*fp = fopen(gsBinaryFile, "rb");
+		 int	len;
+		
+		printf("Booting '%s' at 0x400\n", gsBinaryFile);
+		
+		fseek(fp, 0, SEEK_END);
+		len = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
+		
+		if(len > 0x10000)
+		{
+			fprintf(stderr, "Binary file '%s' is too large, not loading\n", gsBinaryFile);
+		}
+		else
+		{
+			fread( &gaMemory[0x400], len, 1, fp );
+		}
+		fclose(fp);
 
-	emu->CS = 0x07C0;
-	emu->IP = 0x0000;
-	emu->DX.W = 0x0000;	// Disk
+		emu->CS = 0x0040;
+		emu->IP = 0x0000;
+	}
+	else
+	{
+		printf("Booting Disk #0\n");
+		// Read boot sector
+		if( fread( &gaMemory[0x7C00], 512, 1, gaFDDs[0] ) != 1 )
+		{
+			fprintf(stderr, "Disk image < 512 bytes\n");
+			return 0;
+		}
+		if( *(uint16_t*)&gaMemory[0x7DFE] != 0xAA55 )
+		{
+			fprintf(stderr, "Invalid boot signature on boot sector\n");
+			return 0;
+		}
+
+		emu->CS = 0x07C0;
+		emu->IP = 0x0000;
+		emu->DX.W = 0x0000;	// Disk
+	}
 
 	ret = RME_Call(emu);
 

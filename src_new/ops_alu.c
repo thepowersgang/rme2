@@ -157,7 +157,7 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 
 #if DEBUG
 static const char *casArithOps[] = {"ADD", "OR", "ADC", "SBB", "AND", "SUB", "XOR", "CMP"};
-static const char *casMiscOps[] = {"TEST", "M1-", "M2-", "M3-", "MUL", "M5-", "DIV", "M7-"};
+static const char *casMiscOps[] = {"TEST", "M1-", "NOT", "NEG", "MUL", "IMUL", "DIV", "IDIV"};
 static const char *casLogicOps[] = {"ROL", "ROR", "RCL", "RCR", "SHL", "SHR", "L6-", "L7-"};
 #endif
 
@@ -198,10 +198,10 @@ DEF_OPCODE_FCN(Arith, RIX)
 	if(ret)	return ret;
 	State->Decoder.IPOffset --;
 	
+	DEBUG_S(" %s", casArithOps[op_num]);
+	
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
 	if(ret)	return ret;
-	
-	DEBUG_S(" %s", casArithOps[op_num]);
 	
 	State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
 	if( State->Decoder.bOverrideOperand )

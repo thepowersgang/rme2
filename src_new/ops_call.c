@@ -84,6 +84,7 @@ static inline int _CallInterrupt(tRME_State *State, int Num)
 {
 	 int	ret;
 	uint16_t	seg, ofs;
+	
 	// High-Level Emulation Call
 	if( State->HLECallbacks[Num] ) {
 		State->HLECallbacks[Num](State, Num);
