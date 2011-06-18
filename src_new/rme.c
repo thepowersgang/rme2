@@ -174,7 +174,15 @@ int RME_Int_DoOpcode(tRME_State *State)
 			ERROR_S(" Unkown Opcode 0x%02x", opcode);
 			return RME_ERR_UNDEFOPCODE;
 		}
-		DEBUG_S(" %s", caOperations[opcode].Name);
+		if(caOperations[opcode].ModRMNames) {
+			 int	rrr;
+			RME_Int_GetModRM(State, NULL, &rrr, NULL);
+			DEBUG_S(" %s", caOperations[opcode].ModRMNames[rrr]);
+		}
+		else {
+			DEBUG_S(" %s", caOperations[opcode].Name);
+		}
+		DEBUG_S(" (%s)", caOperations[opcode].Type);
 		ret = caOperations[opcode].Function(State, caOperations[opcode].Arg);
 	} while( ret == RME_ERR_CONTINUE );	// RME_ERR_CONTINUE is returned by prefixes
 	

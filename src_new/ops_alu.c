@@ -155,12 +155,6 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	default: ERROR_S(" - Misc %i error\n", op_num); return RME_ERR_UNDEFOPCODE; \
 } } while(0)
 
-#if DEBUG
-static const char *casArithOps[] = {"ADD", "OR", "ADC", "SBB", "AND", "SUB", "XOR", "CMP"};
-static const char *casMiscOps[] = {"TEST", "M1-", "NOT", "NEG", "MUL", "IMUL", "DIV", "IDIV"};
-static const char *casLogicOps[] = {"ROL", "ROR", "RCL", "RCR", "SHL", "SHR", "L6-", "L7-"};
-#endif
-
 DEF_OPCODE_FCN(Arith, RI)
 {
 	 int	ret;
@@ -174,7 +168,7 @@ DEF_OPCODE_FCN(Arith, RI)
 	if(ret)	return ret;
 	State->Decoder.IPOffset --;
 	
-	DEBUG_S(" %s", casArithOps[op_num]);
+//	DEBUG_S(" %s", casArithOps[op_num]);
 	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
@@ -198,7 +192,7 @@ DEF_OPCODE_FCN(Arith, RIX)
 	if(ret)	return ret;
 	State->Decoder.IPOffset --;
 	
-	DEBUG_S(" %s", casArithOps[op_num]);
+//	DEBUG_S(" %s", casArithOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
 	if(ret)	return ret;
@@ -239,7 +233,7 @@ DEF_OPCODE_FCN(Arith, RI8X)
 	if(ret)	return ret;
 	State->Decoder.IPOffset --;
 	
-	DEBUG_S(" %s", casArithOps[op_num]);
+//	DEBUG_S(" %s", casArithOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
 	if(ret)	return ret;
@@ -319,7 +313,7 @@ DEF_OPCODE_FCN(ArithMisc, MI)	// 0xF6
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-	DEBUG_S(" %s", casMiscOps[op_num]);
+//	DEBUG_S(" %s", casMiscOps[op_num]);
 	
 	ret = RME_Int_ParseModRM(State, NULL, &arg, 0);
 	if(ret)	return ret;
@@ -343,7 +337,7 @@ DEF_OPCODE_FCN(ArithMisc, MIX)	// 0xF7
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-	DEBUG_S(" %s", casMiscOps[op_num]);
+//	DEBUG_S(" %s", casMiscOps[op_num]);
 	
 	// Get argument (defaults to source)
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&arg, 0);
@@ -378,7 +372,7 @@ DEF_OPCODE_FCN(Shift, MI)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-	DEBUG_S(" %s", casLogicOps[op_num]);
+//	DEBUG_S(" %s", casLogicOps[op_num]);
 	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
@@ -402,7 +396,7 @@ DEF_OPCODE_FCN(Shift, MI8X)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-	DEBUG_S(" %s", casLogicOps[op_num]);
+//	DEBUG_S(" %s", casLogicOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
@@ -443,7 +437,7 @@ DEF_OPCODE_FCN(Shift, M1)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-	DEBUG_S(" %s", casLogicOps[op_num]);
+//	DEBUG_S(" %s", casLogicOps[op_num]);
 	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
@@ -466,7 +460,7 @@ DEF_OPCODE_FCN(Shift, M1X)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-	DEBUG_S(" %s", casLogicOps[op_num]);
+//	DEBUG_S(" %s", casLogicOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
@@ -506,7 +500,7 @@ DEF_OPCODE_FCN(Shift, MCl)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-	DEBUG_S(" %s", casLogicOps[op_num]);
+//	DEBUG_S(" %s", casLogicOps[op_num]);
 	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
@@ -529,7 +523,7 @@ DEF_OPCODE_FCN(Shift, MClX)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-	DEBUG_S(" %s", casLogicOps[op_num]);
+//	DEBUG_S(" %s", casLogicOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
