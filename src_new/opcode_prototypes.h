@@ -9,10 +9,10 @@
 	DEF_OPCODE_FCN(name,RM);DEF_OPCODE_FCN(name,RMX);\
 	DEF_OPCODE_FCN(name,AI);DEF_OPCODE_FCN(name,AIX);
 
-// Misc Operations
+// Composite Operations
 DEF_OPCODE_FCN(Ext, 0F);	// Two Byte Opcodes
-DEF_OPCODE_FCN(Unary, MI);	// INC/DEC r/m8
-DEF_OPCODE_FCN(Unary, MIX);	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
+DEF_OPCODE_FCN(Unary, M);	// INC/DEC r/m8
+DEF_OPCODE_FCN(Unary, MX);	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 
 // ALU
 DEF_ALU_OPCODE_PROTO(ADD);
@@ -23,9 +23,9 @@ DEF_ALU_OPCODE_PROTO(AND);
 DEF_ALU_OPCODE_PROTO(SUB);
 DEF_ALU_OPCODE_PROTO(XOR);
 DEF_ALU_OPCODE_PROTO(CMP);
-DEF_OPCODE_FCN(Arith, RI);	// 0x80 - Register Immediate
-DEF_OPCODE_FCN(Arith, RIX);	// 0x81 - Register Immediate Word
-DEF_OPCODE_FCN(Arith, RI8X);	// 0x83 - Register Word Immediate 8
+DEF_OPCODE_FCN(Arith, MI);	// 0x80 - Register Immediate
+DEF_OPCODE_FCN(Arith, MIX);	// 0x81 - Register Immediate Word
+DEF_OPCODE_FCN(Arith, MI8X);	// 0x83 - Register Word Immediate 8
 DEF_OPCODE_FCN(TEST, MR);
 DEF_OPCODE_FCN(TEST, MRX);
 DEF_OPCODE_FCN(TEST, AI);
@@ -43,6 +43,8 @@ DEF_OPCODE_FCN(Shift, MClX);	// 0xD3
 
 DEF_OPCODE_FCN(INC, Reg);
 DEF_OPCODE_FCN(DEC, Reg);
+
+DEF_OPCODE_FCN(AAA,z);
 
 // Push/Pop
 DEF_OPCODE_FCN(PUSH, Seg); DEF_OPCODE_FCN(POP, Seg);
@@ -136,6 +138,12 @@ DEF_OPCODE_FCN(Flag, CLD); DEF_OPCODE_FCN(Flag, STD);
 
 // Misc
 DEF_OPCODE_FCN(CBW, z);	// Convert signed Byte to Word
+DEF_OPCODE_FCN(HLT, z);	// Halt Execution
+DEF_OPCODE_FCN(AAA, z);	// ASCII adjust AL after Addition
+DEF_OPCODE_FCN(AAS, z);	// ASCII adjust AL after Subtraction
+DEF_OPCODE_FCN(DAA, z);	// Decimal adjust AL after Addition
+DEF_OPCODE_FCN(DAS, z);	// Decimal adjust AL after Subtraction
+DEF_OPCODE_FCN(CWD, z);	// Convert Word to Doubleword
 DEF_OPCODE_FCN(LES, z);	// Load ES:r16/32 with m16:m16/32
 DEF_OPCODE_FCN(LDS, z);	// Load DS:r16/32 with m16:m16/32
 DEF_OPCODE_FCN(LEA, z);	// Load effective address into r16/32

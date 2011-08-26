@@ -5,7 +5,7 @@ LDFLAGS	:= -g -lSDL -lSDLmain
 
 RME_LIB = ../../src_new/rme.a
 
-OBJ	:= main.o
+OBJ	:= main.o dosexe.o
 #OBJ += ../../src_new/rme_composite.o
 OBJ += $(RME_LIB)
 BIN	:= ../tester

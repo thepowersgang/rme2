@@ -83,7 +83,7 @@ DEF_OPCODE_FCN(LOOPNZ, S)
 {
 	uint16_t	dist;
 	READ_INSTR8S( dist );
-	DEBUG_S(" .+0x%02x", dist&0xFF);
+	DEBUG_S(" .+0x%02x", dist);
 	
 	State->CX.W --;
 	if(State->CX.W != 0 && !(State->Flags & FLAG_ZF)) {
@@ -97,7 +97,7 @@ DEF_OPCODE_FCN(LOOPZ, S)
 {
 	uint16_t	dist;
 	READ_INSTR8S( dist );
-	DEBUG_S(" .+0x%02x", dist&0xFF);
+	DEBUG_S(" .+0x%02x", dist);
 	
 	State->CX.W --;
 	if(State->CX.W != 0 && State->Flags & FLAG_ZF) {
@@ -111,7 +111,7 @@ DEF_OPCODE_FCN(LOOP, S)
 {
 	uint16_t	dist;
 	READ_INSTR8S( dist );
-	DEBUG_S(" .+0x%02x", dist&0xFF);
+	DEBUG_S(" .+0x%02x", dist);
 	
 	State->CX.W --;
 	if(State->CX.W != 0) {
@@ -147,7 +147,7 @@ DEF_OPCODE_FCN(JMP, S)
 {
 	uint16_t	ofs;
 	READ_INSTR8S( ofs );
-	DEBUG_S(" .+0x%02x", ofs&0xFF);
+	DEBUG_S(" .+0x%02x", ofs);
 	State->IP += ofs;
 	return 0;
 }

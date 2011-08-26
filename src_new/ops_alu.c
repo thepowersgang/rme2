@@ -155,7 +155,7 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	default: ERROR_S(" - Misc %i error\n", op_num); return RME_ERR_UNDEFOPCODE; \
 } } while(0)
 
-DEF_OPCODE_FCN(Arith, RI)
+DEF_OPCODE_FCN(Arith, MI)
 {
 	 int	ret;
 	const int width = 8;
@@ -182,7 +182,7 @@ DEF_OPCODE_FCN(Arith, RI)
 	return 0;
 }
 
-DEF_OPCODE_FCN(Arith, RIX)
+DEF_OPCODE_FCN(Arith, MIX)
 {
 	 int	ret, op_num;
 	void	*destPtr;
@@ -223,7 +223,7 @@ DEF_OPCODE_FCN(Arith, RIX)
 	return 0;
 }
 
-DEF_OPCODE_FCN(Arith, RI8X)
+DEF_OPCODE_FCN(Arith, MI8X)
 {
 	 int	ret, op_num;
 	void	*destPtr;

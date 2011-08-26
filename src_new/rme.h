@@ -73,6 +73,7 @@ enum eRME_Errors
 	RME_ERR_DIVERR,	//!< Divide error
 	RME_ERR_BUG,	//!< Bug in the emulator
 	RME_ERR_BREAKPOINT,	//!< Breakpoint hit
+	RME_ERR_HALT,	//!< CPU Halted
 	
 	RME_ERR_LAST	//!< Last Error
 };

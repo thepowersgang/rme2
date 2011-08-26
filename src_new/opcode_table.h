@@ -32,6 +32,7 @@
 static const char *casArithOps[] = {"ADD", "OR", "ADC", "SBB", "AND", "SUB", "XOR", "CMP"};
 static const char *casMiscOps[] = {"TEST", "M1-", "NOT", "NEG", "MUL", "IMUL", "DIV", "IDIV"};
 static const char *casShiftOps[] = {"ROL", "ROR", "RCL", "RCR", "SHL", "SHR", "SAL", "SAR"};
+//static const char *casUnaryOps[] = {"INC", "DEC", "", "", "", "", "PUSH", ""};
 
 typedef struct sOperation
 {
@@ -52,13 +53,13 @@ const tOperation	caOperations[256] = {
 	/* SBB RM(X), PUSH DS, POP DS */
 	/* 0x18 */	DEF_ALU_OP(SBB), DEF_OP_A(PUSH,Seg,SREG_DS), DEF_OP_A(POP,Seg,SREG_DS),
 	/* AND RM(X), ES Override, #UD */
-	/* 0x20 */	DEF_ALU_OP(AND), DEF_OP_A(Ovr,Seg,SREG_ES), UNDEF_OP,
+	/* 0x20 */	DEF_ALU_OP(AND), DEF_OP_A(Ovr,Seg,SREG_ES), DEF_OP(DAA,z),
 	/* SUB RM(X), CS Override, #UD */
-	/* 0x28 */	DEF_ALU_OP(SUB), DEF_OP_A(Ovr,Seg,SREG_CS), UNDEF_OP,
+	/* 0x28 */	DEF_ALU_OP(SUB), DEF_OP_A(Ovr,Seg,SREG_CS), DEF_OP(DAS,z),
 	/* XOR RM(X), SS Override, #UD */
-	/* 0x30 */	DEF_ALU_OP(XOR), DEF_OP_A(Ovr,Seg,SREG_SS), UNDEF_OP,
+	/* 0x30 */	DEF_ALU_OP(XOR), DEF_OP_A(Ovr,Seg,SREG_SS), DEF_OP(AAA,z),
 	/* CMP RM(X), DS Override, #UD */
-	/* 0x38 */	DEF_ALU_OP(CMP), DEF_OP_A(Ovr,Seg,SREG_DS), UNDEF_OP,
+	/* 0x38 */	DEF_ALU_OP(CMP), DEF_OP_A(Ovr,Seg,SREG_DS), DEF_OP(AAS,z),
 	/* INC R */
 	/* 0x40 */	DEF_REG_OP(INC),
 	/* DEC R */
@@ -77,13 +78,13 @@ const tOperation	caOperations[256] = {
 	/*  0x74*/	DEF_OP(JZ,S), DEF_OP(JNZ,S), DEF_OP(JBE,S), DEF_OP(JA ,S),
 	/* 0x78 */	DEF_OP(JS,S), DEF_OP(JNS,S), DEF_OP(JPE,S), DEF_OP(JPO,S),
 	/*  0x7C*/	DEF_OP(JL,S), DEF_OP(JGE,S), DEF_OP(JLE,S), DEF_OP(JG ,S),
-	/* 0x80 */	DEF_OP_N(Arith,RI,casArithOps), DEF_OP_N(Arith,RIX,casArithOps),
-				UNDEF_OP, DEF_OP_N(Arith, RI8X,casArithOps),
+	/* 0x80 */	DEF_OP_N(Arith,MI,casArithOps), DEF_OP_N(Arith,MIX,casArithOps),
+				UNDEF_OP, DEF_OP_N(Arith, MI8X,casArithOps),
 	/*  0x84*/	DEF_OP(TEST,MR), DEF_OP(TEST,MRX), DEF_OP(XCHG,RM), DEF_OP(XCHG,RMX),
 	/* 0x88 */	DEF_OP(MOV,MR), DEF_OP(MOV,MRX), DEF_OP(MOV,RM), DEF_OP(MOV,RMX),
 	/*  0x8C*/	DEF_OP(MOV,RS), DEF_OP(LEA,z), DEF_OP(MOV,SR), DEF_OP(POP,MX),
 	/* 0x90 */	DEF_REG_OP(XCHG),
-	/* 0x98 */	DEF_OP(CBW,z), UNDEF_OP, DEF_OP(CALL,F), UNDEF_OP,
+	/* 0x98 */	DEF_OP(CBW,z), DEF_OP(CBW,z), DEF_OP(CALL,F), UNDEF_OP,
 	/*  0x9C*/	DEF_OP(PUSH,F), DEF_OP(POP,F), UNDEF_OP, UNDEF_OP,
 	/* 0xA0 */	DEF_OP(MOV,AMo), DEF_OP(MOV,AMoX), DEF_OP(MOV,MoA), DEF_OP(MOV,MoAX),
 	/*  0xA4*/	DEF_OP(MOV,SB), DEF_OP(MOV,SW), DEF_OP(CMP,SB), DEF_OP(CMP,SW),
@@ -106,10 +107,10 @@ const tOperation	caOperations[256] = {
 	/* 0xE8 */	DEF_OP(CALL,N), DEF_OP(JMP,N), DEF_OP(JMP,F), DEF_OP(JMP,S),
 	/*  0xEC*/	DEF_OP(IN,ADx), DEF_OP(IN,ADxX), DEF_OP(OUT,DxA), DEF_OP(OUT,DxAX),
 	/* 0xF0 */	UNDEF_OP, UNDEF_OP, DEF_OP(Prefix, REP), DEF_OP(Prefix, REPNZ),
-	/*  0xF4*/	UNDEF_OP, UNDEF_OP,
+	/*  0xF4*/	DEF_OP(HLT,z), UNDEF_OP,
 				DEF_OP_N(ArithMisc, MI,casMiscOps), DEF_OP_N(ArithMisc, MIX,casMiscOps),
 	/* 0xF8 */	DEF_OP(Flag, CLC), DEF_OP(Flag, STC), DEF_OP(Flag, CLI), DEF_OP(Flag, STI),
-	/*  0xFC*/	DEF_OP(Flag, CLD), DEF_OP(Flag, STD), DEF_OP(Unary,MI), DEF_OP(Unary,MIX)
+	/*  0xFC*/	DEF_OP(Flag, CLD), DEF_OP(Flag, STD), DEF_OP(Unary,M), DEF_OP(Unary,MX)
 	/*0x100 */
 };
 

@@ -177,6 +177,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 		if(caOperations[opcode].ModRMNames) {
 			 int	rrr;
 			RME_Int_GetModRM(State, NULL, &rrr, NULL);
+			State->Decoder.IPOffset --;
 			DEBUG_S(" %s", caOperations[opcode].ModRMNames[rrr]);
 		}
 		else {
@@ -200,6 +201,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 		State->IP += State->Decoder.IPOffset;
 
 	// HACK: Detect more than one instance of 00 00 in a row
+	#if 1
 	if( State->Decoder.IPOffset == 2 ) {
 		uint8_t	byte1=0xFF, byte2=0xFF;
 		ret = RME_Int_Read8(State, startCS, startIP+0, &byte1);
@@ -218,6 +220,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 	}
 	else
 		State->bWasLastOperationNull = 0;
+	#endif
 
 	#if DEBUG
 	{
@@ -262,7 +265,7 @@ DEF_OPCODE_FCN(Ext,0F)
 	return caOperations0F[extra].Function(State, caOperations0F[extra].Arg);
 }
 
-DEF_OPCODE_FCN(Unary, MI)	// INC/DEC r/m8
+DEF_OPCODE_FCN(Unary, M)	// INC/DEC r/m8
 {
 	const int	width = 8;
 	 int	ret, op_num;
@@ -289,14 +292,14 @@ DEF_OPCODE_FCN(Unary, MI)	// INC/DEC r/m8
 		SET_COMM_FLAGS(State, *dest, width);
 		break;
 	default:
-		ERROR_S(" - Unary MI /%i unimplemented\n", op_num);
+		ERROR_S(" - Unary M /%i unimplemented\n", op_num);
 		return RME_ERR_UNDEFOPCODE;
 	}
 	
 	return 0;
 }
 
-DEF_OPCODE_FCN(Unary, MIX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
+DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 {
 	 int	ret, op_num, mod, mmm;
 	
@@ -325,13 +328,13 @@ DEF_OPCODE_FCN(Unary, MIX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 6:
-			DEBUG_S("PUSH");
+			DEBUG_S(" PUSH");
 			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);	//Get Register Value
 			if(ret)	return ret;
 			PUSH( *dest );
 			break;
 		default:
-			ERROR_S(" - Unary MIX (32) /%i unimplemented\n", op_num);
+			ERROR_S(" - Unary MX (32) /%i unimplemented\n", op_num);
 			return RME_ERR_UNDEFOPCODE;
 		}
 	}
@@ -391,14 +394,14 @@ DEF_OPCODE_FCN(Unary, MIX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 6:
-			DEBUG_S(" PUSH (RX)");
+			DEBUG_S(" PUSH");
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);	//Get Register Value
 			if(ret)	return ret;
 			PUSH( *dest );
 			break;
 			
 		default:
-			ERROR_S(" - Unary MIX (16) /%i unimplemented\n", op_num);
+			ERROR_S(" - Unary MX (16) /%i unimplemented\n", op_num);
 			return RME_ERR_UNDEFOPCODE;
 		}
 	}
@@ -435,55 +438,57 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, uint16_t *Segment, u
 
 	seg = *Seg(State, seg);
 
-	// Only keep the (mod=0) flag when R/M = 6
-	if( (mmm & 7) != 6 )
-		mmm &= 7;
-
-	switch(mmm)
+	DEBUG_S(":[");
+	switch(mmm & 7)
 	{
-	case 6|8:	// R/M == 6 when Mod == 0
-		READ_INSTR16( disp );
-		DEBUG_S(":[0x%x]", disp);
-		addr = disp;
-		break;
-
 	case 0:
-		DEBUG_S(":[BX+SI+0x%x]", disp);
-		addr = State->BX.W + State->SI.W + disp;
+		DEBUG_S("BX+SI");
+		addr = State->BX.W + State->SI.W;
 		break;
 	case 1:
-		DEBUG_S(":[BX+DI+0x%x]", disp);
-		addr = State->BX.W + State->DI.W + disp;
+		DEBUG_S("BX+DI");
+		addr = State->BX.W + State->DI.W;
 		break;
 	case 2:
-		DEBUG_S(":[BP+SI+0x%x]", disp);
-		addr = State->BP.W + State->SI.W + disp;
+		DEBUG_S("BP+SI");
+		addr = State->BP.W + State->SI.W;
 		break;
 	case 3:
-		DEBUG_S(":[BP+DI+0x%x]", disp);
-		addr = State->BP.W + State->DI.W + disp;
+		DEBUG_S("BP+DI");
+		addr = State->BP.W + State->DI.W;
 		break;
 	case 4:
-		DEBUG_S(":[SI+0x%x]", disp);
-		addr = State->SI.W + disp;
+		DEBUG_S("SI");
+		addr = State->SI.W;
 		break;
 	case 5:
-		DEBUG_S(":[DI+0x%x]", disp);
-		addr = State->DI.W + disp;
+		DEBUG_S("DI");
+		addr = State->DI.W;
 		break;
 	case 6:
-		DEBUG_S(":[BP+0x%x]", disp);
-		addr = State->BP.W + disp;
+		if( mmm & 8 ) {
+			READ_INSTR16( disp );
+			DEBUG_S("0x%x", disp);
+			addr = disp;
+		}
+		else {
+			DEBUG_S("BP");
+			addr = State->BP.W;
+		}
 		break;
 	case 7:
-		DEBUG_S(":[BX+0x%x]", disp);
-		addr = State->BX.W + disp;
-		DEBUG_S(" addr=%x", addr);
+		DEBUG_S("BX");
+		addr = State->BX.W;
 		break;
 	default:
 		ERROR_S("Unknown mmm value passed to DoFunc (%i)", mmm);
 		return RME_ERR_BUG;
 	}
+	if( !(mmm & 8) ) {
+		DEBUG_S("+0x%x", disp);
+		addr += disp;
+	}
+	DEBUG_S("]");
 	*Segment = seg;
 	*Offset = addr;
 	return 0;
@@ -516,31 +521,27 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 
 	seg = *Seg(State, seg);
 
-	// Only keep the (mod=0) flag when R/M = 5
-	if( (mmm & 7) != 5 )
-		mmm &= 7;
-
+	DEBUG_S(":[");
 	switch(mmm & 7)
 	{
 	case 0:
-		DEBUG_S(":[EAX+0x%x]", disp);
-		addr = State->AX.D + disp;
+		DEBUG_S("EAX");
+		addr = State->AX.D;
 		break;
 	case 1:
-		DEBUG_S(":[ECX+0x%x]", disp);
-		addr = State->CX.D + disp;
+		DEBUG_S("ECX");
+		addr = State->CX.D;
 		break;
 	case 2:
-		DEBUG_S(":[EDX+0x%x]", disp);
-		addr = State->DX.D + disp;
+		DEBUG_S("EDX");
+		addr = State->DX.D;
 		break;
 	case 3:
-		DEBUG_S(":[EBX+0x%x]", disp);
-		addr = State->BX.D + disp;
+		DEBUG_S("EBX");
+		addr = State->BX.D;
 		break;
 	case 4:	// SIB (uses ESP's slot)
 		READ_INSTR8(sib);
-		DEBUG_S(":[");
 		addr = 0;
 		// Index Reg
 		switch( (sib >> 3) & 7 )
@@ -578,34 +579,37 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 		case 6:	DEBUG_S("+ESI");	addr += State->SI.D;	break;
 		case 7:	DEBUG_S("+EDI");	addr += State->DI.D;	break;
 		}
-		DEBUG_S("+0x%x]", disp);
-		addr += disp;
 		break;
 	case 5:
 		if( mmm & 8 )
 		{
 			// R/M == 5 and Mod == 0, disp32
 			READ_INSTR32( addr );
-			DEBUG_S(":[0x%x]", addr);
+			DEBUG_S("0x%x", addr);
 		}
 		else
 		{
-			DEBUG_S(":[EBP+0x%x]", disp);
-			addr = State->BP.D + disp;
+			DEBUG_S("EBP");
+			addr = State->BP.D;
 		}
 		break;
 	case 6:
-		DEBUG_S(":[ESI+0x%x]", disp);
-		addr = State->SI.D + disp;
+		DEBUG_S("ESI");
+		addr = State->SI.D;
 		break;
 	case 7:
-		DEBUG_S(":[EDI+0x%x]", disp);
-		addr = State->DI.D + disp;
+		DEBUG_S("EDI");
+		addr = State->DI.D;
 		break;
 	default:
 		ERROR_S("Unknown mmm value passed to DoFunc32 (%i)", mmm);
 		return RME_ERR_BUG;
 	}
+	if( !(mmm & 8) ) {
+		DEBUG_S("+0x%x", disp);
+		addr += disp;
+	}
+	DEBUG_S("]");
 	*Segment = seg;
 	*Offset = addr;
 	return 0;

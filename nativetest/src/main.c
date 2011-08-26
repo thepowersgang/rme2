@@ -9,13 +9,6 @@
 #include <rme.h>
 #include <SDL/SDL.h>
 
-#define PACKED	__attribute__((packed))
-
-typedef struct {
-	uint16_t	Offset;
-	uint16_t	Segment;
-} PACKED	t_farptr;
-
 //#define COL_WHITE	0x80808080
 #define COL_BLACK	0x00000000
 #define COL_RED 	0x00FF0000
@@ -24,7 +17,7 @@ typedef struct {
 #define COL_WHITE	0x00FFFFFF
 
 // === IMPORTS ===
-extern void	LoadDosExe(const char *file);
+extern void	LoadDosExe(tRME_State *State, const char *file);
 
 // === PROTOTYPES ===
  int	HLECall10(tRME_State *State, int IntNum);
@@ -38,6 +31,7 @@ SDL_Surface	*gScreen;
 char	*gasFDDs[4] = {"fdd.img", NULL, NULL, NULL};
 FILE	*gaFDDs[4];
 char	*gsBinaryFile;
+char	*gsDosExe;
 uint8_t	gaMemory[0x110000];
 
 // === CODE ===
@@ -59,6 +53,9 @@ int main(int argc, char *argv[])
 			{
 			case 'b':
 				gsBinaryFile = argv[++i];
+				break;
+			case 'd':
+				gsDosExe = argv[++i];
 				break;
 			}
 		}
@@ -132,7 +129,12 @@ int main(int argc, char *argv[])
 	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
 		emu->Memory[i/RME_BLOCK_SIZE] = &gaMemory[i];
 
-	if( gsBinaryFile )
+	if( gsDosExe )
+	{
+		printf("Loading DOS Exe \"%s\"\n", gsDosExe);
+		LoadDosExe(emu, gsDosExe);
+	}
+	else if( gsBinaryFile )
 	{
 		FILE	*fp = fopen(gsBinaryFile, "rb");
 		 int	len;
@@ -175,6 +177,11 @@ int main(int argc, char *argv[])
 		emu->IP = 0x0000;
 		emu->DX.W = 0x0000;	// Disk
 	}
+	
+	
+	emu->SS = 0xA000;
+	emu->SP.W = 0xFFFE;
+	*(uint16_t*)&gaMemory[0xA0000-2] = 0xFFFF;
 
 	ret = RME_Call(emu);
 
@@ -186,19 +193,31 @@ int main(int argc, char *argv[])
 		break;
 	case RME_ERR_INVAL:
 		printf("\n--- ERROR: Invalid parameters\n");
-		break;
+		return 1;
 	case RME_ERR_BADMEM:
 		printf("\n--- ERROR: Emulator accessed bad memory\n");
-		break;
+		return 1;
 	case RME_ERR_UNDEFOPCODE:
 		printf("\n--- ERROR: Emulator hit an undefined opcode\n");
-		break;
+		return 1;
 	case RME_ERR_DIVERR:
 		printf("\n--- ERROR: Division Fault\n");
+		return 1;
+	case RME_ERR_HALT: {
+		SDL_Event	e;
+		SDL_WM_SetCaption("RME - CPU Halted, press any key to quit", "RME - Halted");
+		while( SDL_WaitEvent(&e) )
+		{
+			if(e.type == SDL_QUIT)
+				exit(0);
+			else if(e.type == SDL_KEYDOWN)
+				exit(0);
+		}
+		}
 		break;
 	default:
 		printf("\n--- ERROR: Unknown error %i\n", ret);
-		break;
+		return 1;
 	}
 
 	return 0;
