@@ -6,6 +6,9 @@
  * (See the file COPYING for details)
  *
  * ---
+ * A appreciate all bug reports, just email me a patch/description to
+ * rme[AT]mutabah.net OR acessdev[AT]gmail.com
+ * ---
  * Core Emulator
  */
 #define _RME_C_
