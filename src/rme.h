@@ -31,6 +31,11 @@
 #define USE_SIZE_OVERRIDES	1
 
 /**
+ * \brief Use the magic breakpoint (XCHG (e)bx, (e)bx)
+ */
+#define USE_MAGIC_BREAK	1
+
+/**
  * \brief Size of a memory block
  * \note Feel free to edit this value, just make sure it stays a power
  *       of two.
@@ -57,6 +62,7 @@ enum eRME_Errors
 	RME_ERR_UNDEFOPCODE,	//!< Undefined opcode
 	RME_ERR_DIVERR,	//!< Divide error
 	RME_ERR_BUG,	//!< Bug in the emulator
+	RME_ERR_BREAKPOINT,	//!< Breakpoint hit
 	
 	RME_ERR_LAST	//!< Last Error
 };
@@ -251,7 +257,7 @@ enum opcodes {
 	XCHG_AC = 0x90|CL,	XCHG_AD = 0x90|DL,
 	XCHG_ASp = 0x90|AH,	XCHG_ABp = 0x90|CH,
 	XCHG_ASi = 0x90|DH,	XCHG_ADi = 0x90|BH,
-	XCHG_RM = 0x86,
+	XCHG_RM = 0x86,	XCHG_RMX = 0x87,
 
 	NOT_R = 0xF6,	NOT_RX = 0xF7,
 	NOT_M = 0xF6,	NOT_MX = 0xF7,
@@ -276,8 +282,8 @@ enum opcodes {
 	PUSH_SP = 0x50|AH,	PUSH_BP = 0x50|CH,
 	PUSH_SI = 0x50|DH,	PUSH_DI = 0x50|BH,
 	// PUSH_MX = 0xFF,	// - TODO: Check (maybe 0x87)
-	PUSH_ES = 6|(SREG_ES<<3),	PUSH_CS = 6|(SREG_CS<<3),
-	PUSH_SS = 6|(SREG_SS<<3),	PUSH_DS = 6|(SREG_DS<<3),
+	PUSH_ES = 0x06|(SREG_ES<<3),	PUSH_CS = 0x06|(SREG_CS<<3),
+	PUSH_SS = 0x06|(SREG_SS<<3),	PUSH_DS = 0x06|(SREG_DS<<3),
 	PUSH_I8 = 0x6A,	PUSH_I = 0x68,
 	PUSHA = 0x60,	PUSHF = 0x9C,
 
@@ -294,6 +300,8 @@ enum opcodes {
 	LES = 0xC4,
 	LDS = 0xC5,
 	LEA = 0x8D,
+	
+	CBW = 0x98,
 
 	CLC = 0xF8,	STC = 0xF9,
 	CLI = 0xFA,	STI = 0xFB,
@@ -307,7 +315,7 @@ enum opcodes {
 	STOSB = 0xAA,	STOSW = 0xAB,
 	LODSB = 0xAC,	LODSW = 0xAD,
 	SCASB = 0xAE,	SCASW = 0xAF,
-	INSB = 0x6C,	INSW = 0x6D,
+	INSB  = 0x6C,	INSW = 0x6D,
 	OUTSB = 0x6E,	OUTSW = 0x6F,
 
 	// --- Unimplementeds

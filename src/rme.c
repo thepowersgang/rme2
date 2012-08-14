@@ -65,7 +65,8 @@
 
 // --- Stack Primiatives ---
 #define PUSH(v)	do{\
-	ret=RME_Int_Write16(State,State->SS,State->SP.W-=2,(v));\
+	State->SP.W -= 2; \
+	ret=RME_Int_Write16(State,State->SS,State->SP.W,(v));\
 	if(ret)return ret;\
 	}while(0)
 #define POP(dst)	do{\
@@ -371,7 +372,7 @@ decode:
 		DEBUG_S("<OPER> ");
 		State->Decoder.bOverrideOperand = 1;
 		goto decode;
-	case 0x67:	// Memory Size Override
+	case 0x67:	// Address Size Override
 		DEBUG_S("<ADDR> ");
 		State->Decoder.bOverrideAddress = 1;
 		return RME_ERR_UNDEFOPCODE;
@@ -618,6 +619,7 @@ decode:
 			ret = RME_Int_ParseModRM(State, NULL, &toB);
 			if(ret)	return ret;
 			*toB = ~*toB;
+			// No flags affected
 			break;
 		// NEG r/m8
 		case 3:	DEBUG_S("NEG (M)");
@@ -629,18 +631,24 @@ decode:
 			SET_COMM_FLAGS(State, *toB, 8);
 			break;
 		case 4:	// MUL AX = AL * r/m8
-			ERROR_S("MUL (MI) AL");
+			DEBUG_S("MUL (MI) AL");
 			ret = RME_Int_ParseModRM(State, NULL, &fromB);
 			if(ret)	return ret;
-			pt2 = (Uint16)State->AX.B.L * (*fromB);
+			pt2 = (uint16_t)State->AX.B.L * (*fromB);
 			State->AX.W = pt2;
-			// TODO: Flags
+			// OF/CF Set to (AH?1:0), rest undefined
+			if( State->AX.W > 0xFF ) {
+				State->Flags |= FLAG_OF|FLAG_CF;
+			}
+			else {
+				State->Flags &= ~(FLAG_OF|FLAG_CF);
+			}
 			break;
 		case 5:	// IMUL AX = AL * r/m8 (signed)
 			DEBUG_S("IMUL (MI) AL");
 			ret = RME_Int_ParseModRM(State, NULL, &fromB);
 			if(ret)	return ret;
-			pt2 = (Sint16)(Sint8)State->AX.B.L * (Sint8)*fromB;
+			pt2 = (int16_t)(int8_t)State->AX.B.L * (int8_t)*fromB;
 			State->AX.W = pt2;
 			// TODO: Flags
 			break;
@@ -702,6 +710,8 @@ decode:
 			}
 			#endif
 			// TODO: Flags
+			#warning "TODO: Implement flags for NOT (MX)"
+			ERROR_S("TODO: Set flags for NOT (MX)");
 			break;
 		// NEG r/m16
 		case 3:	DEBUG_S("NEG (MX)");
@@ -742,12 +752,15 @@ decode:
 			DEBUG_S(" (0x%04x)", *from.W);
 			#endif
 			
-			dword = State->AX.W * *from.W;
-			if(dword == State->AX.W)
-				State->Flags &= ~(FLAG_CF|FLAG_OF);
-			else
+			dword = (uint32_t)State->AX.W * *from.W;
+			if(dword >> 16)
 				State->Flags |= FLAG_CF|FLAG_OF;
+			else
+				State->Flags &= ~(FLAG_CF|FLAG_OF);
+			// SF, ZF, AF and PF are undefined
 			// TODO: More flags?
+			#warning "TODO: Check if more flags are needef for MUL (RIX)"
+			ERROR_S("TODO: Check if more flags are needef for MUL (RIX)");
 			State->DX.W = dword >> 16;
 			State->AX.W = dword & 0xFFFF;
 			}
@@ -765,13 +778,16 @@ decode:
 			
 			ret = RME_Int_ParseModRMX(State, NULL, &from.W);
 			if(ret)	return ret;
-			dword = (int16_t)State->AX.W * (int16_t)*from.W;
+			dword = (int32_t)(int16_t)State->AX.W * (int16_t)*from.W;
 			DEBUG_S(" %04x * %04x = %08x", State->AX.W, *from.W, dword);
 			if((int32_t)dword == (int16_t)State->AX.W)
 				State->Flags &= ~(FLAG_CF|FLAG_OF);
 			else
 				State->Flags |= FLAG_CF|FLAG_OF;
+			// SF, ZF, AF and PF are undefined
 			// TODO: More flags?
+			#warning "TODO: Check if more flags are needef for IMUL (RIX)"
+			ERROR_S("TODO: Check if more flags are needef for IMUL (RIX)");
 			State->DX.W = dword >> 16;
 			State->AX.W = dword & 0xFFFF;
 			}
@@ -813,12 +829,13 @@ decode:
 				if(dword2 > 0xFFFF)	return RME_Int_Expt_DivideError(State);
 				State->AX.W = dword2;
 				State->DX.W = dword - dword2 * (*from.W);
-				#warning "Implement Flags for DIV (RIX)"
 			}
+			// FLAGS: CF, OF, SF, ZF, AF and PF are undefined
 			break;
 		case 7:	// IDIV DX:AX, r/m16
 			#warning "TODO: IDIV RIX"
 			ERROR_S("0xF7 /7 - IDIV DX:AX, r/m16 unimplemented\n");
+			// FLAGS: CF, OF, SF, ZF, AF and PF are undefined
 			return RME_ERR_UNDEFOPCODE;
 		default:
 			ERROR_S("0xF7 /%x unknown\n", (byte2>>3) & 7);
@@ -911,8 +928,15 @@ decode:
 			State->IP = *to.W;
 			goto ret;
 		case 3:
-			ERROR_S("CALL (MX) FAR --NI--\n");
-			return RME_ERR_UNDEFOPCODE;
+			ERROR_S("CALL (MX) FAR");
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	// Get m16:16
+			if(ret)	return ret;
+			DEBUG_S(" (0x%04x:0x%04x)", to.W[1], *to.W);
+			PUSH( State->CS );
+			PUSH( State->IP + State->Decoder.IPOffset );
+			State->CS = to.W[1];
+			State->IP = to.W[0];
+			goto ret;
 		case 4:
 			DEBUG_S("JMP (RX) NEAR");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
@@ -921,8 +945,13 @@ decode:
 			State->IP = *to.W;
 			goto ret;
 		case 5:
-			ERROR_S("JMP (MX) FAR --NI--\n");
-			return RME_ERR_UNDEFOPCODE;
+			ERROR_S("JMP (MX) FAR");
+			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	// Get m16:16
+			if(ret)	return ret;
+			DEBUG_S(" (0x%04x:0x%04x)", to.W[1], *to.W);
+			State->CS = to.W[1];
+			State->IP = to.W[0];
+			goto ret;
 		case 6:
 			DEBUG_S("PUSH (RX)");
 			ret = RME_Int_ParseModRMX(State, NULL, &to.W);	//Get Register Value
@@ -1363,11 +1392,23 @@ decode:
 			XCHG(State->AX.W, *from.W);
 		break;
 
+
 	case XCHG_RM:
 		DEBUG_S("XCHG (RM)");
+		ret = RME_Int_ParseModRM(State, &toB, &fromB);
+		if(ret)	return ret;
+		XCHG(*toB, *fromB);
+		break;
+
+	case XCHG_RMX:
+		DEBUG_S("XCHG (RMX)");
 		ret = RME_Int_ParseModRMX(State, &to.W, &from.W);
 		if(ret)	return ret;
 		// Note: Check for BX-BX for a breakpoint?
+		#if USE_MAGIC_BREAK
+		if( to.W == &State->BX.W && from.W == &State->BX.W )
+			return RME_ERR_BREAKPOINT;
+		#endif
 		#if USE_SIZE_OVERRIDES == 1
 		if(State->Decoder.bOverrideOperand)
 			XCHG(*to.D, *from.D);
@@ -1386,8 +1427,9 @@ decode:
 		pt2 = State->SP.W;
 		PUSH(State->AX.W);	PUSH(State->CX.W);
 		PUSH(State->DX.W);	PUSH(State->BX.W);
-		PUSH(pt2);	PUSH(State->BP.W);
+		PUSH(pt2);        	PUSH(State->BP.W);
 		PUSH(State->SI.W);	PUSH(State->DI.W);
+		DEBUG_S(" DI = %x", State->DI.W);
 		break;
 	case PUSH_AX:	DEBUG_S("PUSH AX");	PUSH(State->AX.W);	break;
 	case PUSH_BX:	DEBUG_S("PUSH BX");	PUSH(State->BX.W);	break;
@@ -1474,8 +1516,8 @@ decode:
 	// -- String Operations --
 	// Move
 	case MOVSB:	DEBUG_S("MOVS");
-		DEBUG_S(" DS:[SI]");	// TODO: Address Overrides
 		DEBUG_S(" ES:[DI]");
+		DEBUG_S(" DS:[SI]");	// TODO: Address Overrides
 		if( repType == REP ) {
 			DEBUG_S(" (0x%x times)", State->CX.W);
 			if( State->CX.W == 0 ) {	repType = 0;	break;	}
@@ -1498,8 +1540,8 @@ decode:
 		repType = 0;
 		break;
 	case MOVSW:	DEBUG_S("MOVSW");
-		DEBUG_S(" DS:[SI]");	// TODO: Address Overrides
 		DEBUG_S(" ES:[DI]");
+		DEBUG_S(" DS:[SI]");	// TODO: Address Overrides
 		if( repType == REP ) {
 			DEBUG_S(" (0x%x times)", State->CX.W);
 			if( State->CX.W == 0 ) {	repType = 0;	break;	}
@@ -1795,6 +1837,17 @@ decode:
 		}
 		*to.W = pt1;
 		break;
+	
+	// Convert Byte to Word/DWord
+	case CBW:
+		#if USE_SIZE_OVERRIDES == 1
+		if( State->Decoder.bOverrideOperand )
+			State->AX.D = (uint32_t)( (int8_t)State->AX.B.L );
+		else
+		#endif
+			State->AX.W = (uint16_t)( (int8_t)State->AX.B.L );
+		break;
+
 
 	// -- Loops --
 	case LOOP:	DEBUG_S("LOOP ");
@@ -1896,7 +1949,16 @@ ret:
  */
 static inline int RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint16_t Ofs, void* *Ptr)
 {
-	uint32_t	addr = Seg * 16 + Ofs;
+	uint32_t	addr = (int)Seg * 16 + Ofs;
+	#if 1	// IVT Checks
+	if( addr < 0x400 ) {
+		DEBUG_S(" IVT Access INT 0x%x + %i", addr/4, addr%4);
+		//return RME_ERR_BADMEM;	// DEBUG!
+	}
+	if( addr == 0x27A5A ) {	// DEBUG! (FreeDos)
+		DEBUG_S(" ??JMP??");
+	}
+	#endif
 	#if RME_DO_NULL_CHECK
 	# if RME_ALLOW_ZERO_TO_BE_NULL
 	if(addr/RME_BLOCK_SIZE && State->Memory[addr/RME_BLOCK_SIZE] == NULL)
@@ -2002,10 +2064,10 @@ static inline int RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs,
 #define RME_Int_DoSbb(State, to, from, width)	do{\
 	int v = (to) - (from) + ((State->Flags&FLAG_CF)?1:0);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
 	State->Flags |= ((to)<(from) || (from)==((1<<((width)-1)-1)|(1<<((width)-1)))) ? FLAG_CF : 0;\
 	State->Flags |= (((((to) ^ (from)) & ((to) ^ (v))) & (1<<((width)-1))) != 0) ? FLAG_OF : 0;\
 	(to) = v;\
+	SET_COMM_FLAGS(State,(to),(width));\
 	}while(0)
 // 4: Bitwise AND
 #define RME_Int_DoAnd(State, to, from, width)	do{\
@@ -2017,10 +2079,10 @@ static inline int RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs,
 #define RME_Int_DoSub(State, to, from, width)	do{\
 	int v = (to) - (from);\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	SET_COMM_FLAGS(State,(to),(width));\
 	State->Flags |= ((to)<(from)) ? FLAG_CF : 0;\
 	State->Flags |= (((((to) ^ (from)) & ((to) ^ (v))) & (1<<((width)-1))) != 0) ? FLAG_OF : 0;\
 	(to) = v;\
+	SET_COMM_FLAGS(State,(to),(width));\
 	}while(0)
 // 6: Bitwise XOR
 #define RME_Int_DoXor(State, to, from, width)	do{\
@@ -2181,9 +2243,13 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, void *ptr)
 
 	seg = *Seg(State, seg);
 
+	// Only keep the (mod=0) flag when R/M = 6
+	if( (mmm & 7) != 6 )
+		mmm &= 7;
+
 	switch(mmm)
 	{
-	case -1:	// R/M == 6 when Mod == 0
+	case 6|8:	// R/M == 6 when Mod == 0
 		READ_INSTR16( disp );
 		DEBUG_S(":[0x%x]", disp);
 		addr = disp;
@@ -2228,6 +2294,124 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, void *ptr)
 }
 
 /**
+ * \brief Performs a memory addressing function (32-bit, with SIB if nessesary)
+ * \param State	Emulator State
+ * \param mmm	Function ID (mmm field from ModR/M byte)
+ * \param disp	Displacement
+ * \param ptr	Destination for final pointer
+ */
+static int DoFunc32(tRME_State *State, int mmm, int32_t disp, void *ptr)
+{
+	uint32_t	addr;
+	uint16_t	seg;
+	uint8_t	sib;
+
+	switch(mmm){
+	case 2:	case 3:	case 6:
+		seg = SREG_SS;
+		break;
+	default:
+		seg = SREG_DS;
+		break;
+	}
+
+	if(State->Decoder.OverrideSegment != -1)
+		seg = State->Decoder.OverrideSegment;
+
+	seg = *Seg(State, seg);
+
+	// Only keep the (mod=0) flag when R/M = 5
+	if( (mmm & 7) != 5 )
+		mmm &= 7;
+
+	switch(mmm & 7)
+	{
+	case 0:
+		DEBUG_S(":[EAX+0x%x]", disp);
+		addr = State->AX.D + disp;
+		break;
+	case 1:
+		DEBUG_S(":[ECX+0x%x]", disp);
+		addr = State->CX.D + disp;
+		break;
+	case 2:
+		DEBUG_S(":[EDX+0x%x]", disp);
+		addr = State->DX.D + disp;
+		break;
+	case 3:
+		DEBUG_S(":[EBX+0x%x]", disp);
+		addr = State->BX.D + disp;
+		break;
+	case 4:	// SIB
+		READ_INSTR8(sib);
+		DEBUG_S(":[");
+		// Index Reg
+		switch( (sib >> 3) & 7 )
+		{
+		case 0:	DEBUG_S("EAX");	addr = State->AX.D;	break;
+		case 1:	DEBUG_S("ECX");	addr = State->CX.D;	break;
+		case 2:	DEBUG_S("EDX");	addr = State->DX.D;	break;
+		case 3:	DEBUG_S("EBX");	addr = State->BX.D;	break;
+		case 4:	DEBUG_S("EIZ");	addr = 0;	break;
+		case 5:	DEBUG_S("EBP");	addr = State->BP.D;	break;
+		case 6:	DEBUG_S("ESI");	addr = State->SI.D;	break;
+		case 7:	DEBUG_S("EDI");	addr = State->DI.D;	break;
+		}
+		// Scale
+		DEBUG_S("*%i", 1 << (sib >> 6));
+		addr <<= (sib >> 6);
+		// Base
+		switch( sib & 7 )
+		{
+		case 0:	DEBUG_S("+EAX");	addr += State->AX.D;	break;
+		case 1:	DEBUG_S("+ECX");	addr += State->CX.D;	break;
+		case 2:	DEBUG_S("+EDX");	addr += State->DX.D;	break;
+		case 3:	DEBUG_S("+EBX");	addr += State->BX.D;	break;
+		case 4:	DEBUG_S("+ESP");	addr += State->SP.D;	break;
+		case 5:	// SPECIAL CASE
+			if( mmm & 8 ) {
+				READ_INSTR32(disp);
+			}
+			else
+			{
+				DEBUG_S("+EBP");
+				addr += State->BP.D;
+			}
+			break;
+		case 6:	DEBUG_S("+ESI");	addr += State->SI.D;	break;
+		case 7:	DEBUG_S("+EDI");	addr += State->DI.D;	break;
+		}
+		DEBUG_S("+0x%x]", disp);
+		addr += disp;
+		break;
+	case 5:
+		if( mmm & 8 )
+		{
+			// R/M == 5 when Mod == 0
+			READ_INSTR32( addr );
+			DEBUG_S(":[0x%x]", addr);
+		}
+		else
+		{
+			DEBUG_S(":[EBP+0x%x]", disp);
+			addr = State->BP.D + disp;
+		}
+		break;
+	case 6:
+		DEBUG_S(":[ESI+0x%x]", disp);
+		addr = State->SI.D + disp;
+		break;
+	case 7:
+		DEBUG_S(":[EDI+0x%x]", disp);
+		addr = State->DI.D + disp;
+		break;
+	default:
+		return RME_ERR_BUG;
+	}
+	return RME_Int_GetPtr(State, seg, addr, ptr);
+}
+
+/**
  * \brief Parses the ModR/M byte as a 8-bit value
  * \param State	Emulator State
  * \param to	R field destination (ignored if NULL)
@@ -2245,10 +2429,7 @@ int RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from)
 	case 0:	//No Offset
 		if(to) *to = RegB( State, (d>>3) & 7 );
 		if(from) {
-			if((d & 7) == 6)
-				ret = DoFunc( State, -1, 0, from );
-			else
-				ret = DoFunc( State, d & 7, 0, from );
+			ret = DoFunc( State, (d & 7) | 8, 0, from );
 			if(ret)	return ret;
 		}
 		return 0;
