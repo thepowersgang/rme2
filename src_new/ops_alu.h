@@ -10,8 +10,9 @@
 // NOTE: 'A' Flag?
 #define ALU_OPCODE_ADD_CODE	\
 	*dest += *src; \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
-	State->Flags |= (*dest < *src) ? FLAG_OF|FLAG_CF : 0;
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
+	State->Flags |= (*dest < *src) ? FLAG_OF|FLAG_CF : 0; \
+	State->Flags |= ((*dest&7) < (*src&7)) ? FLAG_AF : 0;
 // 1: Bitwise OR
 #define ALU_OPCODE_OR_CODE	\
 	*dest |= *src; \
@@ -19,12 +20,13 @@
 // 2: Add with carry
 #define ALU_OPCODE_ADC_CODE	\
 	*dest += *src + ((State->Flags & FLAG_CF) ? 1 : 0); \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
-	if( *dest < *src )	State->Flags |= FLAG_OF|FLAG_CF;
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
+	State->Flags |= (*dest < *src) ? FLAG_OF|FLAG_CF : 0; \
+	State->Flags |= ((*dest&7) < (*src&7)) ? FLAG_AF : 0;
 // 3: Subtract with Borrow
 #define ALU_OPCODE_SBB_CODE	\
 	int v = *dest - *src + ((State->Flags & FLAG_CF) ? 1 : 0); \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
 	if( *dest < *src || *src == (((1ULL<<(width-1))-1)|(1ULL<<(width-1))) )	State->Flags |= FLAG_CF; \
 	if( ((*dest ^ *src) & (*dest ^ v)) & (1ULL<<(width-1)) )	State->Flags |= FLAG_OF; \
 	*dest = v;
@@ -35,8 +37,9 @@
 // 5: Subtract
 #define ALU_OPCODE_SUB_CODE	\
 	int v = *dest - *src; \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
-	if( *dest < *src )	State->Flags |= FLAG_CF; \
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
+	State->Flags |= (*dest < (*src) ? FLAG_CF : 0; \
+	State->Flags |= ((*dest&7) < (*src&7)) ? FLAG_AF : 0; \
 	if( ((*dest ^ *src) & (*dest ^ v)) & (1ULL<<(width-1)) )	State->Flags |= FLAG_OF; \
 	*dest = v;
 // 6: Bitwise XOR
@@ -50,8 +53,9 @@
 #define ALU_OPCODE_CMP_CODE	\
 	int v = *dest - *src; \
 	uint32_t hack = 0;\
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
-	if( *dest < *src )	State->Flags |= FLAG_CF; \
+	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
+	State->Flags |= (*dest < (*src) ? FLAG_CF : 0; \
+	State->Flags |= ((*dest&7) < (*src&7)) ? FLAG_AF : 0; \
 	if( ((*dest ^ *src) & (*dest ^ v)) & (1ULL<<(width-1)) )	State->Flags |= FLAG_OF; \
 	dest = (void*)&hack; \
 	*dest = v;
@@ -67,6 +71,7 @@
 #define ALU_OPCODE_NOT_CODE	\
 	*dest = ~*dest;
 // x: NEG
+// - TODO: OF/AF?
 #define ALU_OPCODE_NEG_CODE	\
 	if( *dest == 0 )	State->Flags &= ~FLAG_CF; \
 	else { \

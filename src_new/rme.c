@@ -21,13 +21,11 @@ typedef int8_t	Sint8;
 
 #include "rme.h"
 #include "ops_alu.h"
+#include "rme_internal.h"
 
 // Settings
 #define RME_DO_NULL_CHECK	1
 #define	printf	printf	// Formatted print function
-
-// -- Per Compiler macros
-#define	WARN_UNUSED_RET	__attribute__((warn_unused_result))
 
 // === CONSTANTS ===
 #define FLAG_DEFAULT	0x2

@@ -68,9 +68,11 @@ const tOperation	caOperations[256] = {
 	/* 0x50 */	DEF_REG_OP(PUSH),
 	/* PUSH R */
 	/* 0x58 */	DEF_REG_OP(POP),
-	/* PUSHA, POPA, 6x #UD */
+	/* PUSHA, POPA, 2x #UD */
 	/* 0x60 */	DEF_OP(PUSH,A), DEF_OP(POP,A), UNDEF_OP, UNDEF_OP,
+	/*  2x #UD, OPSZ, ADDRSZ */
 	/*  0x64*/	UNDEF_OP, UNDEF_OP, DEF_OP(Ovr, OpSize), DEF_OP(Ovr, AddrSize),
+	/* PUSH I, #UD, PUSH I8, #UD */
 	/* 0x68 */	DEF_OP(PUSH,I), UNDEF_OP, DEF_OP(PUSH,I8), UNDEF_OP,
 	/*  0x6C*/	DEF_OP(IN,SB), DEF_OP(IN,SW), DEF_OP(OUT,SB), DEF_OP(OUT,SW),
 	// Short Conditional Jumps
