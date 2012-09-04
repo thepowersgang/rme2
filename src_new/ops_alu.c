@@ -207,7 +207,6 @@ DEF_OPCODE_FCN(Arith, MIX)
 		
 		ALU_SELECT_OPERATION();
 		SET_COMM_FLAGS(State, *dest, width);
-		State->Flags |= (*dest == 0xFFFFFFFF) ? FLAG_OF : 0;
 	}
 	else
 	{
@@ -248,7 +247,6 @@ DEF_OPCODE_FCN(Arith, MI8X)
 		
 		ALU_SELECT_OPERATION();
 		SET_COMM_FLAGS(State, *dest, width);
-		State->Flags |= (*dest == 0xFFFFFFFF) ? FLAG_OF : 0;
 	}
 	else
 	{

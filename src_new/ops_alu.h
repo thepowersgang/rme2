@@ -6,23 +6,32 @@
 #ifndef _RME_OPS_ALU_H_
 #define _RME_OPS_ALU_H_
 
+#define _ALU_SMASK	(1ULL << (width-1))
+#define _ALU_NSMASK	((1ULL << (width-1))-1)
+
+#define _ALU_ADD_SETFLAGS	\
+	State->Flags |= (*dest&_ALU_SMASK) == (*src&_ALU_SMASK) && (__v&_ALU_SMASK) != (*dest&_ALU_SMASK) ? FLAG_OF : 0; \
+	State->Flags |= (__v < *src) ? FLAG_CF : 0; \
+	State->Flags |= (__v&15) < (*src&15) ? FLAG_AF : 0;
+
 // 0: Add
-// NOTE: 'A' Flag?
-#define ALU_OPCODE_ADD_CODE	\
-	*dest += *src; \
+#define ALU_OPCODE_ADD_CODE	do{\
+	typeof(*dest) __v = *dest + *src; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
-	State->Flags |= (*dest < *src) ? FLAG_OF|FLAG_CF : 0; \
-	State->Flags |= ((*dest&7) < (*src&7)) ? FLAG_AF : 0;
+	_ALU_ADD_SETFLAGS \
+	*dest = __v; \
+	}while(0);
 // 1: Bitwise OR
 #define ALU_OPCODE_OR_CODE	\
 	*dest |= *src; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);
 // 2: Add with carry
-#define ALU_OPCODE_ADC_CODE	\
-	*dest += *src + ((State->Flags & FLAG_CF) ? 1 : 0); \
+#define ALU_OPCODE_ADC_CODE	do{\
+	typeof(*dest) __v = *dest + *src + ((State->Flags & FLAG_CF) ? 1 : 0); \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
-	State->Flags |= (*dest < *src) ? FLAG_OF|FLAG_CF : 0; \
-	State->Flags |= ((*dest&7) < (*src&7)) ? FLAG_AF : 0;
+	_ALU_ADD_SETFLAGS \
+	*dest = __v; \
+	}while(0);
 // 3: Subtract with Borrow
 #define ALU_OPCODE_SBB_CODE	\
 	int v = *dest - *src + ((State->Flags & FLAG_CF) ? 1 : 0); \
@@ -36,9 +45,9 @@
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);
 // 5: Subtract
 #define ALU_OPCODE_SUB_CODE	\
-	int v = *dest - *src; \
+	typeof(*dest) v = *dest - *src; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
-	State->Flags |= (*dest < (*src) ? FLAG_CF : 0; \
+	State->Flags |= (*dest < *src) ? FLAG_CF : 0; \
 	State->Flags |= ((*dest&7) < (*src&7)) ? FLAG_AF : 0; \
 	if( ((*dest ^ *src) & (*dest ^ v)) & (1ULL<<(width-1)) )	State->Flags |= FLAG_OF; \
 	*dest = v;
@@ -51,13 +60,13 @@
 //       out of scope, but nothing else should come back in, so it doesn't
 //       matter)
 #define ALU_OPCODE_CMP_CODE	\
-	int v = *dest - *src; \
-	uint32_t hack = 0;\
+	typeof(*dest) v = *dest - *src; \
+	typeof(*dest) hack = 0;\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
-	State->Flags |= (*dest < (*src) ? FLAG_CF : 0; \
+	State->Flags |= (*dest < *src) ? FLAG_CF : 0; \
 	State->Flags |= ((*dest&7) < (*src&7)) ? FLAG_AF : 0; \
 	if( ((*dest ^ *src) & (*dest ^ v)) & (1ULL<<(width-1)) )	State->Flags |= FLAG_OF; \
-	dest = (void*)&hack; \
+	dest = &hack; \
 	*dest = v;
 
 // x: Test

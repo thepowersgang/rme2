@@ -30,8 +30,9 @@ void	PutString(const char *String, uint32_t BGC, uint32_t FGC);
 SDL_Surface	*gScreen;
 char	*gasFDDs[4] = {"fdd.img", NULL, NULL, NULL};
 FILE	*gaFDDs[4];
-char	*gsBinaryFile;
-char	*gsDosExe;
+const char	*gsBinaryFile;
+const char	*gsDosExe;
+const char	*gsMemoryDumpFile;
 uint8_t	gaMemory[0x110000];
 
 // === CODE ===
@@ -53,6 +54,9 @@ int main(int argc, char *argv[])
 			{
 			case 'b':
 				gsBinaryFile = argv[++i];
+				break;
+			case 'O':
+				gsMemoryDumpFile = argv[++i];
 				break;
 			case 'd':
 				gsDosExe = argv[++i];
@@ -179,11 +183,20 @@ int main(int argc, char *argv[])
 	}
 	
 	
-	emu->SS = 0xA000;
+//	emu->SS = 0xA000;
 	emu->SP.W = 0xFFFE;
 	*(uint16_t*)&gaMemory[0xA0000-2] = 0xFFFF;
 
 	ret = RME_Call(emu);
+
+	// Write out memory
+	if( gsMemoryDumpFile )
+	{
+		FILE *fp = fopen(gsMemoryDumpFile, "wb");
+		fwrite(gaMemory, 1024*1024, 1, fp);
+		fclose(fp);
+		printf("\n--- Memory written to '%s'", gsMemoryDumpFile);
+	}
 
 	switch( ret )
 	{
@@ -213,6 +226,7 @@ int main(int argc, char *argv[])
 			else if(e.type == SDL_KEYDOWN)
 				exit(0);
 		}
+		printf("\n--- STOP: CPU Halted\n");
 		}
 		break;
 	default:
