@@ -33,6 +33,7 @@ FILE	*gaFDDs[4];
 const char	*gsBinaryFile;
 const char	*gsDosExe;
 const char	*gsMemoryDumpFile;
+ int	gbDisableGUI = 0;
 uint8_t	gaMemory[0x110000];
 
 // === CODE ===
@@ -48,7 +49,15 @@ int main(int argc, char *argv[])
 	// TODO: Better parameter interpretation
 	for( i = 1; i < argc; i ++ )
 	{
-		if( argv[i][0] == '-' )
+		if( argv[i][0] == '-' && argv[i][1] == '-' )
+		{
+			if( strcmp(argv[i], "--nogui") == 0 ) {
+				gbDisableGUI = 1;
+			}
+			else {
+			}
+		}
+		else if( argv[i][0] == '-' )
 		{
 			switch( argv[i][1] )
 			{
@@ -71,9 +80,11 @@ int main(int argc, char *argv[])
 	}
 
 	signal(SIGINT, exit);
-	
-	gScreen = SDL_SetVideoMode(80*8, 25*16, 32, SDL_HWSURFACE);
-	PutString("RME NativeTest\r\n", COL_BLACK, COL_WHITE);
+
+	if( !gbDisableGUI ) {
+		gScreen = SDL_SetVideoMode(80*8, 25*16, 32, SDL_HWSURFACE);
+		PutString("RME NativeTest\r\n", COL_BLACK, COL_WHITE);
+	}
 
 	// Open FDD image
 	printf("Loading '%s'\n", gasFDDs[0]);
@@ -216,17 +227,23 @@ int main(int argc, char *argv[])
 	case RME_ERR_DIVERR:
 		printf("\n--- ERROR: Division Fault\n");
 		return 1;
-	case RME_ERR_HALT: {
-		SDL_Event	e;
-		SDL_WM_SetCaption("RME - CPU Halted, press any key to quit", "RME - Halted");
-		while( SDL_WaitEvent(&e) )
-		{
-			if(e.type == SDL_QUIT)
-				exit(0);
-			else if(e.type == SDL_KEYDOWN)
-				exit(0);
+	case RME_ERR_HALT:
+		if( gbDisableGUI ) {
+			printf("\n");
+			return 0;
 		}
-		printf("\n--- STOP: CPU Halted\n");
+		else
+		{
+			SDL_Event	e;
+			SDL_WM_SetCaption("RME - CPU Halted, press any key to quit", "RME - Halted");
+			while( SDL_WaitEvent(&e) )
+			{
+				if(e.type == SDL_QUIT)
+					exit(0);
+				else if(e.type == SDL_KEYDOWN)
+					exit(0);
+			}
+			printf("\n--- STOP: CPU Halted\n");
 		}
 		break;
 	default:

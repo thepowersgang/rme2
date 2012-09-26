@@ -1,0 +1,17 @@
+#!/bin/sh
+cd `dirname $0`
+
+gcc -std=c99 cmpmem.c -o cmpmem
+make -C src
+
+for memfile in Artlav_80186_tests/*.mem; do
+	asmfile=${memfile%.mem}.asm
+	binfile=${memfile%.mem}.bin
+	echo $asmfile
+	if [ ! -f $binfile ] ; then
+		nasm $asmfile -f binary -o $binfile
+	fi
+	./tester -b $binfile -O test_mem_dump.dmp --nogui
+	./cmpmem $memfile test_mem_dump.dmp
+done
+rm test_mem_dump.dmp
