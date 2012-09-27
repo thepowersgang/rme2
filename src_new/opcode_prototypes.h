@@ -133,6 +133,9 @@ DEF_OPCODE_FCN(Prefix, REPNZ);
 DEF_OPCODE_FCN(Flag, CLC); DEF_OPCODE_FCN(Flag, STC);
 DEF_OPCODE_FCN(Flag, CLI); DEF_OPCODE_FCN(Flag, STI);
 DEF_OPCODE_FCN(Flag, CLD); DEF_OPCODE_FCN(Flag, STD);
+DEF_OPCODE_FCN(Flag, CMC);
+DEF_OPCODE_FCN(Flag, SAHF);
+DEF_OPCODE_FCN(Flag, LAHF);
 
 // Misc
 DEF_OPCODE_FCN(CBW, z);	// Convert signed Byte to Word
@@ -145,6 +148,7 @@ DEF_OPCODE_FCN(CWD, z);	// Convert Word to Doubleword
 DEF_OPCODE_FCN(LES, z);	// Load ES:r16/32 with m16:m16/32
 DEF_OPCODE_FCN(LDS, z);	// Load DS:r16/32 with m16:m16/32
 DEF_OPCODE_FCN(LEA, z);	// Load effective address into r16/32
+DEF_OPCODE_FCN(XLAT, z);	// Table Look-up Translation
 //DEF_OPCODE_FCN(FPU, ARITH);
 
 #endif

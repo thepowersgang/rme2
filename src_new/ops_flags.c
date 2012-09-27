@@ -37,3 +37,20 @@ DEF_OPCODE_FCN(Flag, STD)
 	State->Flags |= FLAG_DF;
 	return 0;
 }
+DEF_OPCODE_FCN(Flag, CMC)
+{
+	State->Flags ^= FLAG_CF;
+	return 0;
+}
+DEF_OPCODE_FCN(Flag, SAHF)
+{
+	uint8_t	mask = 0xD5;
+	State->Flags &= ~mask;
+	State->Flags |= State->AX.B.H & mask;
+	return 0;
+}
+DEF_OPCODE_FCN(Flag, LAHF)
+{
+	State->AX.B.H = State->Flags & 0xFF;
+	return 0;
+}

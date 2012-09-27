@@ -30,13 +30,14 @@ DEF_OPCODE_FCN(AAA, z)
 		State->AX.B.L += 6;
 		State->AX.B.H += 1;
 		State->Flags |= FLAG_AF|FLAG_CF;
-		State->AX.B.L |= 0xF;
+		State->AX.B.L &= 0xF;
 	}
 	else
 	{
 		State->Flags &= ~(FLAG_AF|FLAG_CF);
-		State->AX.B.L |= 0xF;
+		State->AX.B.L &= 0xF;
 	}
+	SET_COMM_FLAGS(State, State->AX.B.L, 8);
 	return 0;
 }
 
@@ -48,20 +49,23 @@ DEF_OPCODE_FCN(AAS, z)
 		State->AX.B.L -= 6;
 		State->AX.B.H -= 1;
 		State->Flags |= FLAG_AF|FLAG_CF;
-		State->AX.B.L |= 0xF;
+		State->AX.B.L &= 0xF;
 	}
 	else
 	{
 		State->Flags &= ~(FLAG_AF|FLAG_CF);
-		State->AX.B.L |= 0xF;
+		State->AX.B.L &= 0xF;
 	}
+	SET_COMM_FLAGS(State, State->AX.B.L, 8);
 	return 0;
 }
 
 // 0x27 - Decimal adjust AL after Addition
 DEF_OPCODE_FCN(DAA, z)
 {
-	 int	bOldCF = !!(State->Flags & FLAG_CF);
+	 int	old_CF = !!(State->Flags & FLAG_CF);
+	uint8_t	old_AL = State->AX.B.L;
+	State->Flags &= ~FLAG_CF;
 	if( (State->AX.B.L & 0xF) > 9 || (State->Flags & FLAG_AF) )
 	{
 		if( State->AX.B.L >= 0x100-6 )
@@ -69,8 +73,12 @@ DEF_OPCODE_FCN(DAA, z)
 		State->AX.B.L += 6;
 		State->Flags |= FLAG_AF;
 	}
+	else
+	{
+		State->Flags &= ~FLAG_AF;
+	}
 	
-	if( State->AX.B.L > 0x99 || bOldCF )
+	if( old_AL > 0x99 || old_CF )
 	{
 		State->AX.B.L += 0x60;
 		State->Flags |= FLAG_CF;
@@ -79,13 +87,16 @@ DEF_OPCODE_FCN(DAA, z)
 	{
 		State->Flags &= ~FLAG_CF;
 	}
+	SET_COMM_FLAGS(State, State->AX.B.L, 8);
 	return 0;
 }
 
 // 0x2F - Decimal adjust AL after Subtraction
 DEF_OPCODE_FCN(DAS, z)
 {
-	 int	bOldCF = !!(State->Flags & FLAG_CF);
+	 int	old_CF = !!(State->Flags & FLAG_CF);
+	uint8_t	old_AL = State->AX.B.L;
+	State->Flags &= ~FLAG_CF;
 	if( (State->AX.B.L & 0xF) > 9 || (State->Flags & FLAG_AF) )
 	{
 		if( State->AX.B.L < 6 )
@@ -93,12 +104,17 @@ DEF_OPCODE_FCN(DAS, z)
 		State->AX.B.L -= 6;
 		State->Flags |= FLAG_AF;
 	}
+	else
+	{
+		State->Flags &= ~FLAG_AF;
+	}
 	
-	if( State->AX.B.L > 0x99 || bOldCF )
+	if( old_AL > 0x99 || old_CF )
 	{
 		State->AX.B.L -= 0x60;
 		State->Flags |= FLAG_CF;
 	}
+	SET_COMM_FLAGS(State, State->AX.B.L, 8);
 	return 0;
 }
 
@@ -142,24 +158,26 @@ static inline int _LDS_LES_internal(tRME_State *State, uint16_t *SegRegPtr)
 	if(ret)	return ret;
 	dest = RegW(State, rrr);
 	
-	// Get segment
-	ret = RME_Int_GetPtr(State, seg, addr, (void**)&src);
-	if(ret)	return ret;
-	*SegRegPtr = *src;
-	
 	// Get address of the destination
-	addr += 2;
 	ret = RME_Int_GetPtr(State, seg, addr, (void**)&src);
 	if(ret)	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
 	{
 		*(uint32_t*)dest = *(uint32_t*)src;
+		addr += 4;
 	}
 	else
 	{
 		*dest = *src;
+		addr += 2;
 	}
+
+	// Get segment
+	ret = RME_Int_GetPtr(State, seg, addr, (void**)&src);
+	if(ret)	return ret;
+	*SegRegPtr = *src;
+	
 	return 0;
 }
 
@@ -194,5 +212,24 @@ DEF_OPCODE_FCN(LEA, z)
 		*(uint32_t*)dest = addr;
 	else
 		*dest = addr;
+	return 0;
+}
+
+DEF_OPCODE_FCN(XLAT, z)
+{
+	void	*ptr;
+	uint32_t	address;
+	 int	rv;
+	
+	if( State->Decoder.bOverrideAddress )
+		address = State->BX.D;
+	else
+		address = State->BX.W;
+	address += State->AX.B.L;
+
+	if( (rv = RME_Int_GetPtr(State, State->DS, address, &ptr)) )
+		return rv;
+
+	State->AX.B.L = *(uint8_t*)ptr;
 	return 0;
 }

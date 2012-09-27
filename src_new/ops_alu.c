@@ -144,7 +144,7 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	case 32:	READ_INSTR32(val);DEBUG_S(" 0x%08x", val); break;\
 } } while(0)
 #define MISC_SELECT_OPERATION() do { switch( op_num ) { \
-	case 0:	_READIMM(); {ALU_OPCODE_TEST_CODE} break; \
+	case 0:	{dest=&val; _READIMM(); ALU_OPCODE_TEST_CODE SET_COMM_FLAGS(State, *dest, width);} break;\
 	case 1:	DEBUG_S(" Misc /1 UNDEF");	return RME_ERR_UNDEFOPCODE; \
 	case 2: {ALU_OPCODE_NOT_CODE} break; \
 	case 3: {ALU_OPCODE_NEG_CODE} break; \
@@ -321,7 +321,6 @@ DEF_OPCODE_FCN(ArithMisc, MI)	// 0xF6
 	dest = arg;
 	
 	MISC_SELECT_OPERATION();
-	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -346,14 +345,12 @@ DEF_OPCODE_FCN(ArithMisc, MIX)	// 0xF7
 		const int	width=32;
 		uint32_t	val=0, *dest=arg, *src = arg;
 		MISC_SELECT_OPERATION();
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
 		const int	width=16;
 		uint16_t	val=0, *dest=arg, *src = arg;
 		MISC_SELECT_OPERATION();
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;

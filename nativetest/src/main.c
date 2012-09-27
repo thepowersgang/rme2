@@ -154,7 +154,8 @@ int main(int argc, char *argv[])
 		FILE	*fp = fopen(gsBinaryFile, "rb");
 		 int	len;
 		
-		printf("Booting '%s' at 0x400\n", gsBinaryFile);
+		memset(gaMemory, 0, 0x400);
+		printf("Booting '%s' at 0xF0000\n", gsBinaryFile);
 		
 		fseek(fp, 0, SEEK_END);
 		len = ftell(fp);
@@ -166,12 +167,12 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			fread( &gaMemory[0x400], len, 1, fp );
+			fread( &gaMemory[0xF0000], len, 1, fp );
 		}
 		fclose(fp);
 
-		emu->CS = 0x0040;
-		emu->IP = 0x0000;
+		emu->CS = 0xF000;
+		emu->IP = 0xFFF0;
 	}
 	else
 	{

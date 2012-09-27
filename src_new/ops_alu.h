@@ -79,11 +79,10 @@
 	*dest = v;
 
 // x: Test
-// NOTE: The variable `hack` is just used as dummy space
 #define ALU_OPCODE_TEST_CODE	\
 	typeof(*dest) v = *dest & *src; \
 	dest = &v; \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);
+	State->Flags &= ~(FLAG_OF|FLAG_CF);
 // x: NOT
 #define ALU_OPCODE_NOT_CODE	\
 	*dest = ~*src;
@@ -99,7 +98,8 @@
 		State->Flags |= (*src == 1 << (width-1)) ? FLAG_OF : 0;\
 		State->Flags |= ((*src&7) != 0) ? FLAG_AF : 0; \
 		*dest = ~*src + 1; \
-	}
+	} \
+	SET_COMM_FLAGS(State, *dest, width);
 
 // x: Increment
 #define ALU_OPCODE_INC_CODE	\
