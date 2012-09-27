@@ -60,6 +60,27 @@ DEF_OPCODE_FCN(AAS, z)
 	return 0;
 }
 
+// 0xD4 - ASCII adjust AL after Multiply
+DEF_OPCODE_FCN(AAM, z)
+{
+	uint8_t	imm8;
+	READ_INSTR8(imm8);
+	if(imm8 == 0)	return RME_ERR_DIVERR;
+	State->AX.B.H = State->AX.B.L / imm8;
+	State->AX.B.L = State->AX.B.L % imm8;
+	SET_COMM_FLAGS(State, State->AX.B.L, 8);
+	return 0;
+}
+// 0xD5 - ASCII adjust AL before Division
+DEF_OPCODE_FCN(AAD, z)
+{
+	uint8_t	imm8;
+	READ_INSTR8(imm8);
+	State->AX.B.L += State->AX.B.H * imm8;
+	SET_COMM_FLAGS(State, State->AX.B.L, 8);
+	return 0;
+}
+
 // 0x27 - Decimal adjust AL after Addition
 DEF_OPCODE_FCN(DAA, z)
 {

@@ -99,10 +99,7 @@ void RME_DumpRegs(tRME_State *State)
 	DEBUG_S("\n");
 }
 
-/**
- * \brief Run Realmode interrupt
- */
-int RME_CallInt(tRME_State *State, int Num)
+int RME_int_CallInt(tRME_State *State, int Num)
 {
 	 int	ret;
 	DEBUG_S("RM_Int: Calling Int 0x%x\n", Num);
@@ -112,14 +109,30 @@ int RME_CallInt(tRME_State *State, int Num)
 		return RME_ERR_INVAL;
 	}
 
+	PUSH(State->Flags);
+	PUSH(State->CS);
+	PUSH(State->IP);
+
 	ret = RME_Int_Read16(State, 0, Num*4, &State->IP);
 	if(ret)	return ret;
 	ret = RME_Int_Read16(State, 0, Num*4+2, &State->CS);
 	if(ret)	return ret;
+	
+	return 0;
+}
 
-	PUSH(State->Flags);
-	PUSH(RME_MAGIC_CS);
-	PUSH(RME_MAGIC_IP);
+/**
+ * \brief Run Realmode interrupt
+ */
+int RME_CallInt(tRME_State *State, int Num)
+{
+	 int	ret;
+
+	State->CS = RME_MAGIC_CS;	
+	State->IP = RME_MAGIC_IP;
+
+	ret = RME_int_CallInt(State, Num);
+	if(ret)	return ret;
 
 	return RME_Call(State);
 }
@@ -138,7 +151,17 @@ int RME_Call(tRME_State *State)
 		if(State->IP == RME_MAGIC_IP && State->CS == RME_MAGIC_CS)
 			return 0;
 		ret = RME_Int_DoOpcode(State);
-		if(ret)	return ret;
+		switch(ret)
+		{
+		case RME_ERR_OK:
+			break;
+		case RME_ERR_DIVERR:
+			ret = RME_int_CallInt(State, 0);
+			if(ret)	return ret;
+			break;
+		default:
+			return ret;
+		}
 	}
 }
 

@@ -231,27 +231,30 @@
 #define ALU_OPCODE_DIV_CODE if( *src == 0 )	return RME_ERR_DIVERR; \
 	switch(width) { \
 	case 8: { \
-		uint16_t	result; \
+		uint16_t	result, rem; \
 		result = State->AX.W / *src; \
+		rem = State->AX.W % *src; \
 		if(result > 0xFF)	return RME_ERR_DIVERR; \
-		State->AX.B.H = State->AX.W - result * (*src); \
+		State->AX.B.H = rem; \
 		State->AX.B.L = result; \
 		} break; \
 	case 16: { \
-		uint32_t	numerator, result; \
+		uint32_t	numerator, result, rem; \
 		numerator = ((uint32_t)State->DX.W << 16) | State->AX.W; \
 		result = numerator / *src; \
+		rem = numerator % *src; \
 		if(result > 0xFFFF)	return RME_ERR_DIVERR; \
+		State->DX.W = rem; \
 		State->AX.W = result; \
-		State->DX.W = numerator - result * (*src); \
 		} break; \
 	case 32: { \
-		uint64_t	numerator, result; \
+		uint64_t	numerator, result, rem; \
 		numerator = ((uint64_t)State->DX.D << 32) | State->AX.D; \
 		result = numerator / *src; \
+		rem = numerator % *src; \
 		if(result > 0xFFFFFFFF)	return RME_ERR_DIVERR; \
+		State->DX.D = rem; \
 		State->AX.D = result; \
-		State->DX.D = numerator - result * (*src); \
 		} break; \
 	}
 	
@@ -262,27 +265,29 @@
 #define ALU_OPCODE_IDIV_CODE if( *src == 0 )	return RME_ERR_DIVERR; \
 	switch(width) { \
 	case 8: { \
-		int16_t	result; \
-		result = (int16_t)State->AX.W / *(int8_t*)src; \
-		if(result & 0xFF00)	return RME_ERR_DIVERR; \
-		State->AX.B.H = (int16_t)State->AX.W % *(int8_t*)src; \
-		State->AX.B.L = result; \
+		int16_t	quot, rem; \
+		int16_t num = (int16_t)State->AX.W, den = *(int8_t*)src; \
+		quot = num / den; \
+		rem = num % den; \
+		if(quot & 0xFF00)	return RME_ERR_DIVERR; \
+		State->AX.B.H = rem; \
+		State->AX.B.L = quot; \
 		} break; \
 	case 16: { \
 		int32_t	numerator, result; \
 		numerator = (int32_t)( ((uint32_t)State->DX.W << 16) | State->AX.W ); \
 		result = numerator / *(int16_t*)src; \
 		if(result > 0x7FFF || result < -0x8000)	return RME_ERR_DIVERR; \
-		State->AX.W = result; \
 		State->DX.W = numerator % (*(int16_t*)src); \
+		State->AX.W = result; \
 		} break; \
 	case 32: { \
 		int64_t	numerator, result; \
 		numerator = (int64_t)( ((uint64_t)State->DX.D << 32) | State->AX.D ); \
 		result = numerator / *(int32_t*)src; \
 		if(result > 0x7FFFFFFF || result < -0x80000000)	return RME_ERR_DIVERR; \
-		State->AX.D = result; \
 		State->DX.D = numerator % (*(int32_t*)src); \
+		State->AX.D = result; \
 		} break; \
 	}
 

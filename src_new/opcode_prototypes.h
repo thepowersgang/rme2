@@ -142,6 +142,8 @@ DEF_OPCODE_FCN(CBW, z);	// Convert signed Byte to Word
 DEF_OPCODE_FCN(HLT, z);	// Halt Execution
 DEF_OPCODE_FCN(AAA, z);	// ASCII adjust AL after Addition
 DEF_OPCODE_FCN(AAS, z);	// ASCII adjust AL after Subtraction
+DEF_OPCODE_FCN(AAM, z);	// ASCII adjust AL after Multiply
+DEF_OPCODE_FCN(AAD, z);	// ASCII adjust AL before Division
 DEF_OPCODE_FCN(DAA, z);	// Decimal adjust AL after Addition
 DEF_OPCODE_FCN(DAS, z);	// Decimal adjust AL after Subtraction
 DEF_OPCODE_FCN(CWD, z);	// Convert Word to Doubleword
