@@ -1,17 +1,27 @@
 #!/bin/sh
 cd `dirname $0`
 
-gcc -std=c99 cmpmem.c -o cmpmem
+gcc -std=c99 cmpmembin.c -o cmpmembin
+if [ $? -ne 0 ]; then exit; fi
 make -C src
+if [ $? -ne 0 ]; then exit; fi
 
-for memfile in Artlav_80186_tests/*.mem; do
-	asmfile=${memfile%.mem}.asm
-	binfile=${memfile%.mem}.bin
+echo "" > ArtlavTestLog.log
+
+for asmfile in Artlav_80186_tests/*.asm; do
+	binfile=${asmfile%.asm}.bin
+	memfile=`dirname $binfile`/res_`basename $binfile`
 	echo $asmfile
 	if [ ! -f $binfile ] ; then
 		nasm $asmfile -f binary -o $binfile
 	fi
-	./tester -b $binfile -O test_mem_dump.dmp --nogui
-	./cmpmem $memfile test_mem_dump.dmp
+	./tester -b $binfile -O test_mem_dump.dmp --nogui >> ArtlavTestLog.log
+	if [ $? -ne 0 ]; then
+		exit
+	fi
+	./cmpmembin $memfile test_mem_dump.dmp | tee -a ArtlavTestLog.log
+	if [ $? -ne 0 ]; then
+		exit
+	fi
 done
 rm test_mem_dump.dmp

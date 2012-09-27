@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
 		fseek(hexfile, -1, SEEK_CUR);
 		fscanf(hexfile, "%2x", &tplbyte);
 		if( tplbyte != have ) {
-			fprintf(stderr, "Mismatch at 0x%x - %2X != %2X\n", i, tplbyte, have);
+			fprintf(stderr, "Mismatch at 0x%x (%i) - exp %2X got %2X\n", i, i, tplbyte, have);
 			failed = 1;
 		}
 	}

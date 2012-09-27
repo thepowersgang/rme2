@@ -76,7 +76,13 @@ DEF_OPCODE_FCN(PUSH, F)
 DEF_OPCODE_FCN(POP, F)
 {
 	 int	ret;
-	POP(State->Flags);
+	uint16_t	tmp;
+	const uint16_t	keep_mask = 0x7002;
+	const uint16_t	set_mask  = 0x0FD5;
+	POP(tmp);
+	State->Flags &= keep_mask;
+	tmp &= set_mask;
+	State->Flags |= tmp | 2;	// Bit 1 must always be set
 	return 0;
 }
 

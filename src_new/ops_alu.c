@@ -318,7 +318,7 @@ DEF_OPCODE_FCN(ArithMisc, MI)	// 0xF6
 	
 	// Set up defaults
 	src = arg;
-	dest = &val;
+	dest = arg;
 	
 	MISC_SELECT_OPERATION();
 	SET_COMM_FLAGS(State, *dest, width);
@@ -344,14 +344,14 @@ DEF_OPCODE_FCN(ArithMisc, MIX)	// 0xF7
 	if( State->Decoder.bOverrideOperand )
 	{
 		const int	width=32;
-		uint32_t	val=0, *dest=&val, *src = arg;
+		uint32_t	val=0, *dest=arg, *src = arg;
 		MISC_SELECT_OPERATION();
 		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
 		const int	width=16;
-		uint16_t	val=0, *dest=&val, *src = arg;
+		uint16_t	val=0, *dest=arg, *src = arg;
 		MISC_SELECT_OPERATION();
 		SET_COMM_FLAGS(State, *dest, width);
 	}

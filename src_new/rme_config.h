@@ -11,7 +11,7 @@
 #ifndef _RME_CONFIG_H_
 #define _RME_CONFIG_H_
 
-#define DEBUG	1	// Enable debug?
+#define DEBUG	2	// Enable debug?
 #define ERR_OUTPUT	1	// Enable using printf on an error?
 
 #include <stdio.h>
