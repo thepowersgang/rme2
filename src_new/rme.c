@@ -394,8 +394,8 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			if(ret)	return ret;
 			PUSH(State->CS);
 			PUSH(State->IP);
-			State->CS = dest[0];	// NOTE: Possible edge case on segment boundary
-			State->IP = dest[1];
+			State->IP = dest[0];
+			State->CS = dest[1];	// NOTE: Possible edge case on segment boundary
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 4:	// Jump Near Indirect
@@ -410,8 +410,8 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			if( mod == 3 )	return RME_ERR_UNDEFOPCODE;	// TODO: Check this
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
-			State->CS = dest[0];	// NOTE: Possible edge case on segment boundary
-			State->IP = dest[1];
+			State->IP = dest[0];
+			State->CS = dest[1];	// NOTE: Possible edge case on segment boundary
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 6:

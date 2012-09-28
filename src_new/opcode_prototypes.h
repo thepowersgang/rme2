@@ -120,6 +120,7 @@ DEF_OPCODE_FCN(RET, iF);	// Return, and pop imm16 bytes from stack
 // Interrupts
 DEF_OPCODE_FCN(INT, 3);	// INT 0x3 - Debug
 DEF_OPCODE_FCN(INT, I);	// INT imm8
+DEF_OPCODE_FCN(INTO, z);	// INTO - INT 4 if OF
 DEF_OPCODE_FCN(IRET, z);	// Interrupt Return
 
 // Overrides

@@ -268,8 +268,8 @@
 		int16_t	quot, rem; \
 		int16_t num = (int16_t)State->AX.W, den = *(int8_t*)src; \
 		quot = num / den; \
-		rem = num % den; \
-		if(quot & 0xFF00)	return RME_ERR_DIVERR; \
+		rem = num - quot*den; \
+		if(quot < -0x80 || quot > 0x7F)	return RME_ERR_DIVERR; \
 		State->AX.B.H = rem; \
 		State->AX.B.L = quot; \
 		} break; \

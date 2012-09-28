@@ -104,10 +104,11 @@ static inline int _CallInterrupt(tRME_State *State, int Num)
 	
 	PUSH( State->Flags );
 	PUSH( State->CS );
-	PUSH( State->IP );
+	PUSH( State->IP + State->Decoder.IPOffset );
 	State->IP = ofs;
 	State->CS = seg;
-	
+	State->Flags &= ~(FLAG_IF|FLAG_TF);	
+
 	State->Decoder.bDontChangeIP = 1;
 	
 	return 0;
@@ -124,6 +125,13 @@ DEF_OPCODE_FCN(INT, I)	// INT imm8
 	READ_INSTR8(num);
 	DEBUG_S(" 0x%x", num);
 	return _CallInterrupt(State, num);
+}
+DEF_OPCODE_FCN(INTO, z)	// INTO - INT 4 if OF
+{
+	if( State->Flags & FLAG_OF )
+		return _CallInterrupt(State, 4);
+	else
+		return 0;
 }
 DEF_OPCODE_FCN(IRET, z)	// Interrupt Return
 {

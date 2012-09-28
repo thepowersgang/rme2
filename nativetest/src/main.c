@@ -134,13 +134,16 @@ int main(int argc, char *argv[])
 
 	// Create and initialise RME State
 	emu = RME_CreateState();
-	emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
-	emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
-	emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
-	emu->HLECallbacks[0x13] = HLECall;	// 0x13 - Disk IO
-	emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
-	emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
-	emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
+	if( !gsBinaryFile )
+	{
+		emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
+		emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
+		emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
+		emu->HLECallbacks[0x13] = HLECall;	// 0x13 - Disk IO
+		emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
+		emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
+		emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
+	}
 	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
 		emu->Memory[i/RME_BLOCK_SIZE] = &gaMemory[i];
 
