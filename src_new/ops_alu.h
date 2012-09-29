@@ -20,6 +20,11 @@
 	else \
 		State->Flags |= (__v&15) < (*src&15) ? FLAG_AF : 0;
 
+#define __SUB_FLAGS	\
+	State->Flags |= (*dest < r) ? FLAG_CF : 0; \
+	State->Flags |= ((*dest&15) < (r&15)) ? FLAG_AF : 0; \
+	typeof(*dest) _sub_tmp = ( ((*dest ^ r) & (*dest ^ v)) & (1ULL<<(width-1)) ); \
+	if( _sub_tmp )	State->Flags |= FLAG_OF;
 // 0: Add
 #define ALU_OPCODE_ADD_CODE	do{\
 	typeof(*dest) __v = *dest + *src; \
@@ -41,24 +46,20 @@
 	}while(0);
 // 3: Subtract with Borrow
 #define ALU_OPCODE_SBB_CODE	\
-	int v = *dest - *src + ((State->Flags & FLAG_CF) ? 1 : 0); \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
-	if( *dest < *src || *src == (((1ULL<<(width-1))-1)|(1ULL<<(width-1))) )	State->Flags |= FLAG_CF; \
-	if( ((*dest ^ *src) & (*dest ^ v)) & (1ULL<<(width-1)) )	State->Flags |= FLAG_OF; \
+	int c = (State->Flags & FLAG_CF) ? 1 : 0; \
+	uint64_t r = (*src + c); \
+	typeof(*dest) v = *dest - r; \
+	State->Flags &= ~(FLAG_OF|FLAG_CF|FLAG_AF); \
+	__SUB_FLAGS \
 	*dest = v;
 // 4: Bitwise AND
 #define ALU_OPCODE_AND_CODE	\
 	*dest &= *src; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);
-
-#define __SUB_FLAGS	\
-	State->Flags |= (*dest < *src) ? FLAG_CF : 0; \
-	State->Flags |= ((*dest&7) < (*src&7)) ? FLAG_AF : 0; \
-	typeof(*dest) _sub_tmp = ( ((*dest ^ *src) & (*dest ^ v)) & (1ULL<<(width-1)) ); \
-	if( _sub_tmp )	State->Flags |= FLAG_OF;
 // 5: Subtract
 #define ALU_OPCODE_SUB_CODE	\
-	typeof(*dest) v = *dest - *src; \
+	typeof(*dest) r = *src; \
+	typeof(*dest) v = *dest - r; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
 	__SUB_FLAGS \
 	*dest = v;
@@ -71,7 +72,8 @@
 //       out of scope, but nothing else should come back in, so it doesn't
 //       matter)
 #define ALU_OPCODE_CMP_CODE	\
-	typeof(*dest) v = *dest - *src; \
+	typeof(*dest) r = *src; \
+	typeof(*dest) v = *dest - r; \
 	typeof(*dest) hack = 0;\
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
 	__SUB_FLAGS \
