@@ -168,31 +168,51 @@
 // 4: Shift Logical Left
 #define ALU_OPCODE_SHL_CODE	\
 	 int	amt = *src & 31; \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
-	if(amt > 0 && amt <= width) \
-		State->Flags |= ((*dest >> (width-amt)) & 1) ? FLAG_CF : 0; \
-	if(amt > 0 && amt < width) \
-		*dest <<= amt;
+	if( amt > 0 ) { \
+		State->Flags &= ~(FLAG_OF|FLAG_CF); \
+		if(amt > width) \
+			*dest = 0; \
+		else { \
+			State->Flags |= (*dest >> (width-amt)) & 1 ? FLAG_CF : 0; \
+			State->Flags |= ((*dest >> (width-amt)) ^ (*dest >> (width-amt-1))) & 1 ? FLAG_OF : 0; \
+			*dest <<= amt; \
+		}\
+		SET_COMM_FLAGS(State, *dest, width); \
+	}
 // 5: Shift Logical Right
 #define ALU_OPCODE_SHR_CODE	\
 	 int	amt = *src & 31; \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	if(amt > 0 && amt <= width) \
-		State->Flags |= ((*dest >> (amt-1)) & 1) ? FLAG_CF : 0; \
-	if(amt > 0 && amt < width) \
-		*dest >>= amt;
+	if(amt > 0) { \
+		State->Flags &= ~(FLAG_OF|FLAG_CF);\
+		if( amt > width ) { \
+			*dest = 0; \
+		} else { \
+			State->Flags |= (*dest >> (amt-1)) & 1 ? FLAG_CF : 0; \
+			*dest >>= amt; \
+		} \
+		int high = *dest >> (width-2); \
+		State->Flags |= ((high & 1) ^ (high >> 1)) ? FLAG_OF : 0; \
+		SET_COMM_FLAGS(State, *dest, width); \
+	}
 // 6: Shift Arithmetic Left
 #define ALU_OPCODE_SAL_CODE	ALU_OPCODE_SHL_CODE
 // 7: Shift Arithmetic Right (applies sign extension)
 #define ALU_OPCODE_SAR_CODE	\
 	 int	amt = *src & 31; \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);\
-	if(amt > 0 && amt <= width) \
-		State->Flags |= ((*dest >> (amt-1)) & 1) ? FLAG_CF : 0; \
-	if(amt > 0 && amt < width) { \
-		*dest >>= amt; \
-		if((*dest >> (width-amt)) & 1) \
-			*dest |= 0xFFFFFFFF >> width; \
+	if( amt > 0 ) { \
+		int sgn = *dest >> (width-1); \
+		State->Flags &= ~(FLAG_OF|FLAG_CF); \
+		if(amt >= width) { \
+			*dest = sgn ? -1 : 0; \
+			State->Flags |= sgn ? FLAG_CF : 0; \
+		} else { \
+			State->Flags |= ((*dest >> (amt-1)) & 1) ? FLAG_CF : 0; \
+			*dest = *dest >> amt; \
+			*dest |= sgn ? 0xFFFFFFFF << (width - amt) : 0; \
+		} \
+		int high = *dest >> (width-2); \
+		State->Flags |= ((high & 1) ^ (high >> 1)) ? FLAG_OF : 0; \
+		SET_COMM_FLAGS(State, *dest, width); \
 	}
 
 // Misc 4: MUL
