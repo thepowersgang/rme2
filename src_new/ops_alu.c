@@ -269,14 +269,12 @@ DEF_OPCODE_FCN(INC, Reg)
 		uint32_t	*dest = (void*)RegW(State, Param);
 		const int	width = 32;
 		{ALU_OPCODE_INC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
 		uint16_t	*dest = RegW(State, Param);
 		const int	width = 16;
 		{ALU_OPCODE_INC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;
@@ -289,14 +287,12 @@ DEF_OPCODE_FCN(DEC, Reg)
 		uint32_t	*dest = (void*)RegW(State, Param);
 		const int	width = 32;
 		{ALU_OPCODE_DEC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
 		uint16_t	*dest = RegW(State, Param);
 		const int	width = 16;
 		{ALU_OPCODE_DEC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	return 0;
 }

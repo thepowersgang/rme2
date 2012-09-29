@@ -108,12 +108,15 @@
 	(*dest) ++; \
 	State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF|FLAG_AF); \
 	if(*dest == (1 << (width-1)))	State->Flags |= FLAG_OF; \
-	if((*dest&15) == 0)	State->Flags |= FLAG_AF;
+	if((*dest&15) == 0)	State->Flags |= FLAG_AF; \
+	SET_COMM_FLAGS(State, *dest, width);
 // x: Decrement
 #define ALU_OPCODE_DEC_CODE	\
 	(*dest) --; \
-	State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF); \
-	if(*dest + 1 == (1 << (width-1)))	State->Flags |= FLAG_OF;
+	State->Flags &= ~(FLAG_OF|FLAG_AF); \
+	if(*dest + 1 == (1 << (width-1)))	State->Flags |= FLAG_OF; \
+	if((*dest & 15) + 1 == 16)	State->Flags |= FLAG_AF; \
+	SET_COMM_FLAGS(State, *dest, width);
 
 // 0: Rotate Left
 #define ALU_OPCODE_ROL_CODE	\

@@ -95,20 +95,20 @@ int main(int argc, char *argv[])
 	}
 
 	// Fill with a #UD
-	//memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
-	memset(gaMemory, 0xCC, sizeof(gaMemory));	// 0xCC = INT 3
+	memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
+	//memset(gaMemory, 0xCC, sizeof(gaMemory));	// 0xCC = INT 3
 
 	// Create BIOS Structures
 	// - BIOS Entrypoint (All BIOS calls are HLE, so trap them)
-	gaMemory[0xF0000] = 0x67;	// XCHG (RMX)
-	gaMemory[0xF0001] = 0311;	// r BX BX
+	gaMemory[0xF0000+i*2] = 0x67;	// XCHG (RMX)
+	gaMemory[0xF0001+i*2] = 0311;	// r BX BX
 	// - Interrupt Vector Table
 	for( i = 0; i < 0x100; i ++ )
 	{
-		gaMemory[i*4+0] = 0x00;
-		gaMemory[i*4+1] = 0xF0;
-		gaMemory[i*4+2] = 0x00;
-		gaMemory[i*4+3] = 0x00;
+		gaMemory[i*4+0] = i;
+		gaMemory[i*4+1] = 0x00;
+		gaMemory[i*4+2] = RME_HLE_CS&0xFF;
+		gaMemory[i*4+3] = RME_HLE_CS>>8;
 	}
 	// - Disk Paramter Block
 	{
@@ -134,16 +134,13 @@ int main(int argc, char *argv[])
 
 	// Create and initialise RME State
 	emu = RME_CreateState();
-	if( !gsBinaryFile )
-	{
-		emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
-		emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
-		emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
-		emu->HLECallbacks[0x13] = HLECall;	// 0x13 - Disk IO
-		emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
-		emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
-		emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
-	}
+	emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
+	emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
+	emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
+	emu->HLECallbacks[0x13] = HLECall;	// 0x13 - Disk IO
+	emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
+	emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
+	emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
 	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
 		emu->Memory[i/RME_BLOCK_SIZE] = &gaMemory[i];
 
@@ -524,7 +521,27 @@ int HLECall(tRME_State *State, int IntNum)
 				State->ES = 0xF100;	State->DI.W = 0x0000;
 			}
 			break;
-		
+
+		case 0x15:	// Get Disk Type
+			printf("HLE 0x13:0x15 - Get Disk Type 0x%02x\n", State->DX.B.L);
+			{
+				 int	cyl, heads, sec;
+				State->Flags &= ~FLAG_CF;
+				switch(GetDiskParams(State->DX.B.L, &cyl, &heads, &sec))
+				{
+				case 4:
+					State->AX.B.H = 2;
+					State->CX.W = sec * heads * cyl;
+					State->DX.W = 0;
+					break;
+				default:
+					State->AX.B.H = 0;
+					State->Flags |= FLAG_CF;
+					break;
+				}
+			}
+			break;		
+
 		// Extended Read
 		case 0x42:
 			{
@@ -541,7 +558,8 @@ int HLECall(tRME_State *State, int IntNum)
 				laddr = packet->Buffer.Segment*16 + packet->Buffer.Offset;
 				
 				
-				printf(" packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,LBAStart=0x%"PRIx64",BufferLong=0x%"PRIx64"}\n",
+				printf(" packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,"
+				       "LBAStart=0x%"PRIx64",BufferLong=0x%"PRIx64"}\n",
 					packet,
 					packet->Size, packet->Count,
 					packet->Buffer.Segment, packet->Buffer.Offset,
@@ -564,7 +582,7 @@ int HLECall(tRME_State *State, int IntNum)
 			break;
 		
 		default:
-			printf("HLE Call INT 0x13\n");
+			printf("HLE Call INT 0x13 AH=0x%02x unknown\n", State->AX.B.H);
 			RME_DumpRegs(State);
 			exit(1);
 		}

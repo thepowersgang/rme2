@@ -139,7 +139,7 @@ const tOperation	caOperations0F[256] = {
 	/*  0x8C*/	DEF_OP(JL,N), DEF_OP(JGE,N), DEF_OP(JLE,N), DEF_OP(JG ,N),
 	/* 0x90 */	REP_8(UNDEF_OP),
 	/* 0x98 */	REP_8(UNDEF_OP),
-	/* 0xA0 */	REP_8(UNDEF_OP),
+	/* 0xA0 */	REP_8(UNDEF_OP),	// 0xA0/0xA1 = PUSH/POP FS
 	/* 0xA8 */	REP_8(UNDEF_OP),
 	/* 0xB0 */	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
 	/*  0xB4*/	UNDEF_OP, UNDEF_OP, DEF_OP(MOV,Z), DEF_OP(MOV,ZX),

@@ -150,6 +150,14 @@ int RME_Call(tRME_State *State)
 		#endif
 		if(State->IP == RME_MAGIC_IP && State->CS == RME_MAGIC_CS)
 			return 0;
+		if(State->CS == RME_HLE_CS && State->IP < 0x100) {
+			// HLE Call
+			if( State->HLECallbacks[State->IP] )
+				State->HLECallbacks[State->IP](State, State->IP);
+			// IRET
+			caOperations[0xCF].Function(State, 0);
+			continue ;
+		}
 		ret = RME_Int_DoOpcode(State);
 		switch(ret)
 		{
@@ -192,6 +200,12 @@ int RME_Int_DoOpcode(tRME_State *State)
 	do
 	{
 		READ_INSTR8( opcode );
+		// HACK 0xF1 is blank in the x86 opcode map, so it's used as uninit padding
+		if( opcode == 0xF1 ) {
+			ERROR_S(" Executing unset memory (opcode 0xF1) %04x:%04x",
+				State->CS, State->IP);
+			return 7;
+		}
 		if( caOperations[opcode].Function == NULL )
 		{
 			ERROR_S(" Unkown Opcode 0x%02x", opcode);
@@ -305,14 +319,12 @@ DEF_OPCODE_FCN(Unary, M)	// INC/DEC r/m8
 		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 		if(ret)	return ret;
 		{ALU_OPCODE_INC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 		break;
 	case 1:	// DEC
 		DEBUG_S(" DEC");
 		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 		if(ret)	return ret;
 		{ALU_OPCODE_DEC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 		break;
 	default:
 		ERROR_S(" - Unary M /%i unimplemented\n", op_num);

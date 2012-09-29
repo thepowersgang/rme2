@@ -85,12 +85,6 @@ static inline int _CallInterrupt(tRME_State *State, int Num)
 	 int	ret;
 	uint16_t	seg, ofs;
 	
-	// High-Level Emulation Call
-	if( State->HLECallbacks[Num] ) {
-		State->HLECallbacks[Num](State, Num);
-		return 0;
-	}
-	
 	// Full emulation then
 	ret = RME_Int_Read16(State, 0, Num*4+0, &ofs);	// Offset
 	if(ret)	return ret;
@@ -100,6 +94,14 @@ static inline int _CallInterrupt(tRME_State *State, int Num)
 	if(ofs == 0 && seg == 0) {
 		ERROR_S(" Caught attempt to execute IVT pointing to 0000:0000");
 		return RME_ERR_BADMEM;
+	}
+	
+	// High-Level Emulation Call (only if not overridden)
+	if( seg == RME_HLE_CS && ofs == Num )
+	{
+		if( State->HLECallbacks[Num] )
+			State->HLECallbacks[Num](State, Num);
+		return 0;
 	}
 	
 	PUSH( State->Flags );
