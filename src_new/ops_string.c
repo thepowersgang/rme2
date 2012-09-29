@@ -49,9 +49,11 @@
 		} \
 	} \
 	do { \
-		if( State->Decoder.RepeatType && !State->CX.W ) \
-			break; \
-		-- State->CX.W; \
+		if( State->Decoder.RepeatType ) { \
+			if( State->CX.W == 0 ) \
+				break; \
+			-- State->CX.W; \
+		} \
 		do { \
 			while(0)
 #define STRING_FOOTER() \
@@ -257,7 +259,7 @@ DEF_OPCODE_FCN(SCA, SB)
 	STRING_HEAD(1, 1, 0, "", "", 1);
 	
 	uint8_t	tmp;
-	uint8_t	*dest=&tmp, *src=&State->AX.B.L;
+	uint8_t	*src=&tmp, *dest=&State->AX.B.L;
 	const int	width = 8;
 	ret = RME_Int_Read8(State, destSeg, destOfs, &tmp);
 	if(ret)	return ret;
@@ -276,7 +278,7 @@ DEF_OPCODE_FCN(SCA, SW)
 	{
 		STRING_HEAD(1, 1, 0, "", " EAX", 4);
 		uint32_t	tmp;
-		uint32_t	*dest=&tmp, *src=&State->AX.D;
+		uint32_t	*src=&tmp, *dest=&State->AX.D;
 		const int	width = 32;
 		
 		ret = RME_Int_Read32(State, destSeg, destOfs, &tmp);
@@ -291,7 +293,7 @@ DEF_OPCODE_FCN(SCA, SW)
 	{
 		STRING_HEAD(1, 1, 0, "", " AX", 2);
 		uint16_t	tmp;
-		uint16_t	*dest=&tmp, *src=&State->AX.W;
+		uint16_t	*src=&tmp, *dest=&State->AX.W;
 		const int	width = 16;
 		
 		ret = RME_Int_Read16(State, destSeg, destOfs, &tmp);

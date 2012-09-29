@@ -45,7 +45,7 @@ db 0c2h
 
 rb 010c2h-$
 lodsw              ; (4)
-jmp ax
+jmp ax	; jumpt to f000:c200
 
 rb 01300h-$
 mov word[di],ax
@@ -73,7 +73,7 @@ rb 080c2h-$
 mov ds,cx
 movsw              ; (6)
 mov ds,dx
-jmp word [di+2]
+jmp word [di+2]	; to f000:80ff
 
 rb 080ffh-$
 mov di,2002h
@@ -81,7 +81,7 @@ mov es,cx
 cld
 scasb              ; (7)
 lahf
-jmp ax
+jmp ax	; jump to f000:1300
 
 rb 0c200h-$
 mov dx,01000h
@@ -90,7 +90,7 @@ mov di,0ffffh
 movsb              ; (5) 
 mov ds,dx
 mov byte[di],0c2h
-jmp word[di]
+jmp word[di]	; to f000:80c2
 
 rb 0d000h-$
 mov dx,0
