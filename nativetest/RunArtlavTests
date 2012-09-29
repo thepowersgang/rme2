@@ -14,7 +14,6 @@ for asmfile in Artlav_80186_tests/*.asm; do
 		nasm $asmfile -f binary -o $binfile
 	fi
 	./tester -b $binfile -O test_mem_dump.dmp --nogui >> ArtlavTestLog.log || exit
-	./cmpmembin $memfile test_mem_dump.dmp
-# || exit
+	./cmpmembin $memfile test_mem_dump.dmp || exit
 done
 rm test_mem_dump.dmp

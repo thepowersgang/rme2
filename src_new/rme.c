@@ -159,6 +159,8 @@ int RME_Call(tRME_State *State)
 			ret = RME_int_CallInt(State, 0);
 			if(ret)	return ret;
 			break;
+//		case RME_ERR_UNDEFOPCODE:
+//			break;
 		default:
 			return ret;
 		}
@@ -215,7 +217,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 	if(State->Decoder.RepeatType)
 	{
 		DEBUG_S(" Prefix 0x%02x used with wrong opcode 0x%02x", State->Decoder.RepeatType, opcode);
-		return RME_ERR_UNDEFOPCODE;
+		//return RME_ERR_UNDEFOPCODE;
 	}
 
 	if( !State->Decoder.bDontChangeIP )

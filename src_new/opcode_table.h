@@ -108,7 +108,7 @@ const tOperation	caOperations[256] = {
 	/*  0xE4*/	DEF_OP(IN,AI ), DEF_OP(IN,AIX ), DEF_OP(OUT,AI ), DEF_OP(OUT,AIX ),
 	/* 0xE8 */	DEF_OP(CALL,N), DEF_OP(JMP,N), DEF_OP(JMP,F), DEF_OP(JMP,S),
 	/*  0xEC*/	DEF_OP(IN,ADx), DEF_OP(IN,ADxX), DEF_OP(OUT,DxA), DEF_OP(OUT,DxAX),
-	/* 0xF0 */	UNDEF_OP, UNDEF_OP, DEF_OP(Prefix, REP), DEF_OP(Prefix, REPNZ),
+	/* 0xF0 */	UNDEF_OP, UNDEF_OP, DEF_OP(Prefix, REPNZ), DEF_OP(Prefix, REP),
 	/*  0xF4*/	DEF_OP(HLT,z), DEF_OP(Flag,CMC),
 				DEF_OP_N(ArithMisc, MI,casMiscOps), DEF_OP_N(ArithMisc, MIX,casMiscOps),
 	/* 0xF8 */	DEF_OP(Flag, CLC), DEF_OP(Flag, STC), DEF_OP(Flag, CLI), DEF_OP(Flag, STI),

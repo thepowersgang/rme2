@@ -10,7 +10,7 @@
 
 #define STRING_HEAD(__check_zf, __use_di, __use_si, __before, __after, __step)	do{\
 	const int __using_di=__use_di,__using_si=__use_si; \
-	const int __step_bytes = __step; \
+	const int __step_bytes = __step, __checking_zf = __check_zf; \
 	uint32_t	srcOfs, destOfs; \
 	uint32_t	mask; \
 	DEBUG_S("%s",__before); \
@@ -34,10 +34,6 @@
 		} \
 	} \
 	do { \
-		if( __check_zf && State->Decoder.RepeatType == REPNZ && (State->Flags & FLAG_ZF) ) \
-			break; \
-		if( __check_zf && State->Decoder.RepeatType == REP && !(State->Flags & FLAG_ZF) ) \
-			break; \
 		if( State->Decoder.RepeatType && !State->CX.W ) \
 			break; \
 		-- State->CX.W; \
@@ -51,6 +47,10 @@
 			srcOfs += __step_bytes; destOfs += __step_bytes; \
 		} \
 		srcOfs &= mask; destOfs &= mask; \
+		if( __checking_zf && State->Decoder.RepeatType == REPNZ && (State->Flags & FLAG_ZF) ) \
+			break; \
+		if( __checking_zf && State->Decoder.RepeatType == REP && !(State->Flags & FLAG_ZF) ) \
+			break; \
 	} while(State->Decoder.RepeatType); \
 	if( State->Decoder.RepeatType ) \
 		DEBUG_S(" (%i skipped)", State->CX.W); \
