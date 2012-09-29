@@ -376,7 +376,7 @@ DEF_OPCODE_FCN(Shift, MI)
 	DEBUG_S(" 0x%02x", srcData);
 	
 	SHIFT_SELECT_OPERATION();
-	SET_COMM_FLAGS(State, *dest, width);
+//	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -406,7 +406,7 @@ DEF_OPCODE_FCN(Shift, MI8X)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
@@ -415,7 +415,7 @@ DEF_OPCODE_FCN(Shift, MI8X)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;
@@ -440,7 +440,7 @@ DEF_OPCODE_FCN(Shift, M1)
 	DEBUG_S(" 1");
 	
 	SHIFT_SELECT_OPERATION();
-	SET_COMM_FLAGS(State, *dest, width);
+//	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -469,7 +469,7 @@ DEF_OPCODE_FCN(Shift, M1X)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
@@ -478,7 +478,7 @@ DEF_OPCODE_FCN(Shift, M1X)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;
@@ -503,7 +503,7 @@ DEF_OPCODE_FCN(Shift, MCl)
 	DEBUG_S(" CL");
 	
 	SHIFT_SELECT_OPERATION();
-	SET_COMM_FLAGS(State, *dest, width);
+//	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -532,7 +532,7 @@ DEF_OPCODE_FCN(Shift, MClX)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
@@ -541,7 +541,7 @@ DEF_OPCODE_FCN(Shift, MClX)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;

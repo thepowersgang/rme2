@@ -116,35 +116,54 @@
 // 0: Rotate Left
 #define ALU_OPCODE_ROL_CODE	\
 	 int	amt = (*src & 31) % width; \
-	*dest = (*dest << amt) | (*dest >> (width-amt)); \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
-	State->Flags |= (*dest >> (width-1)) ? FLAG_CF : 0;
+	if(amt > 0) { \
+		*dest = (*dest << amt) | (*dest >> (width-amt)); \
+		State->Flags &= ~(FLAG_OF|FLAG_CF); \
+		State->Flags |= (*dest & 1) ? FLAG_CF : 0; \
+		State->Flags |= (*dest >> (width-1)) ^ (*dest & 1) ? FLAG_OF : 0; \
+	}
 // 1: Rotate Right
 #define ALU_OPCODE_ROR_CODE	\
 	 int	amt = (*src & 31) % width; \
-	*dest = (*dest >> amt) | (*dest << (width-amt)); \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
-	State->Flags |= (*dest >> (width-1)) ? FLAG_CF : 0;
+	if(amt > 0) { \
+		*dest = (*dest >> amt) | (*dest << (width-amt)); \
+		State->Flags &= ~(FLAG_OF|FLAG_CF); \
+		State->Flags |= (*dest >> (width-1)) ? FLAG_CF : 0; \
+		State->Flags |= ((*dest >> (width-1)) ^ (*dest >> (width-2))) & 1 ? FLAG_OF : 0; \
+	}
 	
 // 2: Rotate Carry Left
 #define ALU_OPCODE_RCL_CODE	\
-	if(*src > 0) { \
-	 int	amt = (*src & 31) % width+1; \
-	uint64_t	carry = (State->Flags & FLAG_CF) ? 1 : 0; \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
-	carry <<= amt; \
-	if( (*dest >> (width-amt)) & 1 )	State->Flags |= FLAG_CF; \
-	*dest = (*dest << amt) | (*dest >> (width-amt-1)) | carry; \
+	 int	amt = (*src & 31) % (width+1); \
+	if( amt > 0 ) { \
+		 int	cf_new, cf = (State->Flags & FLAG_CF) ? 1 : 0; \
+		typeof(*dest) val = *dest; \
+		while(amt--) { \
+			cf_new = val >> (width-1); \
+			val = (val << 1) | cf; \
+			cf = cf_new; \
+		} \
+		State->Flags &= ~(FLAG_OF|FLAG_CF); \
+		State->Flags |= cf ? FLAG_CF : 0; \
+		State->Flags |= (cf ^ (val >> (width-1))) ? FLAG_OF : 0; \
+		*dest = val; \
 	}
 // 3: Rotate Carry Right
 #define ALU_OPCODE_RCR_CODE	\
-	if(*src > 0) { \
-	 int	amt = (*src & 31) % width+1; \
-	uint64_t	carry = (State->Flags & FLAG_CF) ? 1 : 0; \
-	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF); \
-	carry <<= (width-amt); \
-	if( (*dest >> (amt-1)) & 1 )	State->Flags |= FLAG_CF; \
-	*dest = (*dest >> amt) | (*dest << (width-amt-1)) | carry; \
+	 int	amt = (*src & 31) % (width+1); \
+	if( amt > 0 ) { \
+		 int	cf_new, cf = (State->Flags & FLAG_CF) ? 1 : 0; \
+		typeof(*dest) val = *dest; \
+		while(amt--) { \
+			cf_new = val & 1; \
+			val = (val >> 1) | (cf << (width-1)); \
+			cf = cf_new; \
+		} \
+		State->Flags &= ~(FLAG_OF|FLAG_CF); \
+		State->Flags |= cf ? FLAG_CF : 0; \
+		int high = val >> (width-2); \
+		State->Flags |= ((high & 1) ^ (high >> 1)) ? FLAG_OF : 0; \
+		*dest = val; \
 	}
 // 4: Shift Logical Left
 #define ALU_OPCODE_SHL_CODE	\
