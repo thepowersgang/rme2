@@ -77,7 +77,9 @@ DEF_OPCODE_FCN(AAD, z)
 	uint8_t	imm8;
 	READ_INSTR8(imm8);
 	State->AX.B.L += State->AX.B.H * imm8;
+	State->AX.B.H = 0;
 	SET_COMM_FLAGS(State, State->AX.B.L, 8);
+	State->Flags &= ~(FLAG_OF|FLAG_CF);	// Effect undefined, cleared for Artlav tests
 	return 0;
 }
 

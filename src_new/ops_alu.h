@@ -184,16 +184,19 @@
 	case 8: \
 		result = (uint16_t)State->AX.B.L * *src; \
 		State->AX.W = result; \
+		SET_COMM_FLAGS(State, State->AX.B.L, width);\
 		break; \
 	case 16: \
 		result = (uint32_t)State->AX.W * (*src); \
 		State->DX.W = result >> 16; \
 		State->AX.W = result & 0xFFFF; \
+		SET_COMM_FLAGS(State, State->AX.W, width);\
 		break; \
 	case 32: \
 		result = (uint64_t)State->AX.D * (*src); \
 		State->DX.D = result >> 32; \
 		State->AX.D = result & 0xFFFFFFFF; \
+		SET_COMM_FLAGS(State, State->AX.D, width);\
 		break; \
 	} \
 	if(result >> width) \
@@ -206,21 +209,24 @@
 	int64_t	result;\
 	switch(width) { \
 	case 8: \
-		result = (int16_t)State->AX.B.L * (*(int8_t*)src); \
+		result = (int16_t)(int8_t)State->AX.B.L * (*(int8_t*)src); \
 		State->AX.W = result; \
+		SET_COMM_FLAGS(State, State->AX.B.L, width);\
 		break; \
 	case 16: \
-		result = (int32_t)State->AX.W * (*(int16_t*)src); \
+		result = (int32_t)(int16_t)State->AX.W * (*(int16_t*)src); \
 		State->DX.W = result >> 16; \
 		State->AX.W = result & 0xFFFF; \
+		SET_COMM_FLAGS(State, State->AX.W, width);\
 		break; \
 	case 32: \
-		result = (uint64_t)State->AX.D * (*(int32_t*)src); \
+		result = (int64_t)(int32_t)State->AX.D * (*(int32_t*)src); \
 		State->DX.D = result >> 32; \
 		State->AX.D = result & 0xFFFFFFFF; \
+		SET_COMM_FLAGS(State, State->AX.D, width);\
 		break; \
 	} \
-	if(result >> width) \
+	if(result < -(1 << (width-1)) || result > ((1 << (width-1))-1)) \
 		State->Flags |= FLAG_CF|FLAG_OF; \
 	else \
 		State->Flags &= ~(FLAG_CF|FLAG_OF);

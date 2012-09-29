@@ -78,6 +78,21 @@ DEF_OPCODE_FCN(JGE,N) { MAKE_COND_JUMP_N(CONDITION_GE); }
 DEF_OPCODE_FCN(JLE,N) { MAKE_COND_JUMP_N(CONDITION_LE); }
 DEF_OPCODE_FCN(JG, N) { MAKE_COND_JUMP_N(CONDITION_G ); }
 
+DEF_OPCODE_FCN(JCXZ, S)
+{
+	uint16_t	dist;
+	READ_INSTR8S( dist );
+	DEBUG_S(" .+0x%02x", dist);
+	
+	if( State->Decoder.bOverrideOperand && State->CX.D != 0 )
+		return 0;
+	if( !State->Decoder.bOverrideOperand && State->CX.W != 0 )
+		return 0;
+	
+	State->IP += dist;
+	return 0;
+}
+
 // Looping
 DEF_OPCODE_FCN(LOOPNZ, S)
 {

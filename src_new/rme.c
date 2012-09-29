@@ -383,7 +383,7 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			DEBUG_S(" CALL (NI)");
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
-			PUSH(State->IP);
+			PUSH(State->IP + State->Decoder.IPOffset);
 			State->IP = *dest;
 			State->Decoder.bDontChangeIP = 1;
 			break;
@@ -393,7 +393,7 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			PUSH(State->CS);
-			PUSH(State->IP);
+			PUSH(State->IP + State->Decoder.IPOffset);
 			State->IP = dest[0];
 			State->CS = dest[1];	// NOTE: Possible edge case on segment boundary
 			State->Decoder.bDontChangeIP = 1;

@@ -353,8 +353,10 @@ static inline uint16_t	*Seg(tRME_State *State, int code)
 
 static inline uint8_t	*RegB(tRME_State *State, int num)
 {
+	#if DEBUG
 	static const char regnamesB[][3] = {"AL","CL","DL","BL","AH","CH","DH","BH"};
 	DEBUG_S(" %s", regnamesB[num]);
+	#endif
 	if(num > 7 || num < 0)	return NULL;
 	if( num >= 4 )
 		return &State->GPRs[num-4].B.H;
@@ -364,8 +366,10 @@ static inline uint8_t	*RegB(tRME_State *State, int num)
 
 static inline uint16_t	*RegW(tRME_State *State, int num)
 {
+	#if DEBUG
 	static const char regnamesD[][4] = {"EAX","ECX","EDX","EBX","ESP","EBP","ESI","EDI"};
 	static const char regnamesW[][3] = {"AX","CX","DX","BX","SP","BP","SI","DI"};
+	#endif
 	if(num > 7 || num < 0)	return NULL;
 	if(State->Decoder.bOverrideOperand) {
 		DEBUG_S(" %s", regnamesD[num]);
