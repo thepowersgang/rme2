@@ -242,15 +242,22 @@ DEF_OPCODE_FCN(XLAT, z)
 {
 	void	*ptr;
 	uint32_t	address;
+	uint16_t	seg;
 	 int	rv;
-	
-	if( State->Decoder.bOverrideAddress )
+
+	seg = *Seg(State, State->Decoder.OverrideSegment == -1 ? SREG_DS : State->Decoder.OverrideSegment);
+
+	if( State->Decoder.bOverrideAddress ) {
+		DEBUG_S("[EBX+AL]");
 		address = State->BX.D;
-	else
+	}
+	else {
+		DEBUG_S("[BX+AL]");
 		address = State->BX.W;
+	}
 	address += State->AX.B.L;
 
-	if( (rv = RME_Int_GetPtr(State, State->DS, address, &ptr)) )
+	if( (rv = RME_Int_GetPtr(State, seg, address, &ptr)) )
 		return rv;
 
 	State->AX.B.L = *(uint8_t*)ptr;
