@@ -341,4 +341,28 @@
 		} break; \
 	}
 
+// Double Precision Shift Right
+#define ALU_OPCODE_SHRD_CODE	\
+	if( amt > 0 ) { \
+		State->Flags &= ~(FLAG_CF|FLAG_OF|FLAG_AF); \
+		State->Flags |= (*dest >> (amt-1)) & 1 ? FLAG_CF : 0; \
+		*dest >>= amt; \
+		*dest |= *src << (width - amt); \
+		if( amt == 1 ) \
+			State->Flags |= ((*dest >> (width-1)) ^ (*dest >> (width-2))) & 1 ? FLAG_OF : 0; \
+		SET_COMM_FLAGS(State, *dest, width); \
+	}
+// Double Precision Shift Left
+#define ALU_OPCODE_SHLD_CODE	\
+	if( amt > 0 ) { \
+		State->Flags &= ~(FLAG_CF|FLAG_OF|FLAG_AF); \
+		State->Flags |= (*dest >> (width-amt)) & 1 ? FLAG_CF : 0; \
+		*dest <<= amt; \
+		*dest |= *src >> (width - amt); \
+		if( amt == 1 ) \
+			State->Flags |= ((*dest >> (width-1)) ^ !!(State->Flags & FLAG_CF)) & 1 ? FLAG_OF : 0; \
+		SET_COMM_FLAGS(State, *dest, width); \
+	}
+
+
 #endif

@@ -131,6 +131,8 @@ typedef struct sRME_State
 	uint16_t	SS;	//!< Stack Segment
 	uint16_t	DS;	//!< Data Segment
 	uint16_t	ES;	//!< Extra Segment
+	uint16_t	FS;	//!< Extra Segment 2
+	uint16_t	GS;	//!< Extra Segment 3
 	//! \}
 
 	//! \brief Program Counter

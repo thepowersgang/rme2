@@ -49,7 +49,7 @@ const tOperation	caOperations[256] = {
 	/* OR RM(X), PUSH CS, #UD */
 	/* 0x08 */	DEF_ALU_OP(OR ), DEF_OP_A(PUSH,Seg,SREG_CS), DEF_OP(Ext,0F),
 	/* ADC RM(X), PUSH SS, #UD (POP SS) */
-	/* 0x10 */	DEF_ALU_OP(ADC), DEF_OP_A(PUSH,Seg,SREG_SS), UNDEF_OP,
+	/* 0x10 */	DEF_ALU_OP(ADC), DEF_OP_A(PUSH,Seg,SREG_SS), DEF_OP_A(POP,Seg,SREG_SS),
 	/* SBB RM(X), PUSH DS, POP DS */
 	/* 0x18 */	DEF_ALU_OP(SBB), DEF_OP_A(PUSH,Seg,SREG_DS), DEF_OP_A(POP,Seg,SREG_DS),
 	/* AND RM(X), ES Override, #UD */
@@ -139,8 +139,10 @@ const tOperation	caOperations0F[256] = {
 	/*  0x8C*/	DEF_OP(JL,N), DEF_OP(JGE,N), DEF_OP(JLE,N), DEF_OP(JG ,N),
 	/* 0x90 */	REP_8(UNDEF_OP),
 	/* 0x98 */	REP_8(UNDEF_OP),
-	/* 0xA0 */	REP_8(UNDEF_OP),	// 0xA0/0xA1 = PUSH/POP FS
-	/* 0xA8 */	REP_8(UNDEF_OP),
+	/* 0xA0 */	DEF_OP_A(PUSH,Seg,SREG_FS), DEF_OP_A(PUSH,Seg,SREG_GS), UNDEF_OP, UNDEF_OP,
+	/*  0xA4*/	DEF_OP(SHLD, I8), DEF_OP(SHLD, Cl), UNDEF_OP, UNDEF_OP,
+	/* 0xA8 */	REP_4(UNDEF_OP),
+	/*  0xAC*/	DEF_OP(SHRD, I8), DEF_OP(SHRD, Cl), UNDEF_OP, UNDEF_OP,
 	/* 0xB0 */	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
 	/*  0xB4*/	UNDEF_OP, UNDEF_OP, DEF_OP(MOV,Z), DEF_OP(MOV,ZX),
 	/* 0xB8 */	REP_8(UNDEF_OP),

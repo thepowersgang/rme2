@@ -32,7 +32,9 @@ enum sRegs
 	SREG_ES,
 	SREG_CS,
 	SREG_SS,
-	SREG_DS
+	SREG_DS,
+	SREG_FS,	// added 386
+	SREG_GS,
 };
 
 #define OPCODE_RI(name, code)	name##_RI_AL = code|AL,	name##_RI_BL = code|BL,\
@@ -341,10 +343,12 @@ static inline int RME_Int_GetModRM(tRME_State *State, int *Mod, int *RRR, int *M
 static inline uint16_t	*Seg(tRME_State *State, int code)
 {
 	switch(code) {
-	case 0:	DEBUG_S(" ES");	return &State->ES;
-	case 1:	DEBUG_S(" CS");	return &State->CS;
-	case 2:	DEBUG_S(" SS");	return &State->SS;
-	case 3:	DEBUG_S(" DS");	return &State->DS;
+	case SREG_ES:	DEBUG_S(" ES");	return &State->ES;
+	case SREG_CS:	DEBUG_S(" CS");	return &State->CS;
+	case SREG_SS:	DEBUG_S(" SS");	return &State->SS;
+	case SREG_DS:	DEBUG_S(" DS");	return &State->DS;
+	case SREG_FS:	DEBUG_S(" FS");	return &State->FS;
+	case SREG_GS:	DEBUG_S(" FS");	return &State->GS;
 	default:
 		DEBUG_S("ERROR - Invalid value passed to Seg(). (%i is not a segment)", code);
 	}

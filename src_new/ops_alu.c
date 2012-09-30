@@ -7,6 +7,16 @@
 #include "rme_internal.h"
 #include "opcode_prototypes.h"
 #include "ops_alu.h"
+
+#define _EXT_OP_SD(srcPtr, destPtr, __code)	if(State->Decoder.bOverrideOperand) { \
+		const int	width = 32; \
+		uint32_t	*src = srcPtr, *dest = destPtr; \
+		{__code} \
+	} else { \
+		const int	width = 16; \
+		uint16_t	*src = srcPtr, *dest = destPtr; \
+		{__code} \
+	}
  
 #define CREATE_ALU_OPCODE_FCN_RM(__name, __code...) DEF_OPCODE_FCN(__name,RM) {\
 	 int	ret;\
@@ -363,8 +373,6 @@ DEF_OPCODE_FCN(Shift, MI)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-//	DEBUG_S(" %s", casLogicOps[op_num]);
-	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
 	
@@ -372,7 +380,6 @@ DEF_OPCODE_FCN(Shift, MI)
 	DEBUG_S(" 0x%02x", srcData);
 	
 	SHIFT_SELECT_OPERATION();
-//	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -428,15 +435,12 @@ DEF_OPCODE_FCN(Shift, M1)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-//	DEBUG_S(" %s", casLogicOps[op_num]);
-	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
 	
 	DEBUG_S(" 1");
 	
 	SHIFT_SELECT_OPERATION();
-//	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -451,8 +455,6 @@ DEF_OPCODE_FCN(Shift, M1X)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-//	DEBUG_S(" %s", casLogicOps[op_num]);
-	
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
 	
@@ -464,8 +466,6 @@ DEF_OPCODE_FCN(Shift, M1X)
 		uint32_t	*dest = (void*)destPtr;
 		
 		SHIFT_SELECT_OPERATION();
-		
-//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
@@ -473,8 +473,6 @@ DEF_OPCODE_FCN(Shift, M1X)
 		uint16_t	*dest = destPtr;
 		
 		SHIFT_SELECT_OPERATION();
-		
-//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;
@@ -491,15 +489,12 @@ DEF_OPCODE_FCN(Shift, MCl)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-//	DEBUG_S(" %s", casLogicOps[op_num]);
-	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
 	
 	DEBUG_S(" CL");
 	
 	SHIFT_SELECT_OPERATION();
-//	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -514,8 +509,6 @@ DEF_OPCODE_FCN(Shift, MClX)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-//	DEBUG_S(" %s", casLogicOps[op_num]);
-	
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
 	
@@ -527,8 +520,6 @@ DEF_OPCODE_FCN(Shift, MClX)
 		uint32_t	*dest = (void*)destPtr;
 		
 		SHIFT_SELECT_OPERATION();
-		
-//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
@@ -536,9 +527,76 @@ DEF_OPCODE_FCN(Shift, MClX)
 		uint16_t	*dest = destPtr;
 		
 		SHIFT_SELECT_OPERATION();
-		
-//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;
 }
+
+// 0x0F 0xAC - Double Precision Shift Right by imm8
+DEF_OPCODE_FCN(SHRD, I8)
+{
+	 int	ret;
+	uint8_t	amt;
+	void	*srcPtr, *destPtr;
+
+	ret = RME_Int_ParseModRM(State, (void*)&srcPtr, (void*)&destPtr, 0);
+	if(ret)	return ret;	
+	
+	READ_INSTR8(amt);
+	DEBUG_S(" %i", amt);
+
+	_EXT_OP_SD(srcPtr, destPtr, ALU_OPCODE_SHRD_CODE);
+	return 0;
+}
+
+// 0x0F 0xAD - Double Precision Shift Right by CL
+DEF_OPCODE_FCN(SHRD, Cl)
+{
+	 int	ret;
+	uint8_t	amt;
+	void	*srcPtr, *destPtr;
+
+	ret = RME_Int_ParseModRM(State, (void*)&srcPtr, (void*)&destPtr, 0);
+	if(ret)	return ret;	
+	
+	DEBUG_S(" CL");
+	amt = State->CX.B.L;
+
+	_EXT_OP_SD(srcPtr, destPtr, ALU_OPCODE_SHRD_CODE);
+	return 0;
+}
+
+// 0x0F 0xA4 - Double Precision Shift Left by imm8
+DEF_OPCODE_FCN(SHLD, I8)
+{
+	 int	ret;
+	uint8_t	amt;
+	void	*srcPtr, *destPtr;
+
+	ret = RME_Int_ParseModRM(State, (void*)&srcPtr, (void*)&destPtr, 0);
+	if(ret)	return ret;	
+	
+	READ_INSTR8(amt);
+	DEBUG_S(" %i", amt);
+
+	_EXT_OP_SD(srcPtr, destPtr, ALU_OPCODE_SHLD_CODE);
+	return 0;
+}
+
+// 0x0F 0xA5 - Double Precision Shift Left by CL
+DEF_OPCODE_FCN(SHLD, Cl)
+{
+	 int	ret;
+	uint8_t	amt;
+	void	*srcPtr, *destPtr;
+
+	ret = RME_Int_ParseModRM(State, (void*)&srcPtr, (void*)&destPtr, 0);
+	if(ret)	return ret;	
+	
+	DEBUG_S(" CL");
+	amt = State->CX.B.L;
+
+	_EXT_OP_SD(srcPtr, destPtr, ALU_OPCODE_SHLD_CODE);
+	return 0;
+}
+
