@@ -191,18 +191,13 @@ enum opcodes {
 #endif
 
 // --- Operation helpers
-#define PAIRITY8(v)	((((v)>>7)&1)^(((v)>>6)&1)^(((v)>>5)&1)^(((v)>>4)&1)^(((v)>>3)&1)^(((v)>>2)&1)^(((v)>>1)&1)^((v)&1))
-#define PAIRITY16(v)	(PAIRITY8(v) ^ PAIRITY8(v>>8))
-#define SET_PF(State,v,w) do{\
-	if(w==8)	State->Flags |= PAIRITY8(v) ? 0 : FLAG_PF;\
-	else if(w==16)	State->Flags |= PAIRITY16(v) ? 0 : FLAG_PF;\
-	else	State->Flags |= (PAIRITY16(v) ^ PAIRITY16((v)>>16)) ? 0 : FLAG_PF;\
-	}while(0)
+//#define PAIRITY8(v)	((((v)>>7)&1)^(((v)>>6)&1)^(((v)>>5)&1)^(((v)>>4)&1)^(((v)>>3)&1)^(((v)>>2)&1)^(((v)>>1)&1)^((v)&1))
+#define PAIRITY8(v)	((((v)>>7)^((v)>>6)^((v)>>5)^((v)>>4)^((v)>>3)^((v)>>2)^((v)>>1)^(v))&1)
 #define SET_COMM_FLAGS(State,v,w) do{\
 	State->Flags &= ~(FLAG_ZF|FLAG_SF|FLAG_PF);\
 	State->Flags |= ((v) == 0) ? FLAG_ZF : 0;\
 	State->Flags |= ((v) >> ((w)-1)) ? FLAG_SF : 0;\
-	SET_PF(State, (v), (w));\
+	State->Flags |= PAIRITY8(v) == 0 ? FLAG_PF : 0;\
 	}while(0)
 
 // --- Memory Helpers
@@ -358,8 +353,10 @@ static inline uint16_t	*Seg(tRME_State *State, int code)
 
 static inline uint8_t	*RegB(tRME_State *State, int num)
 {
+	#if DEBUG
 	static const char regnamesB[][3] = {"AL","CL","DL","BL","AH","CH","DH","BH"};
 	DEBUG_S(" %s", regnamesB[num]);
+	#endif
 	if(num > 7 || num < 0)	return NULL;
 	if( num >= 4 )
 		return &State->GPRs[num-4].B.H;
@@ -369,8 +366,10 @@ static inline uint8_t	*RegB(tRME_State *State, int num)
 
 static inline uint16_t	*RegW(tRME_State *State, int num)
 {
+	#if DEBUG
 	static const char regnamesD[][4] = {"EAX","ECX","EDX","EBX","ESP","EBP","ESI","EDI"};
 	static const char regnamesW[][3] = {"AX","CX","DX","BX","SP","BP","SI","DI"};
+	#endif
 	if(num > 7 || num < 0)	return NULL;
 	if(State->Decoder.bOverrideOperand) {
 		DEBUG_S(" %s", regnamesD[num]);

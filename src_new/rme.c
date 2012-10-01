@@ -21,13 +21,11 @@ typedef int8_t	Sint8;
 
 #include "rme.h"
 #include "ops_alu.h"
+#include "rme_internal.h"
 
 // Settings
 #define RME_DO_NULL_CHECK	1
 #define	printf	printf	// Formatted print function
-
-// -- Per Compiler macros
-#define	WARN_UNUSED_RET	__attribute__((warn_unused_result))
 
 // === CONSTANTS ===
 #define FLAG_DEFAULT	0x2
@@ -101,10 +99,7 @@ void RME_DumpRegs(tRME_State *State)
 	DEBUG_S("\n");
 }
 
-/**
- * \brief Run Realmode interrupt
- */
-int RME_CallInt(tRME_State *State, int Num)
+int RME_int_CallInt(tRME_State *State, int Num)
 {
 	 int	ret;
 	DEBUG_S("RM_Int: Calling Int 0x%x\n", Num);
@@ -114,14 +109,30 @@ int RME_CallInt(tRME_State *State, int Num)
 		return RME_ERR_INVAL;
 	}
 
+	PUSH(State->Flags);
+	PUSH(State->CS);
+	PUSH(State->IP);
+
 	ret = RME_Int_Read16(State, 0, Num*4, &State->IP);
 	if(ret)	return ret;
 	ret = RME_Int_Read16(State, 0, Num*4+2, &State->CS);
 	if(ret)	return ret;
+	
+	return 0;
+}
 
-	PUSH(State->Flags);
-	PUSH(RME_MAGIC_CS);
-	PUSH(RME_MAGIC_IP);
+/**
+ * \brief Run Realmode interrupt
+ */
+int RME_CallInt(tRME_State *State, int Num)
+{
+	 int	ret;
+
+	State->CS = RME_MAGIC_CS;	
+	State->IP = RME_MAGIC_IP;
+
+	ret = RME_int_CallInt(State, Num);
+	if(ret)	return ret;
 
 	return RME_Call(State);
 }
@@ -139,8 +150,28 @@ int RME_Call(tRME_State *State)
 		#endif
 		if(State->IP == RME_MAGIC_IP && State->CS == RME_MAGIC_CS)
 			return 0;
+		if(State->CS == RME_HLE_CS && State->IP < 0x100) {
+			// HLE Call
+			if( State->HLECallbacks[State->IP] )
+				State->HLECallbacks[State->IP](State, State->IP);
+			// IRET
+			caOperations[0xCF].Function(State, 0);
+			continue ;
+		}
 		ret = RME_Int_DoOpcode(State);
-		if(ret)	return ret;
+		switch(ret)
+		{
+		case RME_ERR_OK:
+			break;
+		case RME_ERR_DIVERR:
+			ret = RME_int_CallInt(State, 0);
+			if(ret)	return ret;
+			break;
+//		case RME_ERR_UNDEFOPCODE:
+//			break;
+		default:
+			return ret;
+		}
 	}
 }
 
@@ -169,6 +200,12 @@ int RME_Int_DoOpcode(tRME_State *State)
 	do
 	{
 		READ_INSTR8( opcode );
+		// HACK 0xF1 is blank in the x86 opcode map, so it's used as uninit padding
+		if( opcode == 0xF1 ) {
+			ERROR_S(" Executing unset memory (opcode 0xF1) %04x:%04x",
+				State->CS, State->IP);
+			return 7;
+		}
 		if( caOperations[opcode].Function == NULL )
 		{
 			ERROR_S(" Unkown Opcode 0x%02x", opcode);
@@ -194,7 +231,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 	if(State->Decoder.RepeatType)
 	{
 		DEBUG_S(" Prefix 0x%02x used with wrong opcode 0x%02x", State->Decoder.RepeatType, opcode);
-		return RME_ERR_UNDEFOPCODE;
+		//return RME_ERR_UNDEFOPCODE;
 	}
 
 	if( !State->Decoder.bDontChangeIP )
@@ -282,14 +319,12 @@ DEF_OPCODE_FCN(Unary, M)	// INC/DEC r/m8
 		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 		if(ret)	return ret;
 		{ALU_OPCODE_INC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 		break;
 	case 1:	// DEC
 		DEBUG_S(" DEC");
 		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 		if(ret)	return ret;
 		{ALU_OPCODE_DEC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 		break;
 	default:
 		ERROR_S(" - Unary M /%i unimplemented\n", op_num);
@@ -362,7 +397,7 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			DEBUG_S(" CALL (NI)");
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
-			PUSH(State->IP);
+			PUSH(State->IP + State->Decoder.IPOffset);
 			State->IP = *dest;
 			State->Decoder.bDontChangeIP = 1;
 			break;
@@ -372,9 +407,9 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			PUSH(State->CS);
-			PUSH(State->IP);
-			State->CS = dest[0];	// NOTE: Possible edge case on segment boundary
-			State->IP = dest[1];
+			PUSH(State->IP + State->Decoder.IPOffset);
+			State->IP = dest[0];
+			State->CS = dest[1];	// NOTE: Possible edge case on segment boundary
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 4:	// Jump Near Indirect
@@ -389,8 +424,8 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			if( mod == 3 )	return RME_ERR_UNDEFOPCODE;	// TODO: Check this
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
-			State->CS = dest[0];	// NOTE: Possible edge case on segment boundary
-			State->IP = dest[1];
+			State->IP = dest[0];
+			State->CS = dest[1];	// NOTE: Possible edge case on segment boundary
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 6:

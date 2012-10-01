@@ -10,20 +10,35 @@
 
 #define STRING_HEAD(__check_zf, __use_di, __use_si, __before, __after, __step)	do{\
 	const int __using_di=__use_di,__using_si=__use_si; \
-	const int __step_bytes = __step; \
+	const int __step_bytes = __step, __checking_zf = __check_zf; \
 	uint32_t	srcOfs, destOfs; \
+	uint16_t	srcSeg, destSeg; \
 	uint32_t	mask; \
 	DEBUG_S("%s",__before); \
-	if( State->Decoder.bOverrideAddress ) { \
-		mask = 0xFFFFFFFF; \
-		srcOfs = State->SI.D;	destOfs = State->DI.D; \
-		if(__use_di)	DEBUG_S(" ES:[EDI]"); \
-		if(__use_si)	DEBUG_S(" DS:[ESI]"); \
-	} else { \
-		mask = 0xFFFF; \
-		srcOfs = State->SI.W;	destOfs = State->DI.W; \
-		if(__use_di)	DEBUG_S(" ES:[DI]"); \
-		if(__use_si)	DEBUG_S(" DS:[SI]"); \
+	if( __use_di ) { \
+		destSeg = *Seg(State, SREG_ES); \
+		if( State->Decoder.bOverrideAddress ) { \
+			mask = 0xFFFFFFFF; \
+			destOfs = State->DI.D; \
+			DEBUG_S(":[EDI]"); \
+		} else { \
+			mask = 0xFFFF; \
+			destOfs = State->DI.W; \
+			DEBUG_S(":[DI]"); \
+		}\
+	} \
+	if( __use_si ) { \
+		srcSeg = *Seg(State, \
+			State->Decoder.OverrideSegment == -1 ? SREG_DS : State->Decoder.OverrideSegment); \
+		if( State->Decoder.bOverrideAddress ) { \
+			mask = 0xFFFFFFFF; \
+			srcOfs = State->SI.D; \
+			DEBUG_S(":[ESI]"); \
+		} else { \
+			mask = 0xFFFF; \
+			srcOfs = State->SI.W; \
+			DEBUG_S(":[SI]"); \
+		}\
 	} \
 	DEBUG_S("%s",__after); \
 	if( State->Decoder.RepeatType ) { \
@@ -34,13 +49,11 @@
 		} \
 	} \
 	do { \
-		if( __check_zf && State->Decoder.RepeatType == REPNZ && (State->Flags & FLAG_ZF) ) \
-			break; \
-		if( __check_zf && State->Decoder.RepeatType == REP && !(State->Flags & FLAG_ZF) ) \
-			break; \
-		if( State->Decoder.RepeatType && !State->CX.W ) \
-			break; \
-		-- State->CX.W; \
+		if( State->Decoder.RepeatType ) { \
+			if( State->CX.W == 0 ) \
+				break; \
+			-- State->CX.W; \
+		} \
 		do { \
 			while(0)
 #define STRING_FOOTER() \
@@ -51,6 +64,10 @@
 			srcOfs += __step_bytes; destOfs += __step_bytes; \
 		} \
 		srcOfs &= mask; destOfs &= mask; \
+		if( __checking_zf && State->Decoder.RepeatType == REPNZ && (State->Flags & FLAG_ZF) ) \
+			break; \
+		if( __checking_zf && State->Decoder.RepeatType == REP && !(State->Flags & FLAG_ZF) ) \
+			break; \
 	} while(State->Decoder.RepeatType); \
 	if( State->Decoder.RepeatType ) \
 		DEBUG_S(" (%i skipped)", State->CX.W); \
@@ -61,6 +78,9 @@
 		if(__using_di)	State->DI.W = destOfs; \
 		if(__using_si)	State->SI.W = srcOfs; \
 	} \
+	srcSeg = 0; \
+	destSeg = srcSeg; \
+	srcSeg = destSeg; \
 	State->Decoder.RepeatType = 0; \
 	} while(0)
 
@@ -71,9 +91,9 @@ DEF_OPCODE_FCN(MOV, SB)
 	STRING_HEAD(0, 1, 1, "", "", 1);	// REP, using DI and SI
 	// ---
 	uint8_t	tmp;
-	ret = RME_Int_Read8(State, State->DS, srcOfs, &tmp);
+	ret = RME_Int_Read8(State, srcSeg, srcOfs, &tmp);
 	if(ret)	return ret;
-	ret = RME_Int_Write8(State, State->ES, destOfs, tmp);
+	ret = RME_Int_Write8(State, destSeg, destOfs, tmp);
 	if(ret)	return ret;
 	// ---
 	STRING_FOOTER();
@@ -88,9 +108,9 @@ DEF_OPCODE_FCN(MOV, SW)
 	{
 		uint32_t	tmp;
 		STRING_HEAD(0, 1, 1, "", "", 4);	// REP, using DI and SI
-		ret = RME_Int_Read32(State, State->DS, srcOfs, &tmp);
+		ret = RME_Int_Read32(State, srcSeg, srcOfs, &tmp);
 		if(ret)	return ret;
-		ret = RME_Int_Write32(State, State->ES, destOfs, tmp);
+		ret = RME_Int_Write32(State, destSeg, destOfs, tmp);
 		if(ret)	return ret;
 		STRING_FOOTER();
 	}
@@ -98,9 +118,9 @@ DEF_OPCODE_FCN(MOV, SW)
 	{
 		uint16_t	tmp;
 		STRING_HEAD(0, 1, 1, "", "", 2);	// REP, using DI and SI
-		ret = RME_Int_Read16(State, State->DS, srcOfs, &tmp);
+		ret = RME_Int_Read16(State, srcSeg, srcOfs, &tmp);
 		if(ret)	return ret;
-		ret = RME_Int_Write16(State, State->ES, destOfs, tmp);
+		ret = RME_Int_Write16(State, destSeg, destOfs, tmp);
 		if(ret)	return ret;
 		STRING_FOOTER();
 	}
@@ -113,7 +133,7 @@ DEF_OPCODE_FCN(STO, SB)
 	 int	ret;
 	STRING_HEAD(0, 1, 0, "", " AL", 1);
 	
-	ret = RME_Int_Write8(State, State->ES, destOfs, State->AX.B.L);
+	ret = RME_Int_Write8(State, destSeg, destOfs, State->AX.B.L);
 	if(ret)	return ret;
 	
 	STRING_FOOTER();
@@ -126,14 +146,14 @@ DEF_OPCODE_FCN(STO, SW)
 	if( State->Decoder.bOverrideOperand )
 	{
 		STRING_HEAD(0, 1, 0, "", " EAX", 4);
-		ret = RME_Int_Write32(State, State->ES, destOfs, State->AX.D);
+		ret = RME_Int_Write32(State, destSeg, destOfs, State->AX.D);
 		if(ret)	return ret;
 		STRING_FOOTER();
 	}
 	else
 	{
 		STRING_HEAD(0, 1, 0, "", " AX", 2);
-		ret = RME_Int_Write16(State, State->ES, destOfs, State->AX.W);
+		ret = RME_Int_Write16(State, destSeg, destOfs, State->AX.W);
 		if(ret)	return ret;
 		STRING_FOOTER();
 	}
@@ -145,7 +165,7 @@ DEF_OPCODE_FCN(LOD, SB)	// REP
 	 int	ret;
 	STRING_HEAD(0, 0, 1, " AL", "", 1);
 	
-	ret = RME_Int_Read8(State, State->DS, srcOfs, &State->AX.B.L);
+	ret = RME_Int_Read8(State, srcSeg, srcOfs, &State->AX.B.L);
 	if(ret)	return ret;
 	
 	STRING_FOOTER();
@@ -158,14 +178,14 @@ DEF_OPCODE_FCN(LOD, SW)
 	if( State->Decoder.bOverrideOperand )
 	{
 		STRING_HEAD(0, 0, 1, " EAX", "", 4);
-		ret = RME_Int_Read32(State, State->DS, srcOfs, &State->AX.D);
+		ret = RME_Int_Read32(State, srcSeg, srcOfs, &State->AX.D);
 		if(ret)	return ret;
 		STRING_FOOTER();
 	}
 	else
 	{
 		STRING_HEAD(0, 0, 1, " AX", "", 2);
-		ret = RME_Int_Read16(State, State->DS, srcOfs, &State->AX.W);
+		ret = RME_Int_Read16(State, srcSeg, srcOfs, &State->AX.W);
 		if(ret)	return ret;
 		STRING_FOOTER();
 	}
@@ -181,9 +201,9 @@ DEF_OPCODE_FCN(CMP, SB)
 	uint8_t	*dest=&tmp1, *src=&tmp2;
 	const int	width = 8;
 	
-	ret = RME_Int_Read8(State, State->DS, srcOfs, &tmp1);
+	ret = RME_Int_Read8(State, srcSeg, srcOfs, &tmp1);
 	if(ret)	return ret;
-	ret = RME_Int_Read8(State, State->ES, destOfs, &tmp2);
+	ret = RME_Int_Read8(State, destSeg, destOfs, &tmp2);
 	if(ret)	return ret;
 	
 	{ALU_OPCODE_CMP_CODE}
@@ -203,9 +223,9 @@ DEF_OPCODE_FCN(CMP, SW)
 		uint32_t	*dest=&tmp1, *src=&tmp2;
 		const int	width = 32;
 		
-		ret = RME_Int_Read32(State, State->DS, srcOfs, &tmp1);
+		ret = RME_Int_Read32(State, srcSeg, srcOfs, &tmp1);
 		if(ret)	return ret;
-		ret = RME_Int_Read32(State, State->ES, destOfs, &tmp2);
+		ret = RME_Int_Read32(State, destSeg, destOfs, &tmp2);
 		if(ret)	return ret;
 		
 		{ALU_OPCODE_CMP_CODE}
@@ -219,9 +239,9 @@ DEF_OPCODE_FCN(CMP, SW)
 		uint16_t	*dest=&tmp1, *src=&tmp2;
 		const int	width = 16;
 		
-		ret = RME_Int_Read16(State, State->DS, srcOfs, &tmp1);
+		ret = RME_Int_Read16(State, srcSeg, srcOfs, &tmp1);
 		if(ret)	return ret;
-		ret = RME_Int_Read16(State, State->ES, destOfs, &tmp2);
+		ret = RME_Int_Read16(State, destSeg, destOfs, &tmp2);
 		if(ret)	return ret;
 		
 		{ALU_OPCODE_CMP_CODE}
@@ -239,9 +259,9 @@ DEF_OPCODE_FCN(SCA, SB)
 	STRING_HEAD(1, 1, 0, "", "", 1);
 	
 	uint8_t	tmp;
-	uint8_t	*dest=&tmp, *src=&State->AX.B.L;
+	uint8_t	*src=&tmp, *dest=&State->AX.B.L;
 	const int	width = 8;
-	ret = RME_Int_Read8(State, State->ES, destOfs, &tmp);
+	ret = RME_Int_Read8(State, destSeg, destOfs, &tmp);
 	if(ret)	return ret;
 	
 	{ALU_OPCODE_CMP_CODE}
@@ -258,10 +278,10 @@ DEF_OPCODE_FCN(SCA, SW)
 	{
 		STRING_HEAD(1, 1, 0, "", " EAX", 4);
 		uint32_t	tmp;
-		uint32_t	*dest=&tmp, *src=&State->AX.D;
+		uint32_t	*src=&tmp, *dest=&State->AX.D;
 		const int	width = 32;
 		
-		ret = RME_Int_Read32(State, State->ES, destOfs, &tmp);
+		ret = RME_Int_Read32(State, destSeg, destOfs, &tmp);
 		if(ret)	return ret;
 		
 		{ALU_OPCODE_CMP_CODE}
@@ -273,10 +293,10 @@ DEF_OPCODE_FCN(SCA, SW)
 	{
 		STRING_HEAD(1, 1, 0, "", " AX", 2);
 		uint16_t	tmp;
-		uint16_t	*dest=&tmp, *src=&State->AX.W;
+		uint16_t	*src=&tmp, *dest=&State->AX.W;
 		const int	width = 16;
 		
-		ret = RME_Int_Read16(State, State->ES, destOfs, &tmp);
+		ret = RME_Int_Read16(State, destSeg, destOfs, &tmp);
 		if(ret)	return ret;
 		
 		{ALU_OPCODE_CMP_CODE}
@@ -298,7 +318,7 @@ DEF_OPCODE_FCN(IN, SB)
 	ret = inB(State, State->DX.W, &tmp);
 	if(ret)	return ret;
 	
-	ret = RME_Int_Write8(State, State->ES, destOfs, tmp);
+	ret = RME_Int_Write8(State, destSeg, destOfs, tmp);
 	if(ret)	return ret;
 	
 	STRING_FOOTER();
@@ -314,7 +334,7 @@ DEF_OPCODE_FCN(IN, SW)
 		uint32_t	tmp;
 		ret = inD(State, State->DX.W, &tmp);
 		if(ret)	return ret;
-		ret = RME_Int_Write32(State, State->ES, destOfs, tmp);
+		ret = RME_Int_Write32(State, destSeg, destOfs, tmp);
 		if(ret)	return ret;
 		STRING_FOOTER();
 	}
@@ -324,7 +344,7 @@ DEF_OPCODE_FCN(IN, SW)
 		uint16_t	tmp;
 		ret = inW(State, State->DX.W, &tmp);
 		if(ret)	return ret;
-		ret = RME_Int_Write16(State, State->ES, destOfs, tmp);
+		ret = RME_Int_Write16(State, destSeg, destOfs, tmp);
 		if(ret)	return ret;
 		STRING_FOOTER();
 	}
@@ -338,7 +358,7 @@ DEF_OPCODE_FCN(OUT, SB)
 	
 	uint8_t	tmp;
 	
-	ret = RME_Int_Read8(State, State->DS, srcOfs, &tmp);
+	ret = RME_Int_Read8(State, srcSeg, srcOfs, &tmp);
 	if(ret)	return ret;
 	
 	ret = outB(State, State->DX.W, tmp);
@@ -355,7 +375,7 @@ DEF_OPCODE_FCN(OUT, SW)
 	{
 		STRING_HEAD(0, 0, 1, " DX", "", 4);
 		uint32_t	tmp;
-		ret = RME_Int_Read32(State, State->ES, destOfs, &tmp);
+		ret = RME_Int_Read32(State, srcSeg, srcOfs, &tmp);
 		if(ret)	return ret;
 		ret = outD(State, State->DX.W, tmp);
 		if(ret)	return ret;
@@ -365,7 +385,7 @@ DEF_OPCODE_FCN(OUT, SW)
 	{
 		STRING_HEAD(0, 0, 1, " DX", "", 2);
 		uint16_t	tmp;
-		ret = RME_Int_Read16(State, State->ES, destOfs, &tmp);
+		ret = RME_Int_Read16(State, srcSeg, srcOfs, &tmp);
 		if(ret)	return ret;
 		ret = outW(State, State->DX.W, tmp);
 		if(ret)	return ret;

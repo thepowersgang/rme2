@@ -30,8 +30,10 @@ void	PutString(const char *String, uint32_t BGC, uint32_t FGC);
 SDL_Surface	*gScreen;
 char	*gasFDDs[4] = {"fdd.img", NULL, NULL, NULL};
 FILE	*gaFDDs[4];
-char	*gsBinaryFile;
-char	*gsDosExe;
+const char	*gsBinaryFile;
+const char	*gsDosExe;
+const char	*gsMemoryDumpFile;
+ int	gbDisableGUI = 0;
 uint8_t	gaMemory[0x110000];
 
 // === CODE ===
@@ -47,12 +49,23 @@ int main(int argc, char *argv[])
 	// TODO: Better parameter interpretation
 	for( i = 1; i < argc; i ++ )
 	{
-		if( argv[i][0] == '-' )
+		if( argv[i][0] == '-' && argv[i][1] == '-' )
+		{
+			if( strcmp(argv[i], "--nogui") == 0 ) {
+				gbDisableGUI = 1;
+			}
+			else {
+			}
+		}
+		else if( argv[i][0] == '-' )
 		{
 			switch( argv[i][1] )
 			{
 			case 'b':
 				gsBinaryFile = argv[++i];
+				break;
+			case 'O':
+				gsMemoryDumpFile = argv[++i];
 				break;
 			case 'd':
 				gsDosExe = argv[++i];
@@ -67,9 +80,11 @@ int main(int argc, char *argv[])
 	}
 
 	signal(SIGINT, exit);
-	
-	gScreen = SDL_SetVideoMode(80*8, 25*16, 32, SDL_HWSURFACE);
-	PutString("RME NativeTest\r\n", COL_BLACK, COL_WHITE);
+
+	if( !gbDisableGUI ) {
+		gScreen = SDL_SetVideoMode(80*8, 25*16, 32, SDL_HWSURFACE);
+		PutString("RME NativeTest\r\n", COL_BLACK, COL_WHITE);
+	}
 
 	// Open FDD image
 	printf("Loading '%s'\n", gasFDDs[0]);
@@ -80,20 +95,20 @@ int main(int argc, char *argv[])
 	}
 
 	// Fill with a #UD
-	//memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
-	memset(gaMemory, 0xCC, sizeof(gaMemory));	// 0xCC = INT 3
+	memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
+	//memset(gaMemory, 0xCC, sizeof(gaMemory));	// 0xCC = INT 3
 
 	// Create BIOS Structures
 	// - BIOS Entrypoint (All BIOS calls are HLE, so trap them)
-	gaMemory[0xF0000] = 0x67;	// XCHG (RMX)
-	gaMemory[0xF0001] = 0311;	// r BX BX
+	gaMemory[0xF0000+i*2] = 0x67;	// XCHG (RMX)
+	gaMemory[0xF0001+i*2] = 0311;	// r BX BX
 	// - Interrupt Vector Table
 	for( i = 0; i < 0x100; i ++ )
 	{
-		gaMemory[i*4+0] = 0x00;
-		gaMemory[i*4+1] = 0xF0;
-		gaMemory[i*4+2] = 0x00;
-		gaMemory[i*4+3] = 0x00;
+		gaMemory[i*4+0] = i;
+		gaMemory[i*4+1] = 0x00;
+		gaMemory[i*4+2] = RME_HLE_CS&0xFF;
+		gaMemory[i*4+3] = RME_HLE_CS>>8;
 	}
 	// - Disk Paramter Block
 	{
@@ -139,7 +154,8 @@ int main(int argc, char *argv[])
 		FILE	*fp = fopen(gsBinaryFile, "rb");
 		 int	len;
 		
-		printf("Booting '%s' at 0x400\n", gsBinaryFile);
+		memset(gaMemory, 0, 0x400);
+		printf("Booting '%s' at 0xF0000\n", gsBinaryFile);
 		
 		fseek(fp, 0, SEEK_END);
 		len = ftell(fp);
@@ -151,12 +167,12 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			fread( &gaMemory[0x400], len, 1, fp );
+			fread( &gaMemory[0xF0000], len, 1, fp );
 		}
 		fclose(fp);
 
-		emu->CS = 0x0040;
-		emu->IP = 0x0000;
+		emu->CS = 0xF000;
+		emu->IP = 0xFFF0;
 	}
 	else
 	{
@@ -179,11 +195,20 @@ int main(int argc, char *argv[])
 	}
 	
 	
-	emu->SS = 0xA000;
+//	emu->SS = 0xA000;
 	emu->SP.W = 0xFFFE;
 	*(uint16_t*)&gaMemory[0xA0000-2] = 0xFFFF;
 
 	ret = RME_Call(emu);
+
+	// Write out memory
+	if( gsMemoryDumpFile )
+	{
+		FILE *fp = fopen(gsMemoryDumpFile, "wb");
+		fwrite(gaMemory, 1024*1024, 1, fp);
+		fclose(fp);
+		printf("\n--- Memory written to '%s'", gsMemoryDumpFile);
+	}
 
 	switch( ret )
 	{
@@ -203,16 +228,23 @@ int main(int argc, char *argv[])
 	case RME_ERR_DIVERR:
 		printf("\n--- ERROR: Division Fault\n");
 		return 1;
-	case RME_ERR_HALT: {
-		SDL_Event	e;
-		SDL_WM_SetCaption("RME - CPU Halted, press any key to quit", "RME - Halted");
-		while( SDL_WaitEvent(&e) )
-		{
-			if(e.type == SDL_QUIT)
-				exit(0);
-			else if(e.type == SDL_KEYDOWN)
-				exit(0);
+	case RME_ERR_HALT:
+		if( gbDisableGUI ) {
+			printf("\n");
+			return 0;
 		}
+		else
+		{
+			SDL_Event	e;
+			SDL_WM_SetCaption("RME - CPU Halted, press any key to quit", "RME - Halted");
+			while( SDL_WaitEvent(&e) )
+			{
+				if(e.type == SDL_QUIT)
+					exit(0);
+				else if(e.type == SDL_KEYDOWN)
+					exit(0);
+			}
+			printf("\n--- STOP: CPU Halted\n");
 		}
 		break;
 	default:
@@ -489,7 +521,27 @@ int HLECall(tRME_State *State, int IntNum)
 				State->ES = 0xF100;	State->DI.W = 0x0000;
 			}
 			break;
-		
+
+		case 0x15:	// Get Disk Type
+			printf("HLE 0x13:0x15 - Get Disk Type 0x%02x\n", State->DX.B.L);
+			{
+				 int	cyl, heads, sec;
+				State->Flags &= ~FLAG_CF;
+				switch(GetDiskParams(State->DX.B.L, &cyl, &heads, &sec))
+				{
+				case 4:
+					State->AX.B.H = 2;
+					State->CX.W = sec * heads * cyl;
+					State->DX.W = 0;
+					break;
+				default:
+					State->AX.B.H = 0;
+					State->Flags |= FLAG_CF;
+					break;
+				}
+			}
+			break;		
+
 		// Extended Read
 		case 0x42:
 			{
@@ -506,7 +558,8 @@ int HLECall(tRME_State *State, int IntNum)
 				laddr = packet->Buffer.Segment*16 + packet->Buffer.Offset;
 				
 				
-				printf(" packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,LBAStart=0x%"PRIx64",BufferLong=0x%"PRIx64"}\n",
+				printf(" packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,"
+				       "LBAStart=0x%"PRIx64",BufferLong=0x%"PRIx64"}\n",
 					packet,
 					packet->Size, packet->Count,
 					packet->Buffer.Segment, packet->Buffer.Offset,
@@ -529,7 +582,7 @@ int HLECall(tRME_State *State, int IntNum)
 			break;
 		
 		default:
-			printf("HLE Call INT 0x13\n");
+			printf("HLE Call INT 0x13 AH=0x%02x unknown\n", State->AX.B.H);
 			RME_DumpRegs(State);
 			exit(1);
 		}

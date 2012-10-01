@@ -17,7 +17,7 @@ DEF_OPCODE_FCN(IN, ADx)
 
 DEF_OPCODE_FCN(IN, ADxX)
 {
-	if( State->Decoder.bOverrideAddress )
+	if( State->Decoder.bOverrideOperand )
 	{
 		DEBUG_S(" DX EAX");
 		return inD(State, State->DX.W, &State->AX.D);
@@ -42,7 +42,7 @@ DEF_OPCODE_FCN(IN, AIX)
 	uint8_t	port;
 	READ_INSTR8(port);
 	DEBUG_S(" 0x%02x", port);
-	if( State->Decoder.bOverrideAddress )
+	if( State->Decoder.bOverrideOperand )
 	{
 		DEBUG_S(" EAX");
 		return inD(State, port, &State->AX.D);
@@ -61,7 +61,7 @@ DEF_OPCODE_FCN(OUT, DxA)
 }
 DEF_OPCODE_FCN(OUT, DxAX)
 {
-	if( State->Decoder.bOverrideAddress )
+	if( State->Decoder.bOverrideOperand )
 	{
 		DEBUG_S(" EAX DX");
 		return outD(State, State->DX.W, State->AX.D);
@@ -85,7 +85,7 @@ DEF_OPCODE_FCN(OUT, AIX)
 {
 	uint8_t	port;
 	READ_INSTR8(port);
-	if( State->Decoder.bOverrideAddress )
+	if( State->Decoder.bOverrideOperand )
 	{
 		DEBUG_S(" EAX 0x%02x", port);
 		return outD(State, port, State->AX.D);

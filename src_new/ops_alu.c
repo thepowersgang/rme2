@@ -144,7 +144,7 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	case 32:	READ_INSTR32(val);DEBUG_S(" 0x%08x", val); break;\
 } } while(0)
 #define MISC_SELECT_OPERATION() do { switch( op_num ) { \
-	case 0:	_READIMM(); {ALU_OPCODE_TEST_CODE} break; \
+	case 0:	{dest=&val; _READIMM(); ALU_OPCODE_TEST_CODE SET_COMM_FLAGS(State, *dest, width);} break;\
 	case 1:	DEBUG_S(" Misc /1 UNDEF");	return RME_ERR_UNDEFOPCODE; \
 	case 2: {ALU_OPCODE_NOT_CODE} break; \
 	case 3: {ALU_OPCODE_NEG_CODE} break; \
@@ -207,7 +207,6 @@ DEF_OPCODE_FCN(Arith, MIX)
 		
 		ALU_SELECT_OPERATION();
 		SET_COMM_FLAGS(State, *dest, width);
-		State->Flags |= (*dest == 0xFFFFFFFF) ? FLAG_OF : 0;
 	}
 	else
 	{
@@ -248,7 +247,6 @@ DEF_OPCODE_FCN(Arith, MI8X)
 		
 		ALU_SELECT_OPERATION();
 		SET_COMM_FLAGS(State, *dest, width);
-		State->Flags |= (*dest == 0xFFFFFFFF) ? FLAG_OF : 0;
 	}
 	else
 	{
@@ -271,14 +269,12 @@ DEF_OPCODE_FCN(INC, Reg)
 		uint32_t	*dest = (void*)RegW(State, Param);
 		const int	width = 32;
 		{ALU_OPCODE_INC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
 		uint16_t	*dest = RegW(State, Param);
 		const int	width = 16;
 		{ALU_OPCODE_INC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;
@@ -291,14 +287,12 @@ DEF_OPCODE_FCN(DEC, Reg)
 		uint32_t	*dest = (void*)RegW(State, Param);
 		const int	width = 32;
 		{ALU_OPCODE_DEC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
 		uint16_t	*dest = RegW(State, Param);
 		const int	width = 16;
 		{ALU_OPCODE_DEC_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	return 0;
 }
@@ -320,10 +314,9 @@ DEF_OPCODE_FCN(ArithMisc, MI)	// 0xF6
 	
 	// Set up defaults
 	src = arg;
-	dest = &val;
+	dest = arg;
 	
 	MISC_SELECT_OPERATION();
-	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -346,16 +339,14 @@ DEF_OPCODE_FCN(ArithMisc, MIX)	// 0xF7
 	if( State->Decoder.bOverrideOperand )
 	{
 		const int	width=32;
-		uint32_t	val=0, *dest=&val, *src = arg;
+		uint32_t	val=0, *dest=arg, *src = arg;
 		MISC_SELECT_OPERATION();
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
 		const int	width=16;
-		uint16_t	val=0, *dest=&val, *src = arg;
+		uint16_t	val=0, *dest=arg, *src = arg;
 		MISC_SELECT_OPERATION();
-		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;
@@ -381,7 +372,7 @@ DEF_OPCODE_FCN(Shift, MI)
 	DEBUG_S(" 0x%02x", srcData);
 	
 	SHIFT_SELECT_OPERATION();
-	SET_COMM_FLAGS(State, *dest, width);
+//	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -411,7 +402,7 @@ DEF_OPCODE_FCN(Shift, MI8X)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
@@ -420,7 +411,7 @@ DEF_OPCODE_FCN(Shift, MI8X)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;
@@ -445,7 +436,7 @@ DEF_OPCODE_FCN(Shift, M1)
 	DEBUG_S(" 1");
 	
 	SHIFT_SELECT_OPERATION();
-	SET_COMM_FLAGS(State, *dest, width);
+//	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -474,7 +465,7 @@ DEF_OPCODE_FCN(Shift, M1X)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
@@ -483,7 +474,7 @@ DEF_OPCODE_FCN(Shift, M1X)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;
@@ -508,7 +499,7 @@ DEF_OPCODE_FCN(Shift, MCl)
 	DEBUG_S(" CL");
 	
 	SHIFT_SELECT_OPERATION();
-	SET_COMM_FLAGS(State, *dest, width);
+//	SET_COMM_FLAGS(State, *dest, width);
 	
 	return 0;
 }
@@ -537,7 +528,7 @@ DEF_OPCODE_FCN(Shift, MClX)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	else
 	{
@@ -546,7 +537,7 @@ DEF_OPCODE_FCN(Shift, MClX)
 		
 		SHIFT_SELECT_OPERATION();
 		
-		SET_COMM_FLAGS(State, *dest, width);
+//		SET_COMM_FLAGS(State, *dest, width);
 	}
 	
 	return 0;

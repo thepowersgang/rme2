@@ -44,8 +44,6 @@ DEF_OPCODE_FCN(Shift, MClX);	// 0xD3
 DEF_OPCODE_FCN(INC, Reg);
 DEF_OPCODE_FCN(DEC, Reg);
 
-DEF_OPCODE_FCN(AAA,z);
-
 // Push/Pop
 DEF_OPCODE_FCN(PUSH, Seg); DEF_OPCODE_FCN(POP, Seg);
 DEF_OPCODE_FCN(PUSH, Reg); DEF_OPCODE_FCN(POP, Reg);
@@ -71,7 +69,7 @@ DEF_OPCODE_FCN(MOV, MoA); DEF_OPCODE_FCN(MOV, MoAX);	// [imm16/32] := A
 DEF_OPCODE_FCN(MOV, RS );	// r = sr
 DEF_OPCODE_FCN(MOV, SR );	// sr = r
 DEF_OPCODE_FCN(MOV, RegB); DEF_OPCODE_FCN(MOV, Reg);	// r = I
-DEF_OPCODE_FCN(MOV,Z);	DEF_OPCODE_FCN(MOV,ZX);
+DEF_OPCODE_FCN(MOV, Z);   DEF_OPCODE_FCN(MOV, ZX);
 // Exchange Family
 DEF_OPCODE_FCN(XCHG, RM); DEF_OPCODE_FCN(XCHG, RMX);
 DEF_OPCODE_FCN(XCHG, Reg);
@@ -111,6 +109,7 @@ DEF_OPCODE_FCN(JS, N); DEF_OPCODE_FCN(JNS, N);
 DEF_OPCODE_FCN(JPE,N); DEF_OPCODE_FCN(JPO, N);
 DEF_OPCODE_FCN(JL, N); DEF_OPCODE_FCN(JGE, N);
 DEF_OPCODE_FCN(JLE,N); DEF_OPCODE_FCN(JG , N);
+DEF_OPCODE_FCN(JCXZ,S);
 
 // Call and Ret
 DEF_OPCODE_FCN(CALL, N);
@@ -122,6 +121,7 @@ DEF_OPCODE_FCN(RET, iF);	// Return, and pop imm16 bytes from stack
 // Interrupts
 DEF_OPCODE_FCN(INT, 3);	// INT 0x3 - Debug
 DEF_OPCODE_FCN(INT, I);	// INT imm8
+DEF_OPCODE_FCN(INTO, z);	// INTO - INT 4 if OF
 DEF_OPCODE_FCN(IRET, z);	// Interrupt Return
 
 // Overrides
@@ -135,18 +135,24 @@ DEF_OPCODE_FCN(Prefix, REPNZ);
 DEF_OPCODE_FCN(Flag, CLC); DEF_OPCODE_FCN(Flag, STC);
 DEF_OPCODE_FCN(Flag, CLI); DEF_OPCODE_FCN(Flag, STI);
 DEF_OPCODE_FCN(Flag, CLD); DEF_OPCODE_FCN(Flag, STD);
+DEF_OPCODE_FCN(Flag, CMC);
+DEF_OPCODE_FCN(Flag, SAHF);
+DEF_OPCODE_FCN(Flag, LAHF);
 
 // Misc
 DEF_OPCODE_FCN(CBW, z);	// Convert signed Byte to Word
 DEF_OPCODE_FCN(HLT, z);	// Halt Execution
 DEF_OPCODE_FCN(AAA, z);	// ASCII adjust AL after Addition
 DEF_OPCODE_FCN(AAS, z);	// ASCII adjust AL after Subtraction
+DEF_OPCODE_FCN(AAM, z);	// ASCII adjust AL after Multiply
+DEF_OPCODE_FCN(AAD, z);	// ASCII adjust AL before Division
 DEF_OPCODE_FCN(DAA, z);	// Decimal adjust AL after Addition
 DEF_OPCODE_FCN(DAS, z);	// Decimal adjust AL after Subtraction
 DEF_OPCODE_FCN(CWD, z);	// Convert Word to Doubleword
 DEF_OPCODE_FCN(LES, z);	// Load ES:r16/32 with m16:m16/32
 DEF_OPCODE_FCN(LDS, z);	// Load DS:r16/32 with m16:m16/32
 DEF_OPCODE_FCN(LEA, z);	// Load effective address into r16/32
+DEF_OPCODE_FCN(XLAT, z);	// Table Look-up Translation
 //DEF_OPCODE_FCN(FPU, ARITH);
 
 #endif

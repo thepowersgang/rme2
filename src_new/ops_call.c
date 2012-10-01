@@ -85,12 +85,6 @@ static inline int _CallInterrupt(tRME_State *State, int Num)
 	 int	ret;
 	uint16_t	seg, ofs;
 	
-	// High-Level Emulation Call
-	if( State->HLECallbacks[Num] ) {
-		State->HLECallbacks[Num](State, Num);
-		return 0;
-	}
-	
 	// Full emulation then
 	ret = RME_Int_Read16(State, 0, Num*4+0, &ofs);	// Offset
 	if(ret)	return ret;
@@ -102,12 +96,21 @@ static inline int _CallInterrupt(tRME_State *State, int Num)
 		return RME_ERR_BADMEM;
 	}
 	
+	// High-Level Emulation Call (only if not overridden)
+	if( seg == RME_HLE_CS && ofs == Num )
+	{
+		if( State->HLECallbacks[Num] )
+			State->HLECallbacks[Num](State, Num);
+		return 0;
+	}
+	
 	PUSH( State->Flags );
 	PUSH( State->CS );
-	PUSH( State->IP );
+	PUSH( State->IP + State->Decoder.IPOffset );
 	State->IP = ofs;
 	State->CS = seg;
-	
+	State->Flags &= ~(FLAG_IF|FLAG_TF);	
+
 	State->Decoder.bDontChangeIP = 1;
 	
 	return 0;
@@ -124,6 +127,13 @@ DEF_OPCODE_FCN(INT, I)	// INT imm8
 	READ_INSTR8(num);
 	DEBUG_S(" 0x%x", num);
 	return _CallInterrupt(State, num);
+}
+DEF_OPCODE_FCN(INTO, z)	// INTO - INT 4 if OF
+{
+	if( State->Flags & FLAG_OF )
+		return _CallInterrupt(State, 4);
+	else
+		return 0;
 }
 DEF_OPCODE_FCN(IRET, z)	// Interrupt Return
 {

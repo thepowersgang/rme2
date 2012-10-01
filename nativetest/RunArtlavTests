@@ -1,0 +1,19 @@
+#!/bin/sh
+cd `dirname $0`
+
+gcc -std=c99 cmpmembin.c -o cmpmembin || exit
+make -C src || exit
+
+echo "" > ArtlavTestLog.log
+
+for asmfile in Artlav_80186_tests/*.asm; do
+	binfile=${asmfile%.asm}.bin
+	memfile=`dirname $binfile`/res_`basename $binfile`
+	echo $asmfile
+	if [ ! -f $binfile ] ; then
+		nasm $asmfile -f binary -o $binfile
+	fi
+	./tester -b $binfile -O test_mem_dump.dmp --nogui >> ArtlavTestLog.log || exit
+	./cmpmembin $memfile test_mem_dump.dmp || exit
+done
+rm test_mem_dump.dmp

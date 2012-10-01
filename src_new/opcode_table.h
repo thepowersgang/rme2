@@ -68,9 +68,11 @@ const tOperation	caOperations[256] = {
 	/* 0x50 */	DEF_REG_OP(PUSH),
 	/* PUSH R */
 	/* 0x58 */	DEF_REG_OP(POP),
-	/* PUSHA, POPA, 6x #UD */
+	/* PUSHA, POPA, 2x #UD */
 	/* 0x60 */	DEF_OP(PUSH,A), DEF_OP(POP,A), UNDEF_OP, UNDEF_OP,
+	/*  2x #UD, OPSZ, ADDRSZ */
 	/*  0x64*/	UNDEF_OP, UNDEF_OP, DEF_OP(Ovr, OpSize), DEF_OP(Ovr, AddrSize),
+	/* PUSH I, #UD, PUSH I8, #UD */
 	/* 0x68 */	DEF_OP(PUSH,I), UNDEF_OP, DEF_OP(PUSH,I8), UNDEF_OP,
 	/*  0x6C*/	DEF_OP(IN,SB), DEF_OP(IN,SW), DEF_OP(OUT,SB), DEF_OP(OUT,SW),
 	// Short Conditional Jumps
@@ -84,8 +86,8 @@ const tOperation	caOperations[256] = {
 	/* 0x88 */	DEF_OP(MOV,MR), DEF_OP(MOV,MRX), DEF_OP(MOV,RM), DEF_OP(MOV,RMX),
 	/*  0x8C*/	DEF_OP(MOV,RS), DEF_OP(LEA,z), DEF_OP(MOV,SR), DEF_OP(POP,MX),
 	/* 0x90 */	DEF_REG_OP(XCHG),
-	/* 0x98 */	DEF_OP(CBW,z), DEF_OP(CBW,z), DEF_OP(CALL,F), UNDEF_OP,
-	/*  0x9C*/	DEF_OP(PUSH,F), DEF_OP(POP,F), UNDEF_OP, UNDEF_OP,
+	/* 0x98 */	DEF_OP(CBW,z), DEF_OP(CWD,z), DEF_OP(CALL,F), UNDEF_OP,
+	/*  0x9C*/	DEF_OP(PUSH,F), DEF_OP(POP,F), DEF_OP(Flag,SAHF), DEF_OP(Flag,LAHF),
 	/* 0xA0 */	DEF_OP(MOV,AMo), DEF_OP(MOV,AMoX), DEF_OP(MOV,MoA), DEF_OP(MOV,MoAX),
 	/*  0xA4*/	DEF_OP(MOV,SB), DEF_OP(MOV,SW), DEF_OP(CMP,SB), DEF_OP(CMP,SW),
 	/* 0xA8 */	DEF_OP(TEST,AI), DEF_OP(TEST,AIX), DEF_OP(STO,SB), DEF_OP(STO,SW),
@@ -96,18 +98,18 @@ const tOperation	caOperations[256] = {
 				DEF_OP(RET,iN), DEF_OP(RET,N),
 	/*  0xC4*/	DEF_OP(LES,z), DEF_OP(LDS,z), DEF_OP(MOV,MI), DEF_OP(MOV,MIX),
 	/* 0xC8 */	UNDEF_OP, UNDEF_OP, DEF_OP(RET,iF), DEF_OP(RET,F),
-	/*  0xCC*/	DEF_OP(INT,3), DEF_OP(INT,I), UNDEF_OP, DEF_OP(IRET,z),
+	/*  0xCC*/	DEF_OP(INT,3), DEF_OP(INT,I), DEF_OP(INTO,z), DEF_OP(IRET,z),
 	/* 0xD0 */	DEF_OP_N(Shift,M1,casShiftOps), DEF_OP_N(Shift,M1X,casShiftOps),
 				DEF_OP_N(Shift,MCl,casShiftOps), DEF_OP_N(Shift,MClX,casShiftOps),
-	/*  0xD4*/	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
+	/*  0xD4*/	DEF_OP(AAM,z), DEF_OP(AAD,z), UNDEF_OP, DEF_OP(XLAT,z),
 	/* 0xD8 */	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
 	/*  0xDC*/	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
-	/* 0xE0 */	DEF_OP(LOOPNZ,S), DEF_OP(LOOPZ,S), DEF_OP(LOOP,S), UNDEF_OP,
+	/* 0xE0 */	DEF_OP(LOOPNZ,S), DEF_OP(LOOPZ,S), DEF_OP(LOOP,S), DEF_OP(JCXZ,S),
 	/*  0xE4*/	DEF_OP(IN,AI ), DEF_OP(IN,AIX ), DEF_OP(OUT,AI ), DEF_OP(OUT,AIX ),
 	/* 0xE8 */	DEF_OP(CALL,N), DEF_OP(JMP,N), DEF_OP(JMP,F), DEF_OP(JMP,S),
 	/*  0xEC*/	DEF_OP(IN,ADx), DEF_OP(IN,ADxX), DEF_OP(OUT,DxA), DEF_OP(OUT,DxAX),
-	/* 0xF0 */	UNDEF_OP, UNDEF_OP, DEF_OP(Prefix, REP), DEF_OP(Prefix, REPNZ),
-	/*  0xF4*/	DEF_OP(HLT,z), UNDEF_OP,
+	/* 0xF0 */	UNDEF_OP, UNDEF_OP, DEF_OP(Prefix, REPNZ), DEF_OP(Prefix, REP),
+	/*  0xF4*/	DEF_OP(HLT,z), DEF_OP(Flag,CMC),
 				DEF_OP_N(ArithMisc, MI,casMiscOps), DEF_OP_N(ArithMisc, MIX,casMiscOps),
 	/* 0xF8 */	DEF_OP(Flag, CLC), DEF_OP(Flag, STC), DEF_OP(Flag, CLI), DEF_OP(Flag, STI),
 	/*  0xFC*/	DEF_OP(Flag, CLD), DEF_OP(Flag, STD), DEF_OP(Unary,M), DEF_OP(Unary,MX)
@@ -137,7 +139,7 @@ const tOperation	caOperations0F[256] = {
 	/*  0x8C*/	DEF_OP(JL,N), DEF_OP(JGE,N), DEF_OP(JLE,N), DEF_OP(JG ,N),
 	/* 0x90 */	REP_8(UNDEF_OP),
 	/* 0x98 */	REP_8(UNDEF_OP),
-	/* 0xA0 */	REP_8(UNDEF_OP),
+	/* 0xA0 */	REP_8(UNDEF_OP),	// 0xA0/0xA1 = PUSH/POP FS
 	/* 0xA8 */	REP_8(UNDEF_OP),
 	/* 0xB0 */	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
 	/*  0xB4*/	UNDEF_OP, UNDEF_OP, DEF_OP(MOV,Z), DEF_OP(MOV,ZX),

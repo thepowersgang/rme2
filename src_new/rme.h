@@ -59,6 +59,8 @@
  */
 #define RME_MAGIC_CS	0xFFFF
 
+#define RME_HLE_CS	0xB800
+
 /**
  * \brief Error codes returned by ::RME_Call and ::RME_CallInt
  */
