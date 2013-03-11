@@ -71,6 +71,7 @@ tRME_State *RME_CreateState(void)
  */
 void RME_DumpRegs(tRME_State *State)
 {
+	#if DEBUG
 	DEBUG_S("\n");
 	#if USE_SIZE_OVERRIDES == 1
 	DEBUG_S("EAX %08x  ECX %08x  EDX %08x  EBX %08x\n",
@@ -97,6 +98,7 @@ void RME_DumpRegs(tRME_State *State)
 	if(State->Flags & FLAG_PF)	DEBUG_S(" PF");
 	if(State->Flags & FLAG_CF)	DEBUG_S(" CF");
 	DEBUG_S("\n");
+	#endif
 }
 
 int RME_int_CallInt(tRME_State *State, int Num)
