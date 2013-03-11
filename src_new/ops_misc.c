@@ -168,7 +168,7 @@ DEF_OPCODE_FCN(CWD, z)
 static inline int _LDS_LES_internal(tRME_State *State, uint16_t *SegRegPtr)
 {
 	 int	ret;
-	uint16_t	seg, *src, *dest;
+	uint16_t	seg, *dest;
 	uint32_t	addr;
 	 int	mod, rrr, mmm;
 	
@@ -182,24 +182,23 @@ static inline int _LDS_LES_internal(tRME_State *State, uint16_t *SegRegPtr)
 	dest = RegW(State, rrr);
 	
 	// Get address of the destination
-	ret = RME_Int_GetPtr(State, seg, addr, (void**)&src);
-	if(ret)	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
 	{
-		*(uint32_t*)dest = *(uint32_t*)src;
+		ret = RME_Int_Read32(State, seg, addr, (uint32_t*)dest);
+		if(ret)	return ret;
 		addr += 4;
 	}
 	else
 	{
-		*dest = *src;
+		ret = RME_Int_Read16(State, seg, addr, dest);
+		if(ret)	return ret;
 		addr += 2;
 	}
 
 	// Get segment
-	ret = RME_Int_GetPtr(State, seg, addr, (void**)&src);
+	ret = RME_Int_Read16(State, seg, addr, SegRegPtr);
 	if(ret)	return ret;
-	*SegRegPtr = *src;
 	
 	return 0;
 }

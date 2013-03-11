@@ -75,16 +75,17 @@
 	return 0; \
 }
 #define CREATE_ALU_OPCODE_FCN_AIX(__name, __code...) DEF_OPCODE_FCN(__name,AIX) {\
-	uint32_t srcData; \
 	if(State->Decoder.bOverrideOperand) { \
-		uint32_t *dest=&State->AX.D, *src=(void*)&srcData; \
+		uint32_t srcData; \
+		uint32_t *dest=&State->AX.D, *src=&srcData; \
 		 int	width=32;\
 		READ_INSTR32( *src ); \
 		DEBUG_S(" EAX 0x%08x", *src); \
 		__code \
 		SET_COMM_FLAGS(State,*dest,width); \
 	} else { \
-		uint16_t *dest=&State->AX.W, *src=(void*)&srcData; \
+		uint16_t srcData; \
+		uint16_t *dest=&State->AX.W, *src=&srcData; \
 		 int	width=16;\
 		READ_INSTR16( *src ); \
 		DEBUG_S(" AX 0x%04x", *src); \

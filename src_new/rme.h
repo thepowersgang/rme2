@@ -152,7 +152,7 @@ typedef struct sRME_State
 	 * \note 0x110000 bytes is all that is accessable using the realmode
 	 *       segmentation scheme (true max is 0xFFFF0+0xFFFF = 0x10FFEF)
 	 */
-	uint8_t	*Memory[0x110000/RME_BLOCK_SIZE];	// 1Mib,64KiB in 256 4 KiB blocks
+	void	*Memory[0x110000/RME_BLOCK_SIZE];	// 1Mib,64KiB in 256 4 KiB blocks
 
 	/**
 	 * \brief High-Level Emulation Callback

@@ -266,49 +266,49 @@ static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg
 	if(State->Memory[block] == NULL)	return RME_ERR_BADMEM;
 	# endif
 	#endif
-	*Ptr = &State->Memory[block][addr%RME_BLOCK_SIZE];
+	*Ptr = (void*)( (uintptr_t)State->Memory[block] + (addr%RME_BLOCK_SIZE) );
 	return 0;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Read8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst) {
-	uint8_t	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, (void**)&ptr);
+	void	*ptr;
+	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
 	if(ret)	return ret;
-	*Dst = *ptr;
+	*Dst = *(uint8_t*)ptr;
 	return 0;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Read16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t *Dst) {
-	uint16_t	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, (void**)&ptr);
+	void	*ptr;
+	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
 	if(ret)	return ret;
-	*Dst = *ptr;
+	*Dst = *(uint16_t*)ptr;
 	return 0;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Read32(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint32_t *Dst) {
-	uint32_t	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, (void**)&ptr);
+	void	*ptr;
+	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
 	if(ret)	return ret;
-	*Dst = *ptr;
+	*Dst = *(uint32_t*)ptr;
 	return 0;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Write8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t Val) {
-	uint8_t	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, (void**)&ptr);
+	void	*ptr;
+	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
 	if(ret)	return ret;
-	*ptr = Val;
+	*(uint8_t*)ptr = Val;
 	return 0;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Write16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t Val) {
-	uint16_t	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, (void**)&ptr);
+	void	*ptr;
+	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
 	if(ret)	return ret;
-	*ptr = Val;
+	*(uint16_t*)ptr = Val;
 	return 0;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint32_t Val) {
-	uint32_t	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, (void**)&ptr);
+	void	*ptr;
+	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
 	if(ret)	return ret;
-	*ptr = Val;
+	*(uint32_t*)ptr = Val;
 	return 0;
 }
 
