@@ -150,6 +150,7 @@ DEF_OPCODE_FCN(Flag, LAHF);
 
 // Misc
 DEF_OPCODE_FCN(CBW, z);	// Convert signed Byte to Word
+DEF_OPCODE_FCN(BSF,z);	// Bit Search Forward
 DEF_OPCODE_FCN(HLT, z);	// Halt Execution
 DEF_OPCODE_FCN(AAA, z);	// ASCII adjust AL after Addition
 DEF_OPCODE_FCN(AAS, z);	// ASCII adjust AL after Subtraction

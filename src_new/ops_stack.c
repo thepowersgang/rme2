@@ -79,8 +79,8 @@ DEF_OPCODE_FCN(POP, F)
 {
 	 int	ret;
 	uint16_t	tmp;
-	const uint16_t	keep_mask = 0x7002;
-	const uint16_t	set_mask  = 0x0FD5;
+	const uint16_t	keep_mask = 0x0002;
+	const uint16_t	set_mask  = 0xFFD5;
 	POP(tmp);
 	State->Flags &= keep_mask;
 	tmp &= set_mask;

@@ -16,6 +16,30 @@ DEF_OPCODE_FCN(CBW, z)	// Convert signed Byte to Word
 	return 0;
 }
 
+DEF_OPCODE_FCN(BSF,z)
+{
+	int ret;
+	uint16_t	*dest, *src;
+	
+	ret = RME_Int_ParseModRMX(State, &dest, &src, 0);
+	if(ret)	return ret;
+	
+	if( *src == 0 )
+	{
+		State->Flags |= FLAG_ZF;
+	}
+	else
+	{
+		const int width = 16;
+		 int	val = 0;
+		while(val < width && 0 == ((*src) & (1 << val)))
+			val ++;
+		*dest = val;
+		State->Flags &= ~FLAG_ZF;
+	}
+	return 0;
+}
+
 // 0xf4 - Halt execution
 DEF_OPCODE_FCN(HLT, z)
 {
