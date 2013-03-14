@@ -408,9 +408,20 @@ int HLECall10(tRME_State *State, int IntNum)
 	 int	ret;
 	switch(State->AX.B.H)
 	{
+	// VIDEO - SET VIDEO MODE
+	case 0x00:
+		printf("HLE Call INT 0x10 BH=0x00 Unimpl\n");
+		exit(1);
+	// VIDEO - TELETYPE OUTPUT
 	case 0x0E:
 		// TODO: Better Colours
 		PutChar(State->AX.B.L, COL_BLACK, COL_WHITE);
+		break;
+	// VIDEO - GET CURRENT VIDEO MODE
+	case 0x0F:
+		State->AX.B.H = 80;	// Cols
+		State->AX.B.L = 0x03;	// Mode Number
+		State->BX.B.L = 0;	// Page
 		break;
 	default:
 		printf("HLE Call INT 0x10 BH=%02x Unk\n", State->AX.B.H);
@@ -619,6 +630,33 @@ int HLECall(tRME_State *State, int IntNum)
 					}
 				}
 			}
+			break;
+		// KEYBOARD - CHECK FOR KEYSTROKE
+		case 0x01:
+			// TODO: Keyboard queue
+			if( 0 /* Item in queue */ )
+			{
+				// Ignore scancodes > 83? (Non 83/84 keycodes)
+				State->AX.B.H = 29;
+				State->AX.B.L = 'a';
+				State->Flags &= ~FLAG_ZF;
+			}
+			else
+			{
+				State->Flags |= FLAG_ZF;
+			}
+			break;
+		// KEYBOARD - GET SHIFT FLAGS
+		case 0x02:
+			// 0: Right Shift
+			// 1: Left Shift
+			// 2: Ctrl key
+			// 3: Alt key
+			// 4: Scroll Lock
+			// 5: Num Lock
+			// 6: Caps Lock
+			// 7: Insert Lock
+			State->AX.B.L = 0;
 			break;
 		// KEYBOARD - CHECK FOR ENHANCED KEYSTROKE
 		case 0x11:
