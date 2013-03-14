@@ -18,6 +18,7 @@ t_farptr	LoadDosExe(tRME_State *state, const char *file);
 t_farptr LoadDosExe(tRME_State *state, const char *file)
 {
 	tExeHeader	hdr;
+	t_farptr	ret = {0,0};
 	FILE	*fp;
 	 int	dataStart, dataSize;
 	 int	relocStart, i;
@@ -26,14 +27,14 @@ t_farptr LoadDosExe(tRME_State *state, const char *file)
 	fp = fopen(file, "rb");
 	if(!fp) {
 		printf("File '%s' does not exist\n", file);
-		return ;
+		return ret;
 	}
 	fread(&hdr, sizeof(tExeHeader), 1, fp);
 	
 	// Sanity check signature
 	if(hdr.signature != 0x5A4D) {
 		printf("DOS EXE header is invalid (%04x)\n", hdr.signature);
-		return ;
+		return ret;
 	}
 	
 	dataStart = hdr.header_paragraphs*16;
@@ -68,5 +69,5 @@ t_farptr LoadDosExe(tRME_State *state, const char *file)
 	
 	fclose(fp);
 
-
+	return ret;
 }
