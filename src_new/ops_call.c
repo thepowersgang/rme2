@@ -80,6 +80,77 @@ DEF_OPCODE_FCN(RET, iF)	// Return, and pop imm16 bytes from stack
 	return 0;
 }
 
+DEF_OPCODE_FCN(ENTER, z)
+{
+	 int	ret;
+	uint16_t	size;
+	uint16_t	frameTemp;
+	uint8_t 	level;
+	READ_INSTR16(size);
+	DEBUG_S(" 0x%04x", size);
+	READ_INSTR8(level);
+	level &= 32-1;
+	DEBUG_S(" %i", level);
+
+	// No operand override: selected by stack size	
+	PUSH(State->BP.W);
+	frameTemp = State->SP.W;
+	
+	if( level > 1 )
+	{
+		 int	i;
+		for( i = 1; i < level; i ++ )
+		{
+			if( State->Decoder.bOverrideOperand )
+			{
+				ERROR_S("- ENTER Operand Override unimplimented");
+				return RME_ERR_UNDEFOPCODE;
+				//uint32_t val;
+				//State->BP.W -= 4;
+				//RME_Int_Read32(State, State->SS, State->BP.W, &val);
+				//PUSH32(val);
+			}
+			else
+			{
+				uint16_t	val;
+				State->BP.W -= 2;
+				ret = RME_Int_Read16(State, State->SS, State->BP.W, &val);
+				if(ret)	return ret;
+				PUSH(val);
+			}
+		}
+	
+		if( State->Decoder.bOverrideOperand )
+		{
+			//PUSH32(frameTemp);
+		}
+		else
+		{
+			PUSH(frameTemp);
+		}
+	}
+	
+	// StackSize==16
+	State->BP.W = frameTemp;
+	if( State->SP.W < size )
+		;	// #SS
+	State->SP.W -= size;
+	
+	return 0;
+}
+
+DEF_OPCODE_FCN(LEAVE, z)
+{
+	 int	ret;
+	State->SP.W = State->BP.W;
+	if( State->Decoder.bOverrideOperand ) {
+		//POP32(State->BP.D);
+	}
+	else
+		POP(State->BP.W);
+	return 0;
+}
+
 static inline int _CallInterrupt(tRME_State *State, int Num)
 {
 	 int	ret;

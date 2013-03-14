@@ -71,9 +71,9 @@ const tOperation	caOperations[256] = {
 	/* PUSHA, POPA, 2x #UD */
 	/* 0x60 */	DEF_OP(PUSH,A), DEF_OP(POP,A), UNDEF_OP, UNDEF_OP,
 	/*  2x #UD, OPSZ, ADDRSZ */
-	/*  0x64*/	UNDEF_OP, UNDEF_OP, DEF_OP(Ovr, OpSize), DEF_OP(Ovr, AddrSize),
+	/*  0x64*/	DEF_OP_A(Ovr,Seg,SREG_FS), DEF_OP_A(Ovr,Seg,SREG_GS), DEF_OP(Ovr, OpSize), DEF_OP(Ovr, AddrSize),
 	/* PUSH I, #UD, PUSH I8, #UD */
-	/* 0x68 */	DEF_OP(PUSH,I), UNDEF_OP, DEF_OP(PUSH,I8), UNDEF_OP,
+	/* 0x68 */	DEF_OP(PUSH,I), DEF_OP(IMUL,MIX), DEF_OP(PUSH,I8), DEF_OP(IMUL,MI8X),
 	/*  0x6C*/	DEF_OP(IN,SB), DEF_OP(IN,SW), DEF_OP(OUT,SB), DEF_OP(OUT,SW),
 	// Short Conditional Jumps
 	/* 0x70 */	DEF_OP(JO,S), DEF_OP(JNO,S), DEF_OP(JC ,S), DEF_OP(JNC,S),
@@ -97,7 +97,7 @@ const tOperation	caOperations[256] = {
 	/* 0xC0 */	DEF_OP_N(Shift,MI,casShiftOps), DEF_OP_N(Shift, MI8X,casShiftOps),
 				DEF_OP(RET,iN), DEF_OP(RET,N),
 	/*  0xC4*/	DEF_OP(LES,z), DEF_OP(LDS,z), DEF_OP(MOV,MI), DEF_OP(MOV,MIX),
-	/* 0xC8 */	UNDEF_OP, UNDEF_OP, DEF_OP(RET,iF), DEF_OP(RET,F),
+	/* 0xC8 */	DEF_OP(ENTER,z), DEF_OP(LEAVE,z), DEF_OP(RET,iF), DEF_OP(RET,F),
 	/*  0xCC*/	DEF_OP(INT,3), DEF_OP(INT,I), DEF_OP(INTO,z), DEF_OP(IRET,z),
 	/* 0xD0 */	DEF_OP_N(Shift,M1,casShiftOps), DEF_OP_N(Shift,M1X,casShiftOps),
 				DEF_OP_N(Shift,MCl,casShiftOps), DEF_OP_N(Shift,MClX,casShiftOps),
@@ -139,12 +139,12 @@ const tOperation	caOperations0F[256] = {
 	/*  0x8C*/	DEF_OP(JL,N), DEF_OP(JGE,N), DEF_OP(JLE,N), DEF_OP(JG ,N),
 	/* 0x90 */	REP_8(UNDEF_OP),
 	/* 0x98 */	REP_8(UNDEF_OP),
-	/* 0xA0 */	DEF_OP_A(PUSH,Seg,SREG_FS), DEF_OP_A(PUSH,Seg,SREG_GS), UNDEF_OP, UNDEF_OP,
+	/* 0xA0 */	DEF_OP_A(PUSH,Seg,SREG_FS), DEF_OP_A(POP,Seg,SREG_FS), UNDEF_OP, UNDEF_OP,
 	/*  0xA4*/	DEF_OP(SHLD, I8), DEF_OP(SHLD, Cl), UNDEF_OP, UNDEF_OP,
-	/* 0xA8 */	REP_4(UNDEF_OP),
-	/*  0xAC*/	DEF_OP(SHRD, I8), DEF_OP(SHRD, Cl), UNDEF_OP, UNDEF_OP,
-	/* 0xB0 */	UNDEF_OP, UNDEF_OP, UNDEF_OP, UNDEF_OP,
-	/*  0xB4*/	UNDEF_OP, UNDEF_OP, DEF_OP(MOV,Z), DEF_OP(MOV,ZX),
+	/* 0xA8 */	DEF_OP_A(PUSH,Seg,SREG_GS), DEF_OP_A(POP,Seg,SREG_GS), UNDEF_OP, UNDEF_OP,
+	/*  0xAC*/	DEF_OP(SHRD, I8), DEF_OP(SHRD, Cl), UNDEF_OP, DEF_OP(IMUL,RMX),
+	/* 0xB0 */	UNDEF_OP, UNDEF_OP, DEF_OP(LSS,z), UNDEF_OP,
+	/*  0xB4*/	DEF_OP(LFS, z), DEF_OP(LGS,z), DEF_OP(MOV,Z), DEF_OP(MOV,ZX),
 	/* 0xB8 */	REP_8(UNDEF_OP),
 	/* 0xC0 */	REP_8(UNDEF_OP),
 	/* 0xC8 */	REP_8(UNDEF_OP),

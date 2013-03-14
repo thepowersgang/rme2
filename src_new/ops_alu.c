@@ -376,6 +376,87 @@ DEF_OPCODE_FCN(ArithMisc, MIX)	// 0xF7
 	return 0;
 }
 
+DEF_OPCODE_FCN(IMUL,MI8X)	// 0x6B
+{
+	 int	ret;
+
+	const int	width = 16;
+	uint16_t	result;
+	uint16_t	*src, *dest;
+	uint16_t	imm16;
+
+	if( State->Decoder.bOverrideOperand )
+	{
+		ERROR_S("IMUL (MIX) OvrSize Unimpl");
+		return RME_ERR_BUG;
+	}
+	ret = RME_Int_ParseModRMX(State, &dest, &src, 0);
+	if(ret)	return ret;
+
+	READ_INSTR8S(imm16);
+	DEBUG_S(" 0x%04x", imm16);
+
+	result = *src * imm16;
+	SET_COMM_FLAGS(State, result, width);
+	_IMUL_FLAGS
+	*dest = result;
+	
+	return 0;
+}
+
+DEF_OPCODE_FCN(IMUL,MIX)	// 0x69
+{
+	 int	ret;
+
+	const int	width = 16;
+	uint16_t	result;
+	uint16_t	*src, *dest;
+	uint16_t	imm16;
+
+	if( State->Decoder.bOverrideOperand )
+	{
+		ERROR_S("IMUL (MIX) OvrSize Unimpl");
+		return RME_ERR_BUG;
+	}
+	ret = RME_Int_ParseModRMX(State, &dest, &src, 0);
+	if(ret)	return ret;
+
+	READ_INSTR16(imm16);
+	DEBUG_S(" 0x%04x", imm16);
+
+	result = *src * imm16;
+	SET_COMM_FLAGS(State, result, width);
+	_IMUL_FLAGS
+	*dest = result;
+	
+	return 0;
+}
+
+DEF_OPCODE_FCN(IMUL,RMX)	// 0x0F 0xAF
+{
+	 int	ret;
+
+	const int	width = 16;
+	uint16_t	result;
+	uint16_t	*src, *dest;
+
+	if( State->Decoder.bOverrideOperand )
+	{
+		ERROR_S("IMUL (MIX) OvrSize Unimpl");
+		return RME_ERR_BUG;
+	}
+	ret = RME_Int_ParseModRMX(State, &dest, &src, 0);
+	if(ret)	return ret;
+	
+	result = *src * *dest;
+	
+	SET_COMM_FLAGS(State, result, width);
+	_IMUL_FLAGS
+	*dest = result;
+	
+	return 0;
+}
+
 // 0xC0 - Shift by Imm8
 DEF_OPCODE_FCN(Shift, MI)
 {

@@ -348,7 +348,7 @@ static inline uint16_t	*Seg(tRME_State *State, int code)
 	case SREG_SS:	DEBUG_S(" SS");	return &State->SS;
 	case SREG_DS:	DEBUG_S(" DS");	return &State->DS;
 	case SREG_FS:	DEBUG_S(" FS");	return &State->FS;
-	case SREG_GS:	DEBUG_S(" FS");	return &State->GS;
+	case SREG_GS:	DEBUG_S(" GS");	return &State->GS;
 	default:
 		DEBUG_S("ERROR - Invalid value passed to Seg(). (%i is not a segment)", code);
 	}

@@ -241,6 +241,13 @@
 		State->Flags |= FLAG_CF|FLAG_OF; \
 	else \
 		State->Flags &= ~(FLAG_CF|FLAG_OF);
+
+#define _IMUL_FLAGS	\
+	if(result < -(1 << (width-1)) || result > ((1 << (width-1))-1)) \
+		State->Flags |= FLAG_CF|FLAG_OF; \
+	else \
+		State->Flags &= ~(FLAG_CF|FLAG_OF);
+
 // Misc 5: IMUL
 // CF,OF set if upper bits set; SF, ZF, AF and PF are undefined
 #define ALU_OPCODE_IMUL_CODE \
@@ -264,10 +271,7 @@
 		SET_COMM_FLAGS(State, State->AX.D, width);\
 		break; \
 	} \
-	if(result < -(1 << (width-1)) || result > ((1 << (width-1))-1)) \
-		State->Flags |= FLAG_CF|FLAG_OF; \
-	else \
-		State->Flags &= ~(FLAG_CF|FLAG_OF);
+	_IMUL_FLAGS
 
 // Misc 6: DIV
 // NOTE: DIV is a real special case, as it has substantially different

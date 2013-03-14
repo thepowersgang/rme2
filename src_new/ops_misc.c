@@ -212,6 +212,18 @@ DEF_OPCODE_FCN(LDS, z)	// Load DS:r16/32 with m16:m16/32
 {
 	return _LDS_LES_internal(State, &State->DS);
 }
+DEF_OPCODE_FCN(LFS, z)
+{
+	return _LDS_LES_internal(State, &State->FS);
+}
+DEF_OPCODE_FCN(LGS, z)
+{
+	return _LDS_LES_internal(State, &State->GS);
+}
+DEF_OPCODE_FCN(LSS, z)
+{
+	return _LDS_LES_internal(State, &State->SS);
+}
 
 DEF_OPCODE_FCN(LEA, z)
 {

@@ -33,6 +33,9 @@ DEF_OPCODE_FCN(TEST, AIX);
 
 DEF_OPCODE_FCN(ArithMisc, MI);	// 0xF6
 DEF_OPCODE_FCN(ArithMisc, MIX);	// 0xF7
+DEF_OPCODE_FCN(IMUL,MI8X);	// 0x6B
+DEF_OPCODE_FCN(IMUL,MIX);	// 0x69
+DEF_OPCODE_FCN(IMUL,RMX);	// 0x0F 0xAF
 
 DEF_OPCODE_FCN(Shift, MI);	// 0xC0
 DEF_OPCODE_FCN(Shift, MI8X);	// 0xC1
@@ -122,6 +125,8 @@ DEF_OPCODE_FCN(RET, N);
 DEF_OPCODE_FCN(RET, F);
 DEF_OPCODE_FCN(RET, iN);	// Return, and pop imm16 bytes from stack
 DEF_OPCODE_FCN(RET, iF);	// Return, and pop imm16 bytes from stack
+DEF_OPCODE_FCN(ENTER, z);
+DEF_OPCODE_FCN(LEAVE, z);
 // Interrupts
 DEF_OPCODE_FCN(INT, 3);	// INT 0x3 - Debug
 DEF_OPCODE_FCN(INT, I);	// INT imm8
@@ -154,7 +159,10 @@ DEF_OPCODE_FCN(DAA, z);	// Decimal adjust AL after Addition
 DEF_OPCODE_FCN(DAS, z);	// Decimal adjust AL after Subtraction
 DEF_OPCODE_FCN(CWD, z);	// Convert Word to Doubleword
 DEF_OPCODE_FCN(LES, z);	// Load ES:r16/32 with m16:m16/32
-DEF_OPCODE_FCN(LDS, z);	// Load DS:r16/32 with m16:m16/32
+DEF_OPCODE_FCN(LDS, z);
+DEF_OPCODE_FCN(LFS, z);
+DEF_OPCODE_FCN(LGS, z);
+DEF_OPCODE_FCN(LSS, z);
 DEF_OPCODE_FCN(LEA, z);	// Load effective address into r16/32
 DEF_OPCODE_FCN(XLAT, z);	// Table Look-up Translation
 //DEF_OPCODE_FCN(FPU, ARITH);
