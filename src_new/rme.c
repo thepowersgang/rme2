@@ -505,7 +505,7 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, uint16_t *Segment, u
 	case 6:
 		if( mmm & 8 ) {
 			READ_INSTR16( disp );
-			DEBUG_S("0x%x", disp);
+			DEBUG_S("0x%04x", disp);
 			addr = disp;
 		}
 		else {

@@ -10,81 +10,75 @@
 #define _ALU_NSMASK	((1ULL << (width-1))-1)
 
 #define _ALU_ADD_SETFLAGS	\
-	State->Flags |= (*dest&_ALU_SMASK) == (*src&_ALU_SMASK) && (__v&_ALU_SMASK) != (*dest&_ALU_SMASK) ? FLAG_OF : 0; \
+	State->Flags |= (*dest&_ALU_SMASK) == (*src&_ALU_SMASK) && (v&_ALU_SMASK) != (*dest&_ALU_SMASK) ? FLAG_OF : 0; \
 	if( *dest ) \
-		State->Flags |= (__v <= *src) ? FLAG_CF : 0; \
+		State->Flags |= (v <= *src) ? FLAG_CF : 0; \
 	else \
-		State->Flags |= (__v < *src) ? FLAG_CF : 0; \
+		State->Flags |= (v < *src) ? FLAG_CF : 0; \
 	if( *dest&15 ) \
-		State->Flags |= (__v&15) <= (*src&15) ? FLAG_AF : 0;\
+		State->Flags |= (v&15) <= (*src&15) ? FLAG_AF : 0;\
 	else \
-		State->Flags |= (__v&15) < (*src&15) ? FLAG_AF : 0;
+		State->Flags |= (v&15) < (*src&15) ? FLAG_AF : 0;
 
 #define __SUB_FLAGS	\
 	State->Flags |= (*dest < r) ? FLAG_CF : 0; \
-	State->Flags |= ((*dest&15) < (r&15)) ? FLAG_AF : 0; \
+	State->Flags |= ((*dest&15) < (r&15)-c) ? FLAG_AF : 0; \
 	typeof(*dest) _sub_tmp = ( ((*dest ^ r) & (*dest ^ v)) & (1ULL<<(width-1)) ); \
 	if( _sub_tmp )	State->Flags |= FLAG_OF;
 // 0: Add
-#define ALU_OPCODE_ADD_CODE	do{\
-	typeof(*dest) __v = *dest + *src; \
+#define ALU_OPCODE_ADD_CODE	\
+	v = *dest + *src; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
-	_ALU_ADD_SETFLAGS \
-	*dest = __v; \
-	}while(0);
+	_ALU_ADD_SETFLAGS
 // 1: Bitwise OR
 #define ALU_OPCODE_OR_CODE	\
-	*dest |= *src; \
+	v = *dest | *src; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);
 // 2: Add with carry
-#define ALU_OPCODE_ADC_CODE	do{\
-	typeof(*dest) __v = *dest + *src + ((State->Flags & FLAG_CF) ? 1 : 0); \
+#define ALU_OPCODE_ADC_CODE	\
+	v = *dest + *src + ((State->Flags & FLAG_CF) ? 1 : 0); \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
 	_ALU_ADD_SETFLAGS \
-	if(*dest && __v == *src ) State->Flags |= FLAG_CF; \
-	*dest = __v; \
-	}while(0);
+	if(*dest && v == *src ) State->Flags |= FLAG_CF;
 // 3: Subtract with Borrow
 #define ALU_OPCODE_SBB_CODE	\
 	int c = (State->Flags & FLAG_CF) ? 1 : 0; \
 	uint64_t r = (*src + c); \
-	typeof(*dest) v = *dest - r; \
+	v = *dest - r; \
 	State->Flags &= ~(FLAG_OF|FLAG_CF|FLAG_AF); \
-	__SUB_FLAGS \
-	*dest = v;
+	__SUB_FLAGS
 // 4: Bitwise AND
 #define ALU_OPCODE_AND_CODE	\
-	*dest &= *src; \
+	v = *dest & *src; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);
 // 5: Subtract
 #define ALU_OPCODE_SUB_CODE	\
+	const int c = 0; \
 	typeof(*dest) r = *src; \
-	typeof(*dest) v = *dest - r; \
+	v = *dest - r; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
-	__SUB_FLAGS \
-	*dest = v;
+	__SUB_FLAGS
 // 6: Bitwise XOR
 #define ALU_OPCODE_XOR_CODE	\
-	*dest ^= *src; \
+	v = *dest ^ *src; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF);
 // 7: Compare
 // NOTE: The variable `hack` is just used as dummy space (and, yes it goes
 //       out of scope, but nothing else should come back in, so it doesn't
 //       matter)
 #define ALU_OPCODE_CMP_CODE	\
+	const int c = 0; \
 	typeof(*dest) r = *src; \
-	typeof(*dest) v = *dest - r; \
-	typeof(*dest) hack = 0;\
+	v = *dest - r; \
 	State->Flags &= ~(FLAG_PF|FLAG_ZF|FLAG_SF|FLAG_OF|FLAG_CF|FLAG_AF); \
 	__SUB_FLAGS \
-	dest = &hack; \
-	*dest = v;
+	dest = NULL;
 
 // x: Test
 #define ALU_OPCODE_TEST_CODE	\
-	typeof(*dest) v = *dest & *src; \
-	dest = &v; \
-	State->Flags &= ~(FLAG_OF|FLAG_CF);
+	v = (*dest) & (*src); \
+	State->Flags &= ~(FLAG_OF|FLAG_CF); \
+	dest = NULL;
 // x: NOT
 #define ALU_OPCODE_NOT_CODE	\
 	*dest = ~*src;

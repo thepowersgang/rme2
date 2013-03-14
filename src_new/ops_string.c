@@ -200,7 +200,7 @@ DEF_OPCODE_FCN(CMP, SB)
 	 int	ret;
 	STRING_HEAD(1, 1, 1, "", "", 1);
 	
-	uint8_t	tmp1, tmp2;
+	uint8_t	tmp1, tmp2, v;
 	uint8_t	*dest=&tmp1, *src=&tmp2;
 	const int	width = 8;
 	
@@ -210,7 +210,7 @@ DEF_OPCODE_FCN(CMP, SB)
 	if(ret)	return ret;
 	
 	{ALU_OPCODE_CMP_CODE}
-	SET_COMM_FLAGS(State, *dest, width);
+	SET_COMM_FLAGS(State, v, width);
 	
 	STRING_FOOTER();
 	return 0;
@@ -222,7 +222,7 @@ DEF_OPCODE_FCN(CMP, SW)
 	if( State->Decoder.bOverrideOperand )
 	{
 		STRING_HEAD(1, 1, 1, "", "", 4);
-		uint32_t	tmp1, tmp2;
+		uint32_t	tmp1, tmp2, v;
 		uint32_t	*dest=&tmp1, *src=&tmp2;
 		const int	width = 32;
 		
@@ -232,13 +232,13 @@ DEF_OPCODE_FCN(CMP, SW)
 		if(ret)	return ret;
 		
 		{ALU_OPCODE_CMP_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
+		SET_COMM_FLAGS(State, v, width);
 		STRING_FOOTER();
 	}
 	else
 	{
 		STRING_HEAD(1, 1, 1, "", "", 2);
-		uint16_t	tmp1, tmp2;
+		uint16_t	tmp1, tmp2, v;
 		uint16_t	*dest=&tmp1, *src=&tmp2;
 		const int	width = 16;
 		
@@ -248,7 +248,7 @@ DEF_OPCODE_FCN(CMP, SW)
 		if(ret)	return ret;
 		
 		{ALU_OPCODE_CMP_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
+		SET_COMM_FLAGS(State, v, width);
 		STRING_FOOTER();
 	}
 	
@@ -261,14 +261,14 @@ DEF_OPCODE_FCN(SCA, SB)
 	 int	ret;
 	STRING_HEAD(1, 1, 0, "", "", 1);
 	
-	uint8_t	tmp;
+	uint8_t	tmp, v;
 	uint8_t	*src=&tmp, *dest=&State->AX.B.L;
 	const int	width = 8;
 	ret = RME_Int_Read8(State, destSeg, destOfs, &tmp);
 	if(ret)	return ret;
 	
 	{ALU_OPCODE_CMP_CODE}
-	SET_COMM_FLAGS(State, *dest, width);
+	SET_COMM_FLAGS(State, v, width);
 	
 	STRING_FOOTER();
 	return 0;
@@ -280,7 +280,7 @@ DEF_OPCODE_FCN(SCA, SW)
 	if( State->Decoder.bOverrideOperand )
 	{
 		STRING_HEAD(1, 1, 0, "", " EAX", 4);
-		uint32_t	tmp;
+		uint32_t	tmp, v;
 		uint32_t	*src=&tmp, *dest=&State->AX.D;
 		const int	width = 32;
 		
@@ -288,14 +288,14 @@ DEF_OPCODE_FCN(SCA, SW)
 		if(ret)	return ret;
 		
 		{ALU_OPCODE_CMP_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
+		SET_COMM_FLAGS(State, v, width);
 		
 		STRING_FOOTER();
 	}
 	else
 	{
 		STRING_HEAD(1, 1, 0, "", " AX", 2);
-		uint16_t	tmp;
+		uint16_t	tmp, v;
 		uint16_t	*src=&tmp, *dest=&State->AX.W;
 		const int	width = 16;
 		
@@ -303,7 +303,7 @@ DEF_OPCODE_FCN(SCA, SW)
 		if(ret)	return ret;
 		
 		{ALU_OPCODE_CMP_CODE}
-		SET_COMM_FLAGS(State, *dest, width);
+		SET_COMM_FLAGS(State, v, width);
 		
 		STRING_FOOTER();
 	}

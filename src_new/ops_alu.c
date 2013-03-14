@@ -21,11 +21,12 @@
 #define CREATE_ALU_OPCODE_FCN_RM(__name, __code...) DEF_OPCODE_FCN(__name,RM) {\
 	 int	ret;\
 	const int	width=8; \
-	uint8_t	*dest=0, *src=0; \
+	uint8_t	v, *dest=0, *src=0; \
 	ret = RME_Int_ParseModRM(State, &dest, &src, 0); \
 	if(ret)	return ret; \
 	__code \
-	SET_COMM_FLAGS(State,*dest,width); \
+	SET_COMM_FLAGS(State,v,width); \
+	if(dest) *dest = v; \
 	return 0; \
 }
 #define CREATE_ALU_OPCODE_FCN_RMX(__name, __code...) DEF_OPCODE_FCN(__name,RMX) {\
@@ -34,26 +35,29 @@
 	ret = RME_Int_ParseModRMX(State, (void*)&destPtr, (void*)&srcPtr, 0); \
 	if(ret)	return ret; \
 	if(State->Decoder.bOverrideOperand) { \
-		uint32_t *dest=destPtr, *src=srcPtr; \
+		uint32_t v,*dest=destPtr, *src=srcPtr; \
 		 int	width=32;\
 		__code \
-		SET_COMM_FLAGS(State,*dest,width); \
+		SET_COMM_FLAGS(State,v,width); \
+		if(dest) *dest = v; \
 	} else { \
-		uint16_t *dest=destPtr, *src=srcPtr; \
+		uint16_t v,*dest=destPtr, *src=srcPtr; \
 		 int	width=16;\
 		__code \
-		SET_COMM_FLAGS(State,*dest,width); \
+		SET_COMM_FLAGS(State,v,width); \
+		if(dest) *dest = v; \
 	} \
 	return 0; \
 }
 #define CREATE_ALU_OPCODE_FCN_MR(__name, __code...) DEF_OPCODE_FCN(__name,MR) {\
 	 int	ret;\
 	const int	width=8; \
-	uint8_t	*dest=0, *src=0; \
+	uint8_t	v, *dest=0, *src=0; \
 	ret = RME_Int_ParseModRM(State, &src, &dest, 1); \
 	if(ret)	return ret; \
 	__code \
-	SET_COMM_FLAGS(State,*dest,width); \
+	SET_COMM_FLAGS(State,v,width); \
+	if(dest) *dest = v;\
 	return 0; \
 }
 #define CREATE_ALU_OPCODE_FCN_MRX(__name, __code...) DEF_OPCODE_FCN(__name,MRX) {\
@@ -62,45 +66,50 @@
 	ret = RME_Int_ParseModRMX(State, (void*)&srcPtr, (void*)&destPtr, 1); \
 	if(ret)	return ret; \
 	if(State->Decoder.bOverrideOperand) { \
-		uint32_t *dest=destPtr, *src=srcPtr; \
+		uint32_t v, *dest=destPtr, *src=srcPtr; \
 		 int	width=32;\
 		__code \
-		SET_COMM_FLAGS(State,*dest,width); \
+		SET_COMM_FLAGS(State,v,width); \
+		if(dest) *dest = v; \
 	} else { \
-		uint16_t *dest=destPtr, *src=srcPtr; \
+		uint16_t v, *dest=destPtr, *src=srcPtr; \
 		 int	width=16;\
 		__code \
-		SET_COMM_FLAGS(State,*dest,width); \
+		SET_COMM_FLAGS(State,v,width); \
+		if(dest) *dest = v;\
 	} \
 	return 0; \
 }
 #define CREATE_ALU_OPCODE_FCN_AI(__name, __code...) DEF_OPCODE_FCN(__name,AI) {\
 	const int	width=8; \
-	uint8_t srcData; \
+	uint8_t srcData, v; \
 	uint8_t	*dest=&State->AX.B.L, *src=&srcData; \
 	READ_INSTR8( srcData ); \
 	DEBUG_S(" AL 0x%02x", *src); \
 	__code \
-	SET_COMM_FLAGS(State,*dest,width); \
+	SET_COMM_FLAGS(State,v,width); \
+	if(dest) *dest = v;\
 	return 0; \
 }
 #define CREATE_ALU_OPCODE_FCN_AIX(__name, __code...) DEF_OPCODE_FCN(__name,AIX) {\
 	if(State->Decoder.bOverrideOperand) { \
-		uint32_t srcData; \
+		uint32_t srcData, v; \
 		uint32_t *dest=&State->AX.D, *src=&srcData; \
 		 int	width=32;\
 		READ_INSTR32( *src ); \
 		DEBUG_S(" EAX 0x%08x", *src); \
 		__code \
-		SET_COMM_FLAGS(State,*dest,width); \
+		SET_COMM_FLAGS(State,v,width); \
+		if(dest) *dest=v;\
 	} else { \
-		uint16_t srcData; \
+		uint16_t srcData, v; \
 		uint16_t *dest=&State->AX.W, *src=&srcData; \
 		 int	width=16;\
 		READ_INSTR16( *src ); \
 		DEBUG_S(" AX 0x%04x", *src); \
 		__code \
-		SET_COMM_FLAGS(State,*dest,width); \
+		SET_COMM_FLAGS(State,v,width); \
+		if(dest) *dest=v;\
 	} \
 	return 0; \
 }
@@ -150,12 +159,13 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	default: ERROR_S(" - Shift Undef %i\n", op_num); return RME_ERR_UNDEFOPCODE;\
 	} }while(0)
 #define _READIMM() do { switch(width) {\
-	case 8: 	READ_INSTR8(val);DEBUG_S(" 0x%02x", val); break;\
-	case 16:	READ_INSTR16(val);DEBUG_S(" 0x%04x", val); break;\
-	case 32:	READ_INSTR32(val);DEBUG_S(" 0x%08x", val); break;\
+	case 8: 	READ_INSTR8(v); DEBUG_S(" 0x%02x", v); break;\
+	case 16:	READ_INSTR16(v);DEBUG_S(" 0x%04x", v); break;\
+	case 32:	READ_INSTR32(v);DEBUG_S(" 0x%08x", v); break;\
+	default: ERROR_S(" - _READIMM size %i unk", width); return RME_ERR_UNDEFOPCODE;\
 } } while(0)
 #define MISC_SELECT_OPERATION() do { switch( op_num ) { \
-	case 0:	{dest=&val; _READIMM(); ALU_OPCODE_TEST_CODE SET_COMM_FLAGS(State, *dest, width);} break;\
+	case 0:	{dest=&v; _READIMM(); ALU_OPCODE_TEST_CODE SET_COMM_FLAGS(State, v, width);} break;\
 	case 1:	DEBUG_S(" Misc /1 UNDEF");	return RME_ERR_UNDEFOPCODE; \
 	case 2: {ALU_OPCODE_NOT_CODE} break; \
 	case 3: {ALU_OPCODE_NEG_CODE} break; \
@@ -170,7 +180,7 @@ DEF_OPCODE_FCN(Arith, MI)
 {
 	 int	ret;
 	const int width = 8;
-	uint8_t	srcData;
+	uint8_t	srcData, v;
 	uint8_t *dest, *src = &srcData;
 	 int	op_num;
 	
@@ -188,7 +198,8 @@ DEF_OPCODE_FCN(Arith, MI)
 	READ_INSTR8(srcData);
 	DEBUG_S(" 0x%02x", srcData);
 	ALU_SELECT_OPERATION();
-	SET_COMM_FLAGS(State, *dest, width);
+	SET_COMM_FLAGS(State, v, width);
+	if(dest)	*dest = v;
 	
 	return 0;
 }
@@ -211,23 +222,25 @@ DEF_OPCODE_FCN(Arith, MIX)
 	State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
 	if( State->Decoder.bOverrideOperand )
 	{
-		uint32_t	srcData, *src = &srcData, *dest = destPtr;
+		uint32_t	v, srcData, *src = &srcData, *dest = destPtr;
 		const int	width = 32;
 		READ_INSTR32(srcData);
 		DEBUG_S(" 0x%08x", srcData);
 		
 		ALU_SELECT_OPERATION();
-		SET_COMM_FLAGS(State, *dest, width);
+		SET_COMM_FLAGS(State, v, width);
+		if(dest)	*dest = v;
 	}
 	else
 	{
-		uint16_t	srcData, *src = &srcData, *dest = destPtr;
+		uint16_t	v, srcData, *src = &srcData, *dest = destPtr;
 		const int	width = 16;
 		READ_INSTR16(srcData);
 		DEBUG_S(" 0x%04x", srcData);
 		
 		ALU_SELECT_OPERATION();
-		SET_COMM_FLAGS(State, *dest, width);
+		SET_COMM_FLAGS(State, v, width);
+		if(dest)	*dest = v;
 	}
 	
 	return 0;
@@ -251,23 +264,25 @@ DEF_OPCODE_FCN(Arith, MI8X)
 	State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
 	if( State->Decoder.bOverrideOperand )
 	{
-		uint32_t	srcData, *src = &srcData, *dest = destPtr;
+		uint32_t	v, srcData, *src = &srcData, *dest = destPtr;
 		const int	width = 32;
 		READ_INSTR8S( srcData );
 		DEBUG_S(" 0x%08x", srcData);
 		
 		ALU_SELECT_OPERATION();
-		SET_COMM_FLAGS(State, *dest, width);
+		SET_COMM_FLAGS(State, v, width);
+		if(dest)	*dest = v;
 	}
 	else
 	{
-		uint16_t	srcData, *src = &srcData, *dest = destPtr;
+		uint16_t	v, srcData, *src = &srcData, *dest = destPtr;
 		const int	width = 16;
 		READ_INSTR8S( srcData );
 		DEBUG_S(" 0x%04x", srcData);
 		
 		ALU_SELECT_OPERATION();
-		SET_COMM_FLAGS(State, *dest, width);
+		SET_COMM_FLAGS(State, v, width);
+		if(dest)	*dest = v;
 	}
 	
 	return 0;
@@ -312,13 +327,11 @@ DEF_OPCODE_FCN(ArithMisc, MI)	// 0xF6
 {
 	 int	ret, op_num;
 	const int	width = 8;
-	uint8_t	val=0, *arg;
+	uint8_t	v=0, *arg;
 	uint8_t	*src, *dest;
 
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
-	
-//	DEBUG_S(" %s", casMiscOps[op_num]);
 	
 	ret = RME_Int_ParseModRM(State, NULL, &arg, 0);
 	if(ret)	return ret;
@@ -350,13 +363,13 @@ DEF_OPCODE_FCN(ArithMisc, MIX)	// 0xF7
 	if( State->Decoder.bOverrideOperand )
 	{
 		const int	width=32;
-		uint32_t	val=0, *dest=arg, *src = arg;
+		uint32_t	v=0, *dest=arg, *src = arg;
 		MISC_SELECT_OPERATION();
 	}
 	else
 	{
 		const int	width=16;
-		uint16_t	val=0, *dest=arg, *src = arg;
+		uint16_t	v=0, *dest=arg, *src = arg;
 		MISC_SELECT_OPERATION();
 	}
 	

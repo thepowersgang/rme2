@@ -207,42 +207,42 @@ enum opcodes {
  * \brief Read an unsigned byte from the instruction stream
  * Reads 1 byte as an unsigned integer from CS:IP and increases IP by 1.
  */
-#define READ_INSTR8(dst)	do{int r;uint8_t v;\
-	r=RME_Int_Read8(State,State->CS,State->IP+State->Decoder.IPOffset,&v);\
+#define READ_INSTR8(dst)	do{int r;uint8_t __v;\
+	r=RME_Int_Read8(State,State->CS,State->IP+State->Decoder.IPOffset,&__v);\
 	if(r)	return r;\
 	State->Decoder.IPOffset++;\
-	(dst) = v;\
+	(dst) = __v;\
 	}while(0)
 /**
  * \brief Read a signed byte from the instruction stream
  * Reads 1 byte as an signed integer from CS:IP and increases IP by 1.
  */
-#define READ_INSTR8S(dst)	do{int r;int8_t v;\
-	r=RME_Int_Read8(State,State->CS,State->IP+State->Decoder.IPOffset,(uint8_t*)&v);\
+#define READ_INSTR8S(dst)	do{int r;int8_t __v;\
+	r=RME_Int_Read8(State,State->CS,State->IP+State->Decoder.IPOffset,(uint8_t*)&__v);\
 	if(r)	return r;\
 	State->Decoder.IPOffset++;\
-	(dst) = v;\
+	(dst) = __v;\
 	}while(0)
 /**
  * \brief Read a word from the instruction stream
  * Reads 2 bytes as an unsigned integer from CS:IP and increases IP by 2.
  */
 //	printf(" CS:IP+%i ", State->Decoder.IPOffset);
-#define READ_INSTR16(dst)	do{int r;uint16_t v;\
-	r=RME_Int_Read16(State,State->CS,State->IP+State->Decoder.IPOffset,&v);\
+#define READ_INSTR16(dst)	do{int r;uint16_t __v;\
+	r=RME_Int_Read16(State,State->CS,State->IP+State->Decoder.IPOffset,&__v);\
 	if(r)	return r;\
 	State->Decoder.IPOffset+=2;\
-	(dst) = v;\
+	(dst) = __v;\
 	}while(0)
 /**
  * \brief Read a word from the instruction stream
  * Reads 4 bytes as an unsigned integer from CS:IP and increases IP by 4.
  */
-#define READ_INSTR32(dst)	do{int r;uint32_t v;\
-	r=RME_Int_Read32(State,State->CS,State->IP+State->Decoder.IPOffset,&v);\
+#define READ_INSTR32(dst)	do{int r;uint32_t __v;\
+	r=RME_Int_Read32(State,State->CS,State->IP+State->Decoder.IPOffset,&__v);\
 	if(r)	return r;\
 	State->Decoder.IPOffset+=4;\
-	(dst) = v;\
+	(dst) = __v;\
 	}while(0)
 /**
  * \brief Get a segment with overrides
