@@ -267,13 +267,23 @@ void PutChar(uint8_t ch, uint32_t BGC, uint32_t FGC)
 	static int curX=0, curY=0;
 	SDL_Rect	rc = {0,0,1,1};
 	
+	if( gbDisableGUI )
+		return ;
+
 	switch( ch )
 	{
 	case '\n':
 		curY ++;
+		// TODO: Scroll
+		if(curY == 25)
+			curY = 0;
 		return ;
 	case '\r':
 		curX = 0;
+		return ;
+	case 8:
+		if( curX > 0 )
+			curX --;
 		return ;
 	}
 	
@@ -290,6 +300,8 @@ void PutChar(uint8_t ch, uint32_t BGC, uint32_t FGC)
 		{
 			if(*font & (1 << (FONT_WIDTH-x-1)))
 				SDL_FillRect(gScreen, &rc, FGC);
+			else
+				SDL_FillRect(gScreen, &rc, BGC);
 		}
 		rc.x -= FONT_WIDTH;
 		buf = (void*)( (intptr_t)buf + gScreen->pitch );
@@ -401,7 +413,7 @@ int HLECall10(tRME_State *State, int IntNum)
 		PutChar(State->AX.B.L, COL_BLACK, COL_WHITE);
 		break;
 	default:
-		printf("HLE Call INT 0x10\n");
+		printf("HLE Call INT 0x10 BH=%02x Unk\n", State->AX.B.H);
 		RME_DumpRegs(State);
 		exit(1);
 	}
@@ -510,7 +522,6 @@ int HLECall(tRME_State *State, int IntNum)
 				heads --;
 				// Sector numbers are 1 based, so `sec` doesn't need to be changed
 				
-				// TODO: Use GetDiskParams here
 				State->AX.W = 0x0000;	// AX - Zero for success
 				State->BX.B.L = type;	// BL - Disk Type (1.44M Floppy)
 				State->CX.B.L = sec | ((cyl>>8)<<6);	// CL - Max Sector Number
@@ -535,6 +546,7 @@ int HLECall(tRME_State *State, int IntNum)
 					State->DX.W = 0;
 					break;
 				default:
+					printf(" - Disk type unknown\n");
 					State->AX.B.H = 0;
 					State->Flags |= FLAG_CF;
 					break;
@@ -558,12 +570,12 @@ int HLECall(tRME_State *State, int IntNum)
 				laddr = packet->Buffer.Segment*16 + packet->Buffer.Offset;
 				
 				
-				printf(" packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,"
-				       "LBAStart=0x%"PRIx64",BufferLong=0x%"PRIx64"}\n",
-					packet,
-					packet->Size, packet->Count,
-					packet->Buffer.Segment, packet->Buffer.Offset,
-					packet->LBAStart, packet->BufferLong);
+				//printf(" packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,"
+				//	"LBAStart=0x%"PRIx64",BufferLong=0x%"PRIx64"}\n",
+				//	packet,
+				//	packet->Size, packet->Count,
+				//	packet->Buffer.Segment, packet->Buffer.Offset,
+				//	packet->LBAStart, packet->BufferLong);
 				
 				if(laddr + packet->Count*512 > 0x110000) {
 					State->Flags |= 1;
@@ -592,6 +604,7 @@ int HLECall(tRME_State *State, int IntNum)
 	case 0x16:
 		switch(State->AX.B.H)
 		{
+		// KEYBOARD - GET KEYSTROKE
 		case 0x00:
 			{
 				SDL_Event	e;
@@ -607,8 +620,22 @@ int HLECall(tRME_State *State, int IntNum)
 				}
 			}
 			break;
+		// KEYBOARD - CHECK FOR ENHANCED KEYSTROKE
+		case 0x11:
+			// TODO: Keyboard queue
+			if( 0 /* Item in queue */ )
+			{
+				State->AX.B.H = 29;
+				State->AX.B.L = 'a';
+				State->Flags &= ~FLAG_ZF;
+			}
+			else
+			{
+				State->Flags |= FLAG_ZF;
+			}
+			break;
 		default:
-			printf("HLE Call INT 0x16\n");
+			printf("HLE Call INT 0x16: AH=0x%02x unk\n", State->AX.B.H);
 			RME_DumpRegs(State);
 			exit(1);
 		}
