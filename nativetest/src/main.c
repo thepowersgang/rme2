@@ -17,9 +17,10 @@
 #define COL_WHITE	0x00FFFFFF
 
 // === IMPORTS ===
-extern void	LoadDosExe(tRME_State *State, const char *file);
+t_farptr	LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr);
 
 // === PROTOTYPES ===
+void	HandleEvent(SDL_Event *Event);
  int	HLECall10(tRME_State *State, int IntNum);
  int	HLECall12(tRME_State *State, int IntNum);
  int	HLECall(tRME_State *State, int IntNum);
@@ -35,6 +36,13 @@ const char	*gsDosExe;
 const char	*gsMemoryDumpFile;
  int	gbDisableGUI = 0;
 uint8_t	gaMemory[0x110000];
+// - GUI Key Queue
+const int	cKeyBufferSize = 16;
+ int	gKeyBufferPos = 0;
+struct {
+	uint8_t	Scancode;
+	uint8_t	ASCII;
+} gKeyBuffer[16];
 
 // === CODE ===
 int main(int argc, char *argv[])
@@ -147,7 +155,17 @@ int main(int argc, char *argv[])
 	if( gsDosExe )
 	{
 		printf("Loading DOS Exe \"%s\"\n", gsDosExe);
-		LoadDosExe(emu, gsDosExe);
+		t_farptr stack;
+		t_farptr ep = LoadDosExe(emu, gsDosExe, &stack);
+		if( ep.Segment == 0 && ep.Offset == 0 ) {
+			// Load error
+			return -1;
+		}
+		
+		emu->CS = ep.Segment;
+		emu->IP = ep.Offset;
+		emu->SS = stack.Segment;
+		emu->SP.W = stack.Offset;
 	}
 	else if( gsBinaryFile )
 	{
@@ -199,7 +217,15 @@ int main(int argc, char *argv[])
 	emu->SP.W = 0xFFFE;
 	*(uint16_t*)&gaMemory[0xA0000-2] = 0xFFFF;
 
-	ret = RME_Call(emu);
+	// Main emulation loop
+	while( (ret = RME_RunOne(emu)) == RME_ERR_OK )
+	{
+		SDL_Event	ev;
+		while( SDL_PollEvent(&ev) )
+		{
+			HandleEvent(&ev);
+		}
+	}
 
 	// Write out memory
 	if( gsMemoryDumpFile )
@@ -253,6 +279,31 @@ int main(int argc, char *argv[])
 	}
 
 	return 0;
+}
+
+void HandleEvent(SDL_Event *Event)
+{
+	switch(Event->type)
+	{
+	case SDL_QUIT:
+		fprintf(stderr, "Window closed, quitting\n");
+		exit(0);
+	case SDL_KEYDOWN:
+		if( gKeyBufferPos == cKeyBufferSize )
+		{
+			// BEEP!
+		}
+		else
+		{
+			gKeyBuffer[gKeyBufferPos].Scancode = Event->key.keysym.sym;
+//			gKeyBuffer[gKeyBufferPos].ASCII = Event->key.keysym.unicode;
+			gKeyBuffer[gKeyBufferPos].ASCII = Event->key.keysym.sym;
+			printf("%i: %x %x\n",
+				gKeyBufferPos, gKeyBuffer[gKeyBufferPos].Scancode, gKeyBuffer[gKeyBufferPos].ASCII);
+			gKeyBufferPos ++;
+		}
+		break;
+	}
 }
 
 #include "font.h"
@@ -453,11 +504,11 @@ int HLECall(tRME_State *State, int IntNum)
 		{
 			SDL_Event	e;
 			SDL_WM_SetCaption("RME - Debug Exception, press any key to quit", "RME - Stopped");
+			gKeyBufferPos = 0;
 			while( SDL_WaitEvent(&e) )
 			{
-				if(e.type == SDL_QUIT)
-					exit(0);
-				else if(e.type == SDL_KEYDOWN)
+				HandleEvent(&e);
+				if( gKeyBufferPos )
 					exit(0);
 			}
 		}
@@ -617,28 +668,25 @@ int HLECall(tRME_State *State, int IntNum)
 		{
 		// KEYBOARD - GET KEYSTROKE
 		case 0x00:
+			while( gKeyBufferPos == 0 )
 			{
 				SDL_Event	e;
-				while( SDL_WaitEvent(&e) )
-				{
-					if(e.type == SDL_QUIT)
-						exit(0);
-					else if(e.type == SDL_KEYDOWN) {
-						State->AX.B.L = e.key.keysym.sym;
-						State->AX.B.H = e.key.keysym.sym;
-						break;
-					}
-				}
+				SDL_WaitEvent(&e);
+				HandleEvent(&e);
 			}
+			State->AX.B.H = gKeyBuffer[0].Scancode;
+			State->AX.B.L = gKeyBuffer[0].ASCII;
+			gKeyBufferPos --;
+			memmove(gKeyBuffer, gKeyBuffer+1, gKeyBufferPos*sizeof(gKeyBuffer[0]));
 			break;
 		// KEYBOARD - CHECK FOR KEYSTROKE
 		case 0x01:
 			// TODO: Keyboard queue
-			if( 0 /* Item in queue */ )
+			if( gKeyBufferPos > 0 )
 			{
 				// Ignore scancodes > 83? (Non 83/84 keycodes)
-				State->AX.B.H = 29;
-				State->AX.B.L = 'a';
+				State->AX.B.H = gKeyBuffer[0].Scancode;
+				State->AX.B.L = gKeyBuffer[0].ASCII;
 				State->Flags &= ~FLAG_ZF;
 			}
 			else
@@ -660,11 +708,11 @@ int HLECall(tRME_State *State, int IntNum)
 			break;
 		// KEYBOARD - CHECK FOR ENHANCED KEYSTROKE
 		case 0x11:
-			// TODO: Keyboard queue
-			if( 0 /* Item in queue */ )
+			if( gKeyBufferPos > 0 )
 			{
-				State->AX.B.H = 29;
-				State->AX.B.L = 'a';
+				// Ignore scancodes > 83? (Non 83/84 keycodes)
+				State->AX.B.H = gKeyBuffer[0].Scancode;
+				State->AX.B.L = gKeyBuffer[0].ASCII;
 				State->Flags &= ~FLAG_ZF;
 			}
 			else

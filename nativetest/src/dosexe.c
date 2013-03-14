@@ -9,13 +9,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DESTINATION_SEG	0x8000
+#define DESTINATION_SEG	0x100
 
-// === PROTOTYPES ===
-t_farptr	LoadDosExe(tRME_State *state, const char *file);
+inline unsigned int MIN(unsigned int a, unsigned int b) {return (a < b)?a:b;}
 
 // === CODE ===
-t_farptr LoadDosExe(tRME_State *state, const char *file)
+t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 {
 	tExeHeader	hdr;
 	t_farptr	ret = {0,0};
@@ -29,7 +28,10 @@ t_farptr LoadDosExe(tRME_State *state, const char *file)
 		printf("File '%s' does not exist\n", file);
 		return ret;
 	}
-	fread(&hdr, sizeof(tExeHeader), 1, fp);
+	if( fread(&hdr, sizeof(tExeHeader), 1, fp) != 1 ) {
+		perror("LoadDosExe - fread header");
+		exit(-1);
+	}
 	
 	// Sanity check signature
 	if(hdr.signature != 0x5A4D) {
@@ -37,37 +39,71 @@ t_farptr LoadDosExe(tRME_State *state, const char *file)
 		return ret;
 	}
 	
-	dataStart = hdr.header_paragraphs*16;
-	dataSize = hdr.blocks_in_file*512 - dataSize;
-	relocStart = hdr.reloc_table_offset;
 	printf("hdr.cs = %x, hdr.ip = %x\n", hdr.cs, hdr.ip);
+	dataStart = hdr.header_paragraphs*16;
+	if( hdr.bytes_in_last_block )
+		dataSize = (hdr.blocks_in_file-1)*512 + hdr.bytes_in_last_block;
+	else
+		dataSize = hdr.blocks_in_file*512;
+	dataSize -= dataStart;
+	relocStart = hdr.reloc_table_offset;
+	printf("dataStart = %x, dataSize = %x, relocStart = %x\n",
+		dataStart, dataSize, relocStart);
 	
 	fseek(fp, dataStart, SEEK_SET);
 	data = malloc(dataSize);
-	fread(data, dataSize, 1, fp);
+	if( !data ) {
+		perror("LoadDosExe - malloc");
+		exit(1);
+	}
+	{
+		size_t read_count = fread(data, 1, dataSize, fp);
+		if(read_count != dataSize) {
+			perror("LoadDosExe - read data");
+			fprintf(stderr, " - %i/%i bytes read\n", read_count, dataSize);
+			goto _error;
+		}
+	}
 	
 	// Relocate
 	fseek(fp, relocStart, SEEK_SET);
 	for( i = 0; i < hdr.num_relocs; i++ )
 	{
 		tExeReloc	reloc;
-		fread(&reloc, sizeof(tExeReloc), 1, fp);
+		if( fread(&reloc, sizeof(tExeReloc), 1, fp) != 1 ) {
+			perror("LoadDosExe - fread reloc");
+			goto _error;
+		}
 		*(uint16_t*)(data + reloc.segment*16 + reloc.offset) += DESTINATION_SEG;
 	}
 
 	 int	base = (DESTINATION_SEG*16) / RME_BLOCK_SIZE;
+	uint8_t	*readdata = data;
 	if( (DESTINATION_SEG*16) % RME_BLOCK_SIZE != 0 ) {
-		memcpy(&state->Memory[base], data, MIN(RME_BLOCK_SIZE, dataSize));
+		off_t	ofs = (DESTINATION_SEG*16) % RME_BLOCK_SIZE;
+		size_t	copysize = MIN(RME_BLOCK_SIZE - ofs, dataSize);
+		memcpy(state->Memory[base] + ofs, readdata, copysize);
+		readdata += copysize;
 		i ++;
 	}
-	for( i = 1; i < (DESTINATION_SEG*16+dataSize)/RME_BLOCK_SIZE; i ++ )
+	for( ; i < dataSize/RME_BLOCK_SIZE; i ++ )
 	{
-		memcpy(&state->Memory[base+i], data+i*RME_BLOCK_SIZE, dataSize-i*RME_BLOCK_SIZE);
+		size_t	copysize = MIN(RME_BLOCK_SIZE, dataSize-i*RME_BLOCK_SIZE);
+		memcpy(state->Memory[base+i], readdata, copysize);
+		readdata += copysize;
 	}
 
 	free(data);
-	
 	fclose(fp);
 
+	ret.Segment = DESTINATION_SEG + hdr.cs;
+	ret.Offset = hdr.ip;
+	stackptr->Segment = DESTINATION_SEG + hdr.ss;
+	stackptr->Offset = hdr.sp;
+
+	return ret;
+_error:
+	fclose(fp);
+	free(data);
 	return ret;
 }
