@@ -75,7 +75,9 @@ enum eRME_Errors
 	RME_ERR_DIVERR,	//!< Divide error
 	RME_ERR_BUG,	//!< Bug in the emulator
 	RME_ERR_BREAKPOINT,	//!< Breakpoint hit
+	
 	RME_ERR_HALT,	//!< CPU Halted
+	RME_ERR_FCNRET,	//!< Magic CS/IP Reached, function return
 	
 	RME_ERR_LAST	//!< Last Error
 };
@@ -189,6 +191,14 @@ typedef struct sRME_State
  * \brief Creates a blank RME instance
  */
 extern tRME_State	*RME_CreateState(void);
+
+/**
+ * \brief Run one instruction
+ * \param State	State returned from ::RME_CreateState
+ * \retval 0	No error
+ * \retval RME_ERR_FCNRET	RME_MAGIC_CS:RME_MAGIC_IP was reached
+ */
+extern int	RME_RunOne(tRME_State *State);
 
 /**
  * \brief Calls an interrupt

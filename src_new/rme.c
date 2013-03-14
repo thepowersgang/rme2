@@ -147,34 +147,50 @@ int RME_Call(tRME_State *State)
 	 int	ret;
 	for(;;)
 	{
-		#if DEBUG >= 2
-		RME_DumpRegs(State);
-		#endif
-		if(State->IP == RME_MAGIC_IP && State->CS == RME_MAGIC_CS)
+		ret = RME_RunOne(State);
+		if( ret == RME_ERR_FCNRET )
 			return 0;
-		if(State->CS == RME_HLE_CS && State->IP < 0x100) {
-			// HLE Call
-			if( State->HLECallbacks[State->IP] )
-				State->HLECallbacks[State->IP](State, State->IP);
-			// IRET
-			caOperations[0xCF].Function(State, 0);
-			continue ;
-		}
-		ret = RME_Int_DoOpcode(State);
-		switch(ret)
-		{
-		case RME_ERR_OK:
-			break;
-		case RME_ERR_DIVERR:
-			ret = RME_int_CallInt(State, 0);
-			if(ret)	return ret;
-			break;
-//		case RME_ERR_UNDEFOPCODE:
-//			break;
-		default:
+		if( ret != RME_ERR_OK )
 			return ret;
-		}
 	}
+}
+
+/*
+ * \brief Run one instruction (or HLE operation)
+ */
+int RME_RunOne(tRME_State *State)
+{
+	#if DEBUG >= 2
+	RME_DumpRegs(State);
+	#endif
+	
+	if(State->IP == RME_MAGIC_IP && State->CS == RME_MAGIC_CS)
+		return RME_ERR_FCNRET;
+	
+	if(State->CS == RME_HLE_CS && State->IP < 0x100) {
+		// HLE Call
+		if( State->HLECallbacks[State->IP] )
+			State->HLECallbacks[State->IP](State, State->IP);
+		// IRET
+		caOperations[0xCF].Function(State, 0);
+		return 0;
+	}
+	
+	int ret = RME_Int_DoOpcode(State);
+	switch(ret)
+	{
+	case RME_ERR_OK:
+		break;
+	case RME_ERR_DIVERR:
+		ret = RME_int_CallInt(State, 0);
+		if(ret)	return ret;
+		break;
+	// TODO: Handle #UD and others here
+	default:
+		return ret;
+	}
+	
+	return 0;
 }
 
 /**
