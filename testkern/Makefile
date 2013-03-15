@@ -9,7 +9,7 @@ CPPFLAGS = -I. -ffreestanding
 CFLAGS = -Wall -fno-stack-protector -O3
 LDFLAGS = -T link.ld
 
-OBJ = start.ao main.o debug.o heap.o lib.o ../src_new/rme_composite.o
+OBJ = start.ao main.o debug.o heap.o lib.o ../src/rme_composite.o
 BIN = ../rmetest.bin
 
 .PHONY: all clean

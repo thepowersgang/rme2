@@ -14,7 +14,8 @@
 #define DEBUG	0	// Enable debug? (2 enables a register dump)
 #define ERR_OUTPUT	1	// Enable using printf on an error?
 
-#include <stdio.h>
+#include <stdio.h>	// printf
+#include <stdlib.h>	// calloc
 #include <stdint.h>
 
 extern uint8_t	inb(uint16_t port);

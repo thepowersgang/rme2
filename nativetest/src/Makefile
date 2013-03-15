@@ -1,14 +1,16 @@
 
-CPPFLAGS := -I . -I ../../src_new
+RMEDIR = ../../src/
+
+CPPFLAGS := -I . -I $(RMEDIR)
 CFLAGS	:= $(CPPFLAGS) -O3 -g
 LDFLAGS	:= -g -lSDL -lSDLmain
 
-RME_LIB = ../../src_new/rme.a
+RME_LIB = $(RMEDIR)rme.a
 
-OBJ	:= main.o dosexe.o
-#OBJ += ../../src_new/rme_composite.o
+OBJ := main.o dosexe.o
+#OBJ += $(RMEDIR)rme_composite.o
 OBJ += $(RME_LIB)
-BIN	:= ../tester
+BIN := ../tester
 
 DEPFILES := $(OBJ:%.o=%.dep)
 DEPFILES := $(filter %.dep,$(DEPFILES))
@@ -28,6 +30,6 @@ $(BIN): $(OBJ)
 
 .PHONY: $(RME_LIB)
 $(RME_LIB):
-	$(MAKE) -C ../../src_new
+	$(MAKE) -C $(RMEDIR) CPPFLAGS=$(CPPFLAGS)
 
 -include $(DEPFILES)
