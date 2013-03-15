@@ -10,8 +10,8 @@
  */
 #define _RME_C_
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+//#include <stdlib.h>
+//#include <stdio.h>
 
 //#include <common.h>
 
