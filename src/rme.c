@@ -800,6 +800,11 @@ int RME_Int_ParseModRMX(tRME_State *State, uint16_t **reg, uint16_t **mem, int b
 			uint32_t	offset;
 			ret = RME_Int_GetMMM( State, mod, mmm, &segment, &offset );
 			if(ret)	return ret;
+			if( (segment * 0x10 + offset) % RME_BLOCK_SIZE == RME_BLOCK_SIZE-1 ) {
+				ERROR_S("%x:%x Word read across boundary (0x%x)",
+					State->CS, State->IP, segment * 0x10 + offset);
+				return RME_ERR_BADMEM;
+			}
 			ret = RME_Int_GetPtr(State, segment, offset, (void**)mem);
 			if(ret)	return ret;
 		}
