@@ -26,10 +26,9 @@ $(BIN): $(OBJ)
 	$(CC) -o $(BIN) $(OBJ) $(LDFLAGS)
 
 %.o: %.c
-	$(CC) -o $@ -c $< $(CFLAGS) -MD -MT $@ -MF $*.dep
+	$(CC) -o $@ -c $< $(CFLAGS) -MP -MD -MT $@ -MF $*.dep
 
-.PHONY: $(RME_LIB)
-$(RME_LIB):
-	$(MAKE) -C $(RMEDIR) CPPFLAGS=$(CPPFLAGS)
+$(RME_LIB): $(wildcard $(RMEDIR)*.c $(RMEDIR)*.h)
+	$(MAKE) -C $(RMEDIR)
 
 -include $(DEPFILES)

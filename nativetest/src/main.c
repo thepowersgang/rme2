@@ -395,8 +395,8 @@ int GetDiskParams(int Disk, int *NCyl, int *NHead, int *SPT)
 int ReadDiskLBA(int Disk, int LBAAddr, int Count, void *Data)
 {
 	 int	ret;
-	printf("ReadDiskLBA: (Disk=%i, LBAAddr=0x%x, Count=%i, Data=%p)\n",
-		Disk, LBAAddr, Count, Data);
+	//printf("ReadDiskLBA: (Disk=%i, LBAAddr=0x%x, Count=%i, Data=%p)\n",
+	//	Disk, LBAAddr, Count, Data);
 	switch(Disk)
 	{
 	case 0:
@@ -409,6 +409,10 @@ int ReadDiskLBA(int Disk, int LBAAddr, int Count, void *Data)
 		}
 //		printf("ftell() = 0x%x\n", ftell(gaFDDs[0]));
 		ret = fread(Data, 512, Count, gaFDDs[0]);
+		if( ret != Count ) {
+			perror("ReadDiskLBA  fread");
+			printf(" %i/%i sectors read\n", ret, Count);
+		}
 //		printf("%02x %02x %02x %02x %02x %02x %02x %02x",
 //			((uint8_t*)Data)[0], ((uint8_t*)Data)[1], ((uint8_t*)Data)[2], ((uint8_t*)Data)[3],
 //			((uint8_t*)Data)[4], ((uint8_t*)Data)[5], ((uint8_t*)Data)[6], ((uint8_t*)Data)[7]
@@ -424,12 +428,15 @@ int ReadDiskCHS(int Disk, int Cylinder, int Head, int Sector, int Count, void *D
 	 int	lbaAddr;
 	 int	nCyl, nHead, spt;
 	
-	printf("ReadDiskCHS: (Disk=%i, Cylinder=%i, Head=%i, Sector=%i, Count %i, Data=%p)\n",
-		Disk, Cylinder, Head, Sector, Count, DataPtr);
+	//printf("ReadDiskCHS: (Disk=%i, Cylinder=%i, Head=%i, Sector=%i, Count %i, Data=%p)\n",
+	//	Disk, Cylinder, Head, Sector, Count, DataPtr);
 	
-	if( GetDiskParams(Disk, &nCyl, &nHead, &spt) == 0 )	return -1;
+	if( GetDiskParams(Disk, &nCyl, &nHead, &spt) == 0 ) {
+		printf(" GetDiskParams(Disk=0x%02x) return 0\n", Disk);
+		return -1;
+	}
 	
-	printf(" nCyl=%i, nHead=%i, spt=%i\n", nCyl, nHead, spt);
+	//printf(" nCyl=%i, nHead=%i, spt=%i\n", nCyl, nHead, spt);
 	
 	if( Cylinder >= nCyl ) {
 		printf(" Cylinder(%i) >= nCyl(%i)\n", Cylinder, nCyl);
@@ -446,7 +453,7 @@ int ReadDiskCHS(int Disk, int Cylinder, int Head, int Sector, int Count, void *D
 	// Multi-track reads allowed (because they are easy)
 	
 	lbaAddr = Cylinder * nHead * spt + Head * spt + Sector - 1;
-	printf(" lbaAddr = %x\n", lbaAddr);
+	//printf(" lbaAddr = %x\n", lbaAddr);
 	
 	return ReadDiskLBA(Disk, lbaAddr, Count, DataPtr);
 }
@@ -517,7 +524,8 @@ int HLECall(tRME_State *State, int IntNum)
 	case 0x13:
 		switch(State->AX.B.H)
 		{
-		case 0x00:	// Reset Disk Subsystem
+		// DISK - RESET DISK SYSTEM
+		case 0x00:
 			printf(" 0x00 - Reset disk subsystem\n");
 			State->Flags &= ~FLAG_CF;
 			State->AX.B.H = 0;
@@ -550,7 +558,7 @@ int HLECall(tRME_State *State, int IntNum)
 				);
 			// Error check
 			if( ret < 0 ) {
-				printf(" 0x13:0x02 Error: 0x%x\n", -ret);
+				printf(" 0x13:0x02 ReadDiskCHS Ret -0x%x\n", -ret);
 				State->AX.B.H = -ret;
 				State->Flags |= 1;
 				break;
@@ -561,9 +569,9 @@ int HLECall(tRME_State *State, int IntNum)
 				State->Flags |= 1;
 				break;
 			}
-			printf("Read 0x%x bytes to %04x:%04x ([0] = 0x%02x)\n",
-				ret*512, State->ES, State->BX.W,
-				gaMemory[ State->ES*16 + State->BX.W ]);
+			//printf("Read 0x%x bytes to %04x:%04x ([0] = 0x%02x)\n",
+			//	ret*512, State->ES, State->BX.W,
+			//	gaMemory[ State->ES*16 + State->BX.W ]);
 			State->AX.B.H = 0;
 			State->Flags &= ~1;
 			break;
