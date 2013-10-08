@@ -8,24 +8,29 @@
 #include <signal.h>
 #include <rme.h>
 #include <SDL/SDL.h>
+#include <assert.h>
 
 //#define COL_WHITE	0x80808080
 #define COL_BLACK	0x00000000
+#define COL_GRAY	0x00444444
 #define COL_RED 	0x00FF0000
 #define COL_GREEN	0x0000FF00
 #define COL_BLUE	0x000000FF
+#define COL_LGRAY	0x00CCCCCC
 #define COL_WHITE	0x00FFFFFF
 
 // === IMPORTS ===
 t_farptr	LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr);
 
 // === PROTOTYPES ===
-void	HandleEvent(SDL_Event *Event);
+void	HandleEvent(SDL_Event *Event, tRME_State *EmuState);
+Uint32	Video_RedrawTimerCb(Uint32 interval, void *unused);
  int	HLECall10(tRME_State *State, int IntNum);
  int	HLECall12(tRME_State *State, int IntNum);
  int	HLECall(tRME_State *State, int IntNum);
-void	PutChar(uint8_t ch, uint32_t BGC, uint32_t FGC);
-void	PutString(const char *String, uint32_t BGC, uint32_t FGC);
+void	PutChar(uint8_t ch, uint8_t attr);
+void	PutString(const char *String, uint8_t attr);
+void	Video_Redraw(void);
 
 // === GLOBALS ===
 SDL_Surface	*gScreen;
@@ -34,6 +39,7 @@ FILE	*gaFDDs[4];
 const char	*gsBinaryFile;
 const char	*gsDosExe;
 const char	*gsMemoryDumpFile;
+const char	*gsCPUType = "80286";
  int	gbDisableGUI = 0;
 uint8_t	gaMemory[0x110000];
 // - GUI Key Queue
@@ -43,6 +49,8 @@ struct {
 	uint8_t	Scancode;
 	uint8_t	ASCII;
 } gKeyBuffer[16];
+// - Video output
+ int	giCursorX, giCursorY;
 
 // === CODE ===
 int main(int argc, char *argv[])
@@ -61,6 +69,10 @@ int main(int argc, char *argv[])
 		{
 			if( strcmp(argv[i], "--nogui") == 0 ) {
 				gbDisableGUI = 1;
+			}
+			else if( strcmp(argv[i], "--cpu") == 0 ) {
+				assert(i + 1 != argc);
+				gsCPUType = argv[++i];
 			}
 			else {
 			}
@@ -88,10 +100,16 @@ int main(int argc, char *argv[])
 	}
 
 	signal(SIGINT, exit);
+	
+	// Initialise memory
+	memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
+	memset(gaMemory+0xB8000, 0x00, 25*80*2);
 
 	if( !gbDisableGUI ) {
+		SDL_Init(SDL_INIT_TIMER);
 		gScreen = SDL_SetVideoMode(80*8, 25*16, 32, SDL_HWSURFACE);
-		PutString("RME NativeTest\r\n", COL_BLACK, COL_WHITE);
+		SDL_AddTimer(100, Video_RedrawTimerCb, NULL);
+		PutString("RME NativeTest\r\n", 0x0F);
 	}
 
 	// Open FDD image
@@ -102,14 +120,10 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	// Fill with a #UD
-	memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
-	//memset(gaMemory, 0xCC, sizeof(gaMemory));	// 0xCC = INT 3
-
 	// Create BIOS Structures
 	// - BIOS Entrypoint (All BIOS calls are HLE, so trap them)
-	gaMemory[0xF0000+i*2] = 0x67;	// XCHG (RMX)
-	gaMemory[0xF0001+i*2] = 0311;	// r BX BX
+	gaMemory[0xF0000] = 0x67;	// XCHG (RMX)
+	gaMemory[0xF0001] = 0311;	// r BX BX
 	// - Interrupt Vector Table
 	for( i = 0; i < 0x100; i ++ )
 	{
@@ -166,18 +180,25 @@ int main(int argc, char *argv[])
 		emu->IP = ep.Offset;
 		emu->SS = stack.Segment;
 		emu->SP.W = stack.Offset;
+		printf("Entry %x:%x, Stack %x:%x\n", ep.Segment, ep.Offset, stack.Segment, stack.Offset);
 	}
 	else if( gsBinaryFile )
 	{
 		FILE	*fp = fopen(gsBinaryFile, "rb");
 		 int	len;
-		
-		memset(gaMemory, 0, 0x400);
-		printf("Booting '%s' at 0xF0000\n", gsBinaryFile);
-		
+
+		memset(gaMemory, 0, 0x400);	// clear IVT		
+
 		fseek(fp, 0, SEEK_END);
 		len = ftell(fp);
 		fseek(fp, 0, SEEK_SET);
+
+		if( len & 15 ) {
+			return -1;
+		}		
+
+		size_t	base = 0x100000 - len;
+		printf("Booting '%s' at 0x%x\n", gsBinaryFile, (unsigned int)base);
 		
 		if(len > 0x10000)
 		{
@@ -185,7 +206,7 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			fread( &gaMemory[0xF0000], len, 1, fp );
+			assert( fread( &gaMemory[base], len, 1, fp ) == len );
 		}
 		fclose(fp);
 
@@ -212,6 +233,21 @@ int main(int argc, char *argv[])
 		emu->DX.W = 0x0000;	// Disk
 	}
 	
+
+	// Determine emulated CPU type
+	if( strcmp(gsCPUType, "i8086") == 0 ) {
+		emu->CPUType = RME_CPU_8086;
+	}
+	else if( strcmp(gsCPUType, "80286") == 0 ) {
+		emu->CPUType = RME_CPU_80286;
+	}
+	else if( strcmp(gsCPUType, "386") == 0 ) {
+		emu->CPUType = RME_CPU_386;
+	}
+	else {
+		fprintf(stderr, "Unknown CPU type '%s'\n", gsCPUType);
+		return 0;
+	}
 	
 //	emu->SS = 0xA000;
 	emu->SP.W = 0xFFFE;
@@ -223,7 +259,7 @@ int main(int argc, char *argv[])
 		SDL_Event	ev;
 		while( SDL_PollEvent(&ev) )
 		{
-			HandleEvent(&ev);
+			HandleEvent(&ev, emu);
 		}
 	}
 
@@ -254,6 +290,8 @@ int main(int argc, char *argv[])
 	case RME_ERR_DIVERR:
 		printf("\n--- ERROR: Division Fault\n");
 		return 1;
+	case RME_ERR_BREAKPOINT:
+		printf("\n--- STOP: Breakpoint\n");
 	case RME_ERR_HALT:
 		if( gbDisableGUI ) {
 			printf("\n");
@@ -281,14 +319,18 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-void HandleEvent(SDL_Event *Event)
+void HandleEvent(SDL_Event *Event, tRME_State *EmuState)
 {
 	switch(Event->type)
 	{
 	case SDL_QUIT:
+		RME_DumpRegs(EmuState);
 		fprintf(stderr, "Window closed, quitting\n");
 		exit(0);
 	case SDL_KEYDOWN:
+		if( Event->key.keysym.sym == SDLK_BACKSPACE ) {
+			RME_DumpRegs(EmuState);
+		}
 		if( gKeyBufferPos == cKeyBufferSize )
 		{
 			// BEEP!
@@ -303,51 +345,40 @@ void HandleEvent(SDL_Event *Event)
 			gKeyBufferPos ++;
 		}
 		break;
+	case SDL_USEREVENT:
+		Video_Redraw();
+		break;
 	}
 }
 
-#include "font.h"
-/**
- * \brief Screen output
- */
-void PutChar(uint8_t ch, uint32_t BGC, uint32_t FGC)
+Uint32 Video_RedrawTimerCb(Uint32 interval, void *unused)
 {
-	Uint8	*font;
-	Uint32	*buf;
-	 int	x, y;
-	static int curX=0, curY=0;
-	SDL_Rect	rc = {0,0,1,1};
-	
+	SDL_UserEvent	ue = {.type=SDL_USEREVENT,.code=0};
+	SDL_Event	e = {.type=SDL_USEREVENT, .user = ue};
+	SDL_PushEvent(&e);
+	return interval;
+}
+
+#include "font.h"
+void DrawChar(int X, int Y, uint8_t ch, uint32_t BGC, uint32_t FGC)
+{
 	if( gbDisableGUI )
 		return ;
 
-	switch( ch )
-	{
-	case '\n':
-		curY ++;
-		// TODO: Scroll
-		if(curY == 25)
-			curY = 0;
-		return ;
-	case '\r':
-		curX = 0;
-		return ;
-	case 8:
-		if( curX > 0 )
-			curX --;
-		return ;
-	}
+	Uint8	*font;
+	Uint32	*buf;
+
+	SDL_Rect	rc = {0,0,1,1};
 	
 	font = &VTermFont[ch*FONT_HEIGHT];
 	
-	rc.w = 1;
-	rc.h = 1;
-	rc.x = curX*FONT_WIDTH;
-	rc.y = curY*FONT_HEIGHT;
+	rc.w = 1; rc.h = 1;
+	rc.x = X*FONT_WIDTH;
+	rc.y = Y*FONT_HEIGHT;
 	
-	for(y = 0; y < FONT_HEIGHT; y ++, rc.y ++)
+	for(int y = 0; y < FONT_HEIGHT; y ++, rc.y ++)
 	{
-		for(x = 0; x < FONT_WIDTH; x ++, rc.x++)
+		for(int x = 0; x < FONT_WIDTH; x ++, rc.x++)
 		{
 			if(*font & (1 << (FONT_WIDTH-x-1)))
 				SDL_FillRect(gScreen, &rc, FGC);
@@ -358,22 +389,68 @@ void PutChar(uint8_t ch, uint32_t BGC, uint32_t FGC)
 		buf = (void*)( (intptr_t)buf + gScreen->pitch );
 		font ++;
 	}
-	
-	curX ++;
-	if(curX == 80) {
-		curX = 0;
-		curY ++;
-		if(curY == 25)
-			curY = 0;
-	}
-	
-	SDL_Flip(gScreen);
 }
 
-void PutString(const char *String, uint32_t BGC, uint32_t FGC)
+void Video_Redraw(void)
+{
+	uint32_t	colours[] = {
+		0x000000, 0x0000FF, 0x00FF00, 0xFFFF00, 0xFF0000, 0xFF00FF, 0x884400, 0xCCCCCC,
+		0x444444, 0x4444FF, 0x44FF44, 0xFFFF44, 0xFF4444, 0xFF44FF, 0xFF8800, 0xFFFFFF,
+	};
+	// TODO: Other modes?
+	uint8_t	*vidmem = &gaMemory[0xB8000];
+	for( int row = 0; row < 25; row ++ )
+	{
+		for( int col = 0; col < 80; col ++ )
+		{
+			uint8_t	ch = vidmem[(row*80+col)*2+0];
+			uint8_t	at = vidmem[(row*80+col)*2+1];
+			DrawChar(col, row, ch, colours[at>>4], colours[at&15]);
+		}
+	}
+	SDL_Flip(gScreen);
+//	printf("Video redraw complete\n");
+}
+
+/**
+ * \brief Screen output
+ */
+void PutChar(uint8_t ch, uint8_t attrib)
+{
+	switch( ch )
+	{
+	case '\n':
+		giCursorY ++;
+		// TODO: Scroll
+		if(giCursorY == 25)
+			giCursorY = 0;
+		return ;
+	case '\r':
+		giCursorX = 0;
+		return ;
+	case 8:
+		if( giCursorX > 0 )
+			giCursorX --;
+		return ;
+	}
+
+	gaMemory[0xB8000 + (giCursorY*80+giCursorX)*2 + 0] = ch;
+	gaMemory[0xB8000 + (giCursorY*80+giCursorX)*2 + 1] = attrib;	// TODO: Better attrib
+	
+	giCursorX ++;
+	if(giCursorX == 80) {
+		giCursorX = 0;
+		giCursorY ++;
+		if(giCursorY == 25)
+			giCursorY = 0;
+	}
+}
+
+void PutString(const char *String, uint8_t attr)
 {
 	while(*String)
-		PutChar(*String++, BGC, FGC);
+		PutChar(*String++, attr);
+	Video_Redraw();
 }
 
 /**
@@ -468,12 +545,27 @@ int HLECall10(tRME_State *State, int IntNum)
 	{
 	// VIDEO - SET VIDEO MODE
 	case 0x00:
-		printf("HLE Call INT 0x10 BH=0x00 Unimpl\n");
+		if( State->AX.B.L == 3 ) {
+			State->AX.B.L = 0x30;
+			return ;
+		}
+		printf("HLE Call INT 0x10/AH=0x00: VIDEO - SET VIDEO MODE AL=0x%x\n", State->AX.B.L);
 		exit(1);
+	// VIDEO - VIDEO - SET CURSOR POSITION
+	case 0x02:
+		giCursorX = State->DX.B.L;
+		giCursorY = State->DX.B.H;
+		break;
+	// VIDEO - READ CHARACTER AND ATTRIBUTE AT CURSOR POSITION
+	case 0x08:
+		State->AX.B.L = gaMemory[0xB8000+(giCursorY*80+giCursorX)*2+0];
+		State->AX.B.H = gaMemory[0xB8000+(giCursorY*80+giCursorX)*2+1];
+		break;
 	// VIDEO - TELETYPE OUTPUT
 	case 0x0E:
 		// TODO: Better Colours
-		PutChar(State->AX.B.L, COL_BLACK, COL_WHITE);
+		PutChar(State->AX.B.L, 0x0F);
+		//Video_Redraw();
 		break;
 	// VIDEO - GET CURRENT VIDEO MODE
 	case 0x0F:
@@ -481,8 +573,12 @@ int HLECall10(tRME_State *State, int IntNum)
 		State->AX.B.L = 0x03;	// Mode Number
 		State->BX.B.L = 0;	// Page
 		break;
+	// VIDEO - GET BLANKING ATTRIBUTE
+	case 0x12:
+		State->BX.B.H = 0;
+		break;
 	default:
-		printf("HLE Call INT 0x10 BH=%02x Unk\n", State->AX.B.H);
+		printf("HLE Call INT 0x10 AX=%04x Unk\n", State->AX.W);
 		RME_DumpRegs(State);
 		exit(1);
 	}
@@ -514,7 +610,7 @@ int HLECall(tRME_State *State, int IntNum)
 			gKeyBufferPos = 0;
 			while( SDL_WaitEvent(&e) )
 			{
-				HandleEvent(&e);
+				HandleEvent(&e, State);
 				if( gKeyBufferPos )
 					exit(0);
 			}
@@ -533,7 +629,7 @@ int HLECall(tRME_State *State, int IntNum)
 			break;
 		
 		case 0x02:	// Read Sector(s) into memory
-			RME_DumpRegs(State);
+			//RME_DumpRegs(State);
 			// AL - Number of sectors to read
 			// CH - Cylinder Number Low Bits
 			// CL - Sector Number (bits 0-5), Cylinder Number High (bits 6,7)
@@ -680,7 +776,7 @@ int HLECall(tRME_State *State, int IntNum)
 			{
 				SDL_Event	e;
 				SDL_WaitEvent(&e);
-				HandleEvent(&e);
+				HandleEvent(&e, State);
 			}
 			State->AX.B.H = gKeyBuffer[0].Scancode;
 			State->AX.B.L = gKeyBuffer[0].ASCII;
@@ -739,7 +835,7 @@ int HLECall(tRME_State *State, int IntNum)
 	case 0x18:
 	// --- System Bootstrap Loader (called by MSDOS to reboot) ---
 	case 0x19:
-		PutString("\r\n[BIOS] Boot Error. Press any key to terminate emulator", COL_BLACK, COL_RED);
+		PutString("\r\n[BIOS] Boot Error. Press any key to terminate emulator", 0x04);
 		{
 			SDL_Event	e;
 			while( SDL_WaitEvent(&e) )
@@ -760,9 +856,27 @@ int HLECall(tRME_State *State, int IntNum)
 }
 
 
-uint8_t inb(uint16_t port) { return 0; }
-uint16_t inw(uint16_t port) { return 0; }
-uint32_t inl(uint16_t port) { return 0; }
-void outb(uint16_t port, uint8_t val) { return ; }
-void outw(uint16_t port, uint16_t val) { return ; }
-void outl(uint16_t port, uint32_t val) { return ; }
+uint8_t inb(uint16_t port) {
+	printf("INB 0x%x\n", port);
+	return 0;
+}
+uint16_t inw(uint16_t port) {
+	printf("INW 0x%x\n", port);
+	return 0;
+}
+uint32_t inl(uint16_t port) {
+	printf("INL 0x%x\n", port);
+	return 0;
+}
+void outb(uint16_t port, uint8_t val) {
+	printf("OUTB 0x%x, 0x%x\n", port, val);
+	return ;
+}
+void outw(uint16_t port, uint16_t val) {
+	printf("OUTW 0x%x, 0x%x\n", port, val);
+	return ;
+}
+void outl(uint16_t port, uint32_t val) {
+	printf("OUTL 0x%x, 0x%x\n", port, val);
+	return ;
+}

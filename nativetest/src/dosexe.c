@@ -20,7 +20,7 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 	t_farptr	ret = {0,0};
 	FILE	*fp;
 	 int	dataStart, dataSize;
-	 int	relocStart, i;
+	 int	relocStart;
 	void	*data;
 	
 	fp = fopen(file, "rb");
@@ -67,18 +67,23 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 	
 	// Relocate
 	fseek(fp, relocStart, SEEK_SET);
-	for( i = 0; i < hdr.num_relocs; i++ )
+	for( int i = 0; i < hdr.num_relocs; i++ )
 	{
 		tExeReloc	reloc;
 		if( fread(&reloc, sizeof(tExeReloc), 1, fp) != 1 ) {
 			perror("LoadDosExe - fread reloc");
 			goto _error;
 		}
+		printf("- Reloc %x:%x (%x) += %x\n", reloc.segment, reloc.offset,
+			*(uint16_t*)(data + reloc.segment*16 + reloc.offset),
+			DESTINATION_SEG
+			);
 		*(uint16_t*)(data + reloc.segment*16 + reloc.offset) += DESTINATION_SEG;
 	}
 
 	 int	base = (DESTINATION_SEG*16) / RME_BLOCK_SIZE;
 	uint8_t	*readdata = data;
+	int i = 0;
 	if( (DESTINATION_SEG*16) % RME_BLOCK_SIZE != 0 ) {
 		off_t	ofs = (DESTINATION_SEG*16) % RME_BLOCK_SIZE;
 		size_t	copysize = MIN(RME_BLOCK_SIZE - ofs, dataSize);

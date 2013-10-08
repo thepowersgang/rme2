@@ -2,7 +2,7 @@
 RMEDIR = ../../src/
 
 CPPFLAGS := -I . -I $(RMEDIR)
-CFLAGS	:= $(CPPFLAGS) -O3 -g
+CFLAGS	:= $(CPPFLAGS) -O3 -g -std=gnu99
 LDFLAGS	:= -g -lSDL -lSDLmain
 
 RME_LIB = $(RMEDIR)rme.a
