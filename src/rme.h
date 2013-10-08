@@ -112,6 +112,13 @@ typedef union uGPR
 	}	B;
 }	tGPR;
 
+enum eRME_CPUType
+{
+	RME_CPU_8086,
+	RME_CPU_80286,
+	RME_CPU_386
+};
+
 /**
  * \brief Emulator state structure
  */
@@ -144,6 +151,8 @@ typedef struct sRME_State
 	//! \}
 
 	uint16_t	Flags;	//!< State Flags
+
+	enum eRME_CPUType	CPUType;
 
 	/**
 	 * \brief Emulator's Memory

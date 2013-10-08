@@ -71,34 +71,32 @@ tRME_State *RME_CreateState(void)
  */
 void RME_DumpRegs(tRME_State *State)
 {
-	#if DEBUG
-	DEBUG_S("\n");
+	printf("\n");
 	#if USE_SIZE_OVERRIDES == 1
-	DEBUG_S("EAX %08x  ECX %08x  EDX %08x  EBX %08x\n",
+	printf("EAX %08x  ECX %08x  EDX %08x  EBX %08x\n",
 		State->AX.D, State->CX.D, State->DX.D, State->BX.D);
-	DEBUG_S("ESP %08x  EBP %08x  ESI %08x  EDI %08x\n",
+	printf("ESP %08x  EBP %08x  ESI %08x  EDI %08x\n",
 		State->SP.D, State->BP.D, State->SI.D, State->DI.D);
 	#else
-	DEBUG_S("AX %04x  CX %04x  DX %04x  BX %04x\n",
+	printf("AX %04x  CX %04x  DX %04x  BX %04x\n",
 		State->AX.W, State->CX.W, State->DX.W, State->BX.W);
-	DEBUG_S("SP %04x  BP %04x  SI %04x  DI %04x\n",
+	printf("SP %04x  BP %04x  SI %04x  DI %04x\n",
 		State->SP.W, State->BP.W, State->SI.W, State->DI.W);
 	#endif
-	DEBUG_S("SS %04x  DS %04x  ES %04x\n",
+	printf("SS %04x  DS %04x  ES %04x\n",
 		State->SS, State->DS, State->ES);
-	DEBUG_S("CS:IP = 0x%04x:%04x\n", State->CS, State->IP);
-	DEBUG_S("Flags = %04x", State->Flags);
-	if(State->Flags & FLAG_OF)	DEBUG_S(" OF");
-	if(State->Flags & FLAG_DF)	DEBUG_S(" DF");
-	if(State->Flags & FLAG_IF)	DEBUG_S(" IF");
-	if(State->Flags & FLAG_TF)	DEBUG_S(" TF");
-	if(State->Flags & FLAG_SF)	DEBUG_S(" SF");
-	if(State->Flags & FLAG_ZF)	DEBUG_S(" ZF");
-	if(State->Flags & FLAG_AF)	DEBUG_S(" AF");
-	if(State->Flags & FLAG_PF)	DEBUG_S(" PF");
-	if(State->Flags & FLAG_CF)	DEBUG_S(" CF");
-	DEBUG_S("\n");
-	#endif
+	printf("CS:IP = 0x%04x:%04x\n", State->CS, State->IP);
+	printf("Flags = %04x", State->Flags);
+	if(State->Flags & FLAG_OF)	printf(" OF");
+	if(State->Flags & FLAG_DF)	printf(" DF");
+	if(State->Flags & FLAG_IF)	printf(" IF");
+	if(State->Flags & FLAG_TF)	printf(" TF");
+	if(State->Flags & FLAG_SF)	printf(" SF");
+	if(State->Flags & FLAG_ZF)	printf(" ZF");
+	if(State->Flags & FLAG_AF)	printf(" AF");
+	if(State->Flags & FLAG_PF)	printf(" PF");
+	if(State->Flags & FLAG_CF)	printf(" CF");
+	printf("\n");
 }
 
 int RME_int_CallInt(tRME_State *State, int Num)

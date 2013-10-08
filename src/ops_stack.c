@@ -71,6 +71,7 @@ DEF_OPCODE_FCN(POP, A)
 DEF_OPCODE_FCN(PUSH, F)
 {
 	 int	ret;
+	if(State->Decoder.bOverrideOperand)	return RME_ERR_UNDEFOPCODE;
 	PUSH(State->Flags);
 	return 0;
 }
@@ -79,12 +80,17 @@ DEF_OPCODE_FCN(POP, F)
 {
 	 int	ret;
 	uint16_t	tmp;
-	const uint16_t	keep_mask = 0x0002;
-	const uint16_t	set_mask  = 0xFFD5;
+	const uint16_t	masks[][2] = {
+		//        always:  set     clear
+		[RME_CPU_8086]  = {0xF002, 0x0028},
+		[RME_CPU_80286] = {0x0002, 0xF028},
+		[RME_CPU_386]   = {0x0002, 0x0028},
+		};
+	if(State->Decoder.bOverrideOperand)	return RME_ERR_UNDEFOPCODE;
 	POP(tmp);
-	State->Flags &= keep_mask;
-	tmp &= set_mask;
-	State->Flags |= tmp | 2;	// Bit 1 must always be set
+	tmp |= masks[State->CPUType][0];
+	tmp &= ~masks[State->CPUType][1];
+	State->Flags = tmp;
 	return 0;
 }
 
@@ -92,6 +98,7 @@ DEF_OPCODE_FCN(PUSH, MX)
 {
 	 int	ret;
 	void	*destPtr;
+	if(State->Decoder.bOverrideOperand)	return RME_ERR_UNDEFOPCODE;
 	
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
 	if(ret)	return ret;
