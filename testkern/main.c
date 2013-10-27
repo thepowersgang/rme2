@@ -16,26 +16,27 @@ typedef struct {
 // === CODE ===
 int main()
 {
-	tRME_State	*emu;
-	void	*lowCache;
-	void	*zeroptr = (void*)0;
-	 int	i;
-	 int	ret;
-
 	Heap_Init();
 
 	printf("Kernel up and running\n");
 
-	lowCache = malloc( RME_BLOCK_SIZE );
-	memcpy(lowCache, zeroptr, RME_BLOCK_SIZE);
+	tRME_State *emu = RME_CreateState();
 
-	emu = RME_CreateState();
+	{
+		uint16_t *zeroptr = (void*)0;
+		uint16_t *lowCache = malloc( RME_BLOCK_SIZE );
+		memcpy(lowCache, zeroptr, RME_BLOCK_SIZE);
 
-	emu->Memory[0] = lowCache;	// The RME has NULL checks
-	for( i = RME_BLOCK_SIZE; i < 0x100000; i += RME_BLOCK_SIZE )
-		emu->Memory[i/RME_BLOCK_SIZE] = (void*)i;
+		printf("%x %x\n", zeroptr[0], zeroptr[1]);
+		printf("%x %x\n", lowCache[0], lowCache[1]);
 
-
+		emu->Memory[0] = lowCache;	// The RME has NULL checks
+		for( int i = 1; i < 0x100000/RME_BLOCK_SIZE; i ++ )
+			emu->Memory[i] = (void*)(i*RME_BLOCK_SIZE);
+	}
+	
+	
+	int ret;
 	#if 1
 	emu->AX.W = (0x00<<8) | 0x11;	// Set Mode 0x11
 	ret = RME_CallInt(emu, 0x10);

@@ -11,12 +11,14 @@
 #ifndef _RME_CONFIG_H_
 #define _RME_CONFIG_H_
 
-#define DEBUG	0	// Enable debug? (2 enables a register dump)
+#define DEBUG	1	// Enable debug? (2 enables a register dump)
 #define ERR_OUTPUT	1	// Enable using printf on an error?
 
 #include <stdint.h>
+#include <stddef.h>
 
-extern void	*calloc(int size, int count);
+extern int	printf(const char *fmt, ...);
+extern void	*calloc(size_t nmemb, size_t size);
 
 extern uint8_t	inb(uint16_t port);
 extern uint16_t	inw(uint16_t port);
