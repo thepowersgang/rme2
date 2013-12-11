@@ -144,10 +144,7 @@ DEF_OPCODE_FCN(MOV, AMoX)
 	uint16_t	seg;
 	uint32_t	ofs;
 	
-	if( State->Decoder.bOverrideOperand )
-		DEBUG_S(" EAX");
-	else
-		DEBUG_S(" AX");
+	DEBUG_S(" %s", (State->Decoder.bOverrideOperand?"EAX":"AX"))
 	
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
@@ -207,10 +204,7 @@ DEF_OPCODE_FCN(MOV, MoAX)
 		DEBUG_S(":[0x%x]", ofs);
 	}
 	
-	if( State->Decoder.bOverrideOperand )
-		DEBUG_S(" EAX");
-	else
-		DEBUG_S(" AX");
+	DEBUG_S(" %s", (State->Decoder.bOverrideOperand?"EAX":"AX"))
 	
 	if( State->Decoder.bOverrideOperand )
 		ret = RME_Int_Write32(State, seg, ofs, State->AX.D);
@@ -383,10 +377,7 @@ DEF_OPCODE_FCN(XCHG, Reg)	// A with Reg
 		return 0;
 	}
 	
-	if(State->Decoder.bOverrideOperand)
-		DEBUG_S(" EAX");
-	else
-		DEBUG_S(" AX");
+	DEBUG_S(" %s", (State->Decoder.bOverrideOperand?"EAX":"AX"))
 	
 	src.W = RegW(State, Param);
 	if(State->Decoder.bOverrideOperand)
