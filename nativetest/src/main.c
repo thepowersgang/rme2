@@ -9,6 +9,7 @@
 #include <rme.h>
 #include <SDL/SDL.h>
 #include <assert.h>
+#include <errno.h>
 
 //#define COL_WHITE	0x80808080
 #define COL_BLACK	0x00000000
@@ -116,8 +117,8 @@ int main(int argc, char *argv[])
 	printf("Loading '%s'\n", gasFDDs[0]);
 	gaFDDs[0] = fopen(gasFDDs[0], "rb");
 	if( !gaFDDs[0] ) {
-		perror("Unable to open file");
-		return 1;
+		perror("Opening FDD image");
+		//return 1;
 	}
 
 	// Create BIOS Structures
@@ -206,7 +207,12 @@ int main(int argc, char *argv[])
 		}
 		else
 		{
-			assert( fread( &gaMemory[base], len, 1, fp ) == len );
+			size_t rv = fread( &gaMemory[base], 1, len, fp );
+			if(rv != len) {
+				fprintf(stderr, "Error reading binary '%s'. %zi != %zi\n%s\n",
+					gsBinaryFile, rv, len, strerror(errno));
+				exit(2);
+			}
 		}
 		fclose(fp);
 
@@ -480,7 +486,7 @@ int ReadDiskLBA(int Disk, int LBAAddr, int Count, void *Data)
 		if( fseek(gaFDDs[0], LBAAddr * 512, SEEK_SET) ) {
 			fprintf(stderr, "fseek(gaFDDs[0], 0x%x*512, SEEK_SET)\n", LBAAddr);
 			fprintf(stdout, "fseek(gaFDDs[0], 0x%x*512, SEEK_SET)\n", LBAAddr);
-			perror("fseek failed");	
+			perror("FDD fseek failed");	
 			memset(Data, 0, 512*Count);
 			return 0;
 		}
@@ -547,7 +553,7 @@ int HLECall10(tRME_State *State, int IntNum)
 	case 0x00:
 		if( State->AX.B.L == 3 ) {
 			State->AX.B.L = 0x30;
-			return ;
+			return 0;
 		}
 		printf("HLE Call INT 0x10/AH=0x00: VIDEO - SET VIDEO MODE AL=0x%x\n", State->AX.B.L);
 		exit(1);
