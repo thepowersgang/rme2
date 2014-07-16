@@ -232,7 +232,7 @@ pushf
 ; #34
 hlt
 
-rb 65520-$
+times 65520-($-$$) db 0
 jmp start
-rb 65535-$
+times 65535-($-$$) db 0
 db 0ffh

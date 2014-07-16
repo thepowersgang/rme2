@@ -1,6 +1,10 @@
 ;00: 34 12
 use16
 
+%macro rb 1
+times %1+$$ db 0
+%endmacro
+
 start:
 mov cx,0
 mov bx,64

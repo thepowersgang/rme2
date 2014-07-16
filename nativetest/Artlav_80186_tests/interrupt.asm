@@ -18,7 +18,7 @@ int 13                 ; (1)
 mov byte [2],2
 jmp ax
 
-rb 0cd7h-$
+times 0cd7h-($-$$) db 0
 mov byte[3],3
 pushf
 pop bx
@@ -33,21 +33,21 @@ mov word[18],0f000h
 into                    ; (3) branch taken
 hlt
 
-rb 02000h-$
+times 02000h-($-$$) db 0
 mov byte[1],1
 pushf
 pop ax
 clc
 iret                    ; (4)
 
-rb 03001h-$
+times 03001h-($-$$) db 0
 mov byte[5],5
 pop cx
 mov cx,4002h
 push cx
 iret
 
-rb 04002h-$
+times 04002h-($-$$) db 0
 mov byte[6],6
 mov dx,4ffh
 push dx
@@ -62,10 +62,10 @@ mov word[14],dx
 mov word[16],sp
 hlt 
 
-rb 05000h-$
+times 05000h-($-$$) db 0
 hlt
 
-rb 65520-$
+times 65520-($-$$) db 0
 jmp start
-rb 65535-$
+times 65535-($-$$) db 0xFF
 db 0ffh

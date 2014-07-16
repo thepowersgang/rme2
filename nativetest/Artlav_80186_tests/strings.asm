@@ -1,5 +1,9 @@
 ;00: XX XX 34 12
 
+%macro rb 1
+times %1+$$ db 0
+%endmacro
+
 use16
 start:
 mov cx,0f000h

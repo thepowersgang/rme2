@@ -104,12 +104,12 @@ mov al,0f1h
 mov word[24],ax
 hlt
 
-rb 65520-$
+times 65520-($-$$) db 0
 jmp start
 
-rb 65524-$
+times 65524-($-$$) db 0
 dw 01234h
 dw 05678h
 
-rb 65535-$
+times 65535-($-$$) db 0
 db 0ffh

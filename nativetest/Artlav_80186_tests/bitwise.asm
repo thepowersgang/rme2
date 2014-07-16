@@ -271,8 +271,6 @@ pushf
 
 hlt
 
-
-rb 65520-$
+times 65520-($-$$) db 0
 jmp start
-rb 65535-$
-db 0ffh
+times 65536-($-$$) db 0xff

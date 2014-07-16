@@ -2,6 +2,10 @@
 use16
 start:
 
+%macro rb 1
+times %1+$$ db 0
+%endmacro
+
 ; Trivial cases. With cx 0, nothing is executed
 rep movsb
 repz movsb
@@ -52,11 +56,11 @@ rb 0809h-$
 jmp rep_movs_nz
 
 rb 00ffch-$
-jmp cont_n5
-rb 00ffeh-$
-jmp cont_n10
+jmp near cont_n5
+;rb 00ffeh-$
+jmp near cont_n10
 ; Prefixes do not affect normal instructions
-rb 01000h-$
+;rb 01000h-$
 mov cx,0
 db 0f3h
 push cx

@@ -1,6 +1,10 @@
 use16
 start:
 
+%macro rb 1
+times %1+$$ db 0
+%endmacro
+
 ; rcl word operations
 mov ax,03b5eh
 mov bx,0c8a7h

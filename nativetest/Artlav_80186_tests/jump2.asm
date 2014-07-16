@@ -1,5 +1,9 @@
 ;00: f0 2f
 
+%macro rb 1
+times %1+$$ db 0
+%endmacro
+
 use16
 start:
 mov bx,0f000h

@@ -2,6 +2,10 @@
 ;10: 07 00 00 00 00 12 01 ff ff 80 02 00 XX XX XX XX
 ;20: XX XX XX XX XX XX 97 00 79 00 65 00 00 f0 02 00
 
+%macro rb 1
+times %1+$$ db 0
+%endmacro
+
 use16
 start:
 mov bx,0f100h
@@ -20,7 +24,7 @@ mov dx,es
 mov word[6],dx
 
 mov di,5
-lea si,word[cs:bp+di+23]
+lea si, [cs:bp+di+23]
 mov word[8],si
 
 mov bx,5

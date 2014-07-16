@@ -5,12 +5,16 @@
 ;      11 (word off, byte base+index), 12 (imm,special)
 ; jmp: 1, 2, 3 (reg), 3 (mem base+index+off), 4, 5 (mem base+index+off)
 
+%macro rb 1
+times %1+$$ db 0
+%endmacro
+
 use16
 start:
 jmp b                   ; (2)  jmp
 hlt
 
-rb 14-$
+times 14-($-$$) db 0
 b:
 mov bx,0f000h       ; (10) mov word
 mov ds,bx           ; (4)  mov

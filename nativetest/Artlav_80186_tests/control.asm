@@ -50,8 +50,7 @@ mov word [2],bx
 
 hlt                ;(5)
 
-rb 65520-$
-jmp start
 
-rb 65535-$
-db  0ffh
+times 65520-($-$$) db 0
+jmp start
+times 65536-($-$$) db 0xff

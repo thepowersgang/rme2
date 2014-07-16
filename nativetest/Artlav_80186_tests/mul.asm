@@ -1,6 +1,10 @@
 use16
 start:
 
+%macro rb 1
+times %1+$$ db 0
+%endmacro
+
 mov sp,192
 
 ; mul word
