@@ -167,5 +167,6 @@ DEF_OPCODE_FCN(LSS, z);
 DEF_OPCODE_FCN(LEA, z);	// Load effective address into r16/32
 DEF_OPCODE_FCN(XLAT, z);	// Table Look-up Translation
 //DEF_OPCODE_FCN(FPU, ARITH);
+DEF_OPCODE_FCN(BTx,RI8);	// Bit Test (and Set/Reset/Complement)
 
 #endif

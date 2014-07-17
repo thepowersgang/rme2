@@ -9,7 +9,7 @@
 #define REP_4(val...)	val,val,val,val
 #define REP_8(val...)	val,val,val,val,val,val,val,val
 
-#define UNDEF_OP	{"Undef","",NULL,0}
+#define UNDEF_OP	{"Undef","",NULL,0,NULL}
 #define DEF_OP_X(name,type,arg,subnames)	{#name,#type,RME_Op_##name##_##type,arg,subnames}
 #define DEF_OP_A(name,type,arg)	DEF_OP_X(name, type, arg, NULL)
 #define DEF_OP_N(name,type,names)	DEF_OP_X(name, type, 0, names)
@@ -145,7 +145,8 @@ const tOperation	caOperations0F[256] = {
 	/*  0xAC*/	DEF_OP(SHRD, I8), DEF_OP(SHRD, Cl), UNDEF_OP, DEF_OP(IMUL,RMX),
 	/* 0xB0 */	UNDEF_OP, UNDEF_OP, DEF_OP(LSS,z), UNDEF_OP,
 	/*  0xB4*/	DEF_OP(LFS, z), DEF_OP(LGS,z), DEF_OP(MOV,Z), DEF_OP(MOV,ZX),
-	/* 0xB8 */	REP_4(UNDEF_OP), DEF_OP(BSF,z), UNDEF_OP, UNDEF_OP, UNDEF_OP,
+	/* 0xB8 */	REP_2(UNDEF_OP), DEF_OP(BTx,RI8), UNDEF_OP,
+	/*  0xBC*/	DEF_OP(BSF,z), UNDEF_OP, UNDEF_OP, UNDEF_OP,
 	/* 0xC0 */	REP_8(UNDEF_OP),
 	/* 0xC8 */	REP_8(UNDEF_OP),
 	/* 0xD0 */	REP_8(UNDEF_OP),

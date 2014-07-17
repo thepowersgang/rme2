@@ -298,3 +298,57 @@ DEF_OPCODE_FCN(XLAT, z)
 	State->AX.B.L = *(uint8_t*)ptr;
 	return 0;
 }
+
+DEF_OPCODE_FCN(BTx,RI8)
+{
+	 int	ret;
+	 int	op_num;
+	uint16_t	*src;
+	uint32_t	*src32;
+	uint8_t	ofs;
+	
+	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);
+	if(ret)	return ret;
+	State->Decoder.IPOffset --;
+	
+	if( op_num < 4 ) {
+		return RME_ERR_UNDEFOPCODE;
+	}
+	
+	ret = RME_Int_ParseModRMX(State, NULL, &src, 0);
+	if(ret)	return ret;
+	src32 = (void*)src;
+	
+	READ_INSTR8(ofs);
+
+	 uint32_t	val = (State->Decoder.bOverrideOperand ? *src32 : *src);
+	 int	width = (State->Decoder.bOverrideOperand ? 32 : 16);
+
+	ofs %= width;
+	if( val & (1 << ofs) )
+		State->Flags &= ~FLAG_CF;
+	else
+		State->Flags |= FLAG_CF;
+
+	switch(op_num)
+	{
+	case 4:	// BT
+		return 0;
+	case 5:	// BTS
+		val |= (1 << ofs);
+		break;
+	case 6:	// BTR
+		val &= ~(1 << ofs);
+		break;
+	case 7:	// BTC
+		val ^= (1 << ofs);
+		break;
+	}
+	
+	if( State->Decoder.bOverrideOperand )
+		*src32 = val;
+	else
+		*src = val;
+	return 0;
+}
+
