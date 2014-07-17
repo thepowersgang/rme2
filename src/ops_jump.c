@@ -9,7 +9,7 @@
 #define MAKE_COND_JUMP_S(__condition) do {\
 	uint16_t	dist; \
 	READ_INSTR8S( dist ); \
-	DEBUG_S(" .+0x%02x", dist&0xFF);\
+	DEBUG_S(" .+0x%04x", dist);\
 	if( (__condition)) { \
 		State->IP += dist; \
 	} \
@@ -40,7 +40,7 @@
 #define CONDITION_PO	(!CONDITION_PE)
 #define CONDITION_L 	(!!(State->Flags & FLAG_SF) != !!(State->Flags & FLAG_OF))
 #define CONDITION_GE	(!CONDITION_L)
-#define CONDITION_LE	(State->Flags & FLAG_ZF || !!(State->Flags & FLAG_SF) != !!(State->Flags & FLAG_OF))
+#define CONDITION_LE	((State->Flags & FLAG_ZF) || !!(State->Flags & FLAG_SF) != !!(State->Flags & FLAG_OF))
 #define CONDITION_G 	(!CONDITION_LE)
 
 // === CODE ===
