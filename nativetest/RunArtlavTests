@@ -9,11 +9,11 @@ echo "" > ArtlavTestLog.log
 for asmfile in Artlav_80186_tests/*.asm; do
 	binfile=${asmfile%.asm}.bin
 	memfile=`dirname $binfile`/res_`basename $binfile`
-	echo $asmfile
+	echo $binfile" "$memfile
 	if [ ! -f $binfile ] ; then
-		nasm $asmfile -f binary -o $binfile
+		nasm $asmfile -f bin -o $binfile || exit
 	fi
-	./tester -b $binfile -O test_mem_dump.dmp --nogui >> ArtlavTestLog.log || exit
+	./tester -b $binfile -O test_mem_dump.dmp --nogui "" >> ArtlavTestLog.log || exit
 	./cmpmembin $memfile test_mem_dump.dmp || exit
 done
 rm test_mem_dump.dmp

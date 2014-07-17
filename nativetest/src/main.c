@@ -11,6 +11,8 @@
 #include <assert.h>
 #include <errno.h>
 
+#define VIDEO_COLS	80
+#define VIDEO_ROWS	25
 //#define COL_WHITE	0x80808080
 #define COL_BLACK	0x00000000
 #define COL_GRAY	0x00444444
@@ -28,6 +30,7 @@ void	HandleEvent(SDL_Event *Event, tRME_State *EmuState);
 Uint32	Video_RedrawTimerCb(Uint32 interval, void *unused);
  int	HLECall10(tRME_State *State, int IntNum);
  int	HLECall12(tRME_State *State, int IntNum);
+ int	HLECall13(tRME_State *State, int IntNum);
  int	HLECall(tRME_State *State, int IntNum);
 void	PutChar(uint8_t ch, uint8_t attr);
 void	PutString(const char *String, uint8_t attr);
@@ -51,7 +54,9 @@ struct {
 	uint8_t	ASCII;
 } gKeyBuffer[16];
 // - Video output
+ int	gbIsRedrawing;
  int	giCursorX, giCursorY;
+uint8_t	gCurAttributes = 0x0F;
 
 // === CODE ===
 int main(int argc, char *argv[])
@@ -104,21 +109,24 @@ int main(int argc, char *argv[])
 	
 	// Initialise memory
 	memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
-	memset(gaMemory+0xB8000, 0x00, 25*80*2);
+	memset(gaMemory+0xB8000, 0x00, VIDEO_ROWS*VIDEO_COLS*2);
 
 	if( !gbDisableGUI ) {
 		SDL_Init(SDL_INIT_TIMER);
-		gScreen = SDL_SetVideoMode(80*8, 25*16, 32, SDL_HWSURFACE);
+		gScreen = SDL_SetVideoMode(VIDEO_COLS*8, VIDEO_ROWS*16, 32, SDL_HWSURFACE);
 		SDL_AddTimer(100, Video_RedrawTimerCb, NULL);
 		PutString("RME NativeTest\r\n", 0x0F);
 	}
 
 	// Open FDD image
-	printf("Loading '%s'\n", gasFDDs[0]);
-	gaFDDs[0] = fopen(gasFDDs[0], "rb");
-	if( !gaFDDs[0] ) {
-		perror("Opening FDD image");
-		//return 1;
+	if( gasFDDs[0] && gasFDDs[0][0] != '\0' )
+	{
+		printf("Loading '%s'\n", gasFDDs[0]);
+		gaFDDs[0] = fopen(gasFDDs[0], "rb");
+		if( !gaFDDs[0] ) {
+			perror("Opening FDD image");
+			//return 1;
+		}
 	}
 
 	// Create BIOS Structures
@@ -160,7 +168,7 @@ int main(int argc, char *argv[])
 	emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
 	emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
 	emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
-	emu->HLECallbacks[0x13] = HLECall;	// 0x13 - Disk IO
+	emu->HLECallbacks[0x13] = HLECall13;	// 0x13 - Disk IO
 	emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
 	emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
 	emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
@@ -353,15 +361,20 @@ void HandleEvent(SDL_Event *Event, tRME_State *EmuState)
 		break;
 	case SDL_USEREVENT:
 		Video_Redraw();
+		gbIsRedrawing = 0;
 		break;
 	}
 }
 
 Uint32 Video_RedrawTimerCb(Uint32 interval, void *unused)
 {
-	SDL_UserEvent	ue = {.type=SDL_USEREVENT,.code=0};
-	SDL_Event	e = {.type=SDL_USEREVENT, .user = ue};
-	SDL_PushEvent(&e);
+	if( !gbIsRedrawing )
+	{
+		gbIsRedrawing = 1;
+		SDL_UserEvent	ue = {.type=SDL_USEREVENT,.code=0};
+		SDL_Event	e = {.type=SDL_USEREVENT, .user = ue};
+		SDL_PushEvent(&e);
+	}
 	return interval;
 }
 
@@ -397,6 +410,11 @@ void DrawChar(int X, int Y, uint8_t ch, uint32_t BGC, uint32_t FGC)
 	}
 }
 
+void Video_ScrollUp(int Page, uint8_t Attr, int nLines, int Top, int Left, int Bottom, int Right)
+{
+	// TODO
+}
+
 void Video_Redraw(void)
 {
 	uint32_t	colours[] = {
@@ -405,12 +423,12 @@ void Video_Redraw(void)
 	};
 	// TODO: Other modes?
 	uint8_t	*vidmem = &gaMemory[0xB8000];
-	for( int row = 0; row < 25; row ++ )
+	for( int row = 0; row < VIDEO_ROWS; row ++ )
 	{
-		for( int col = 0; col < 80; col ++ )
+		for( int col = 0; col < VIDEO_COLS; col ++ )
 		{
-			uint8_t	ch = vidmem[(row*80+col)*2+0];
-			uint8_t	at = vidmem[(row*80+col)*2+1];
+			uint8_t	ch = vidmem[(row*VIDEO_COLS+col)*2+0];
+			uint8_t	at = vidmem[(row*VIDEO_COLS+col)*2+1];
 			DrawChar(col, row, ch, colours[at>>4], colours[at&15]);
 		}
 	}
@@ -440,15 +458,17 @@ void PutChar(uint8_t ch, uint8_t attrib)
 		return ;
 	}
 
-	gaMemory[0xB8000 + (giCursorY*80+giCursorX)*2 + 0] = ch;
-	gaMemory[0xB8000 + (giCursorY*80+giCursorX)*2 + 1] = attrib;	// TODO: Better attrib
+	gaMemory[0xB8000 + (giCursorY*VIDEO_COLS+giCursorX)*2 + 0] = ch;
+	gaMemory[0xB8000 + (giCursorY*VIDEO_COLS+giCursorX)*2 + 1] = attrib;	// TODO: Better attrib
 	
 	giCursorX ++;
-	if(giCursorX == 80) {
+	if(giCursorX == VIDEO_COLS) {
 		giCursorX = 0;
 		giCursorY ++;
-		if(giCursorY == 25)
-			giCursorY = 0;
+		if(giCursorY == VIDEO_ROWS) {
+			Video_ScrollUp(0, 1, attrib, 0, 0, VIDEO_ROWS, VIDEO_COLS);
+			giCursorY --;
+		}
 	}
 }
 
@@ -484,7 +504,6 @@ int ReadDiskLBA(int Disk, int LBAAddr, int Count, void *Data)
 	{
 	case 0:
 		if( fseek(gaFDDs[0], LBAAddr * 512, SEEK_SET) ) {
-			fprintf(stderr, "fseek(gaFDDs[0], 0x%x*512, SEEK_SET)\n", LBAAddr);
 			fprintf(stdout, "fseek(gaFDDs[0], 0x%x*512, SEEK_SET)\n", LBAAddr);
 			perror("FDD fseek failed");	
 			memset(Data, 0, 512*Count);
@@ -557,20 +576,67 @@ int HLECall10(tRME_State *State, int IntNum)
 		}
 		printf("HLE Call INT 0x10/AH=0x00: VIDEO - SET VIDEO MODE AL=0x%x\n", State->AX.B.L);
 		exit(1);
-	// VIDEO - VIDEO - SET CURSOR POSITION
+	// VIDEO - SET TEXT-MODE CURSOR SHAPE
+	case 0x01:
+		printf("INT10/AH=01 - TODO: Set cursor shape CH=%02x, CL=%02x", State->CX.B.H, State->CX.B.L);
+		break;
+	// VIDEO - SET CURSOR POSITION
 	case 0x02:
 		giCursorX = State->DX.B.L;
 		giCursorY = State->DX.B.H;
 		break;
+	// VIDEO - SET ACTIVE DISPLAY PAGE
+	case 0x05: {
+		// giCurPage = State->AX.B.L;
+		break; }
+	// VIDEO - SCROLL UP WINDOW
+	case 0x06: {
+		 int	lines = State->AX.B.L;
+		uint8_t	attr = (State->BX.B.H << 8);
+		int tx = State->CX.B.L;
+		int ty = State->CX.B.H;
+		int bx = State->DX.B.L;
+		int by = State->DX.B.H;
+		
+		if( lines == 0 ) {
+			// AL=0: Clear screen
+			for( int i = 0; i < VIDEO_ROWS*VIDEO_COLS; i ++ )
+			{
+				gaMemory[0xB8000+i*2+0] = 0;
+				gaMemory[0xB8000+i*2+1] = attr;
+			}
+		}
+		else {
+			Video_ScrollUp(0, lines, attr, ty, tx, by, bx);
+		}
+		
+		break; }
 	// VIDEO - READ CHARACTER AND ATTRIBUTE AT CURSOR POSITION
 	case 0x08:
 		State->AX.B.L = gaMemory[0xB8000+(giCursorY*80+giCursorX)*2+0];
 		State->AX.B.H = gaMemory[0xB8000+(giCursorY*80+giCursorX)*2+1];
 		break;
+	// VIDEO - WRITE CHARACTER AND ATTRIBUTE AT CURSOR POSITION
+	case 0x09: {
+		uint8_t	ch = State->AX.B.L;
+		 int	page = State->BX.B.H;
+		uint8_t	attr = State->BX.B.L;
+		 int	count = State->CX.W;
+		for( int i = 0; i < count; i ++ )
+		{
+			gaMemory[0xB8000+(giCursorY*80+giCursorX)*2+0] = ch;
+			gaMemory[0xB8000+(giCursorY*80+giCursorX)*2+1] = attr;
+			giCursorX ++;
+			if( giCursorX == VIDEO_ROWS ) {
+				giCursorX --;
+				break;
+			}
+		}
+		break; }
 	// VIDEO - TELETYPE OUTPUT
 	case 0x0E:
 		// TODO: Better Colours
-		PutChar(State->AX.B.L, 0x0F);
+		PutChar(State->AX.B.L, gCurAttributes);
 		//Video_Redraw();
 		break;
 	// VIDEO - GET CURRENT VIDEO MODE
@@ -578,6 +644,21 @@ int HLECall10(tRME_State *State, int IntNum)
 		State->AX.B.H = 80;	// Cols
 		State->AX.B.L = 0x03;	// Mode Number
 		State->BX.B.L = 0;	// Page
+		break;
+	// Extensions: 0x10XX
+	case 0x10:
+		switch(State->AX.W)
+		{
+		// VIDEO - TOGGLE INTENSITY/BLINKING BIT (Jr, PS, TANDY 1000, EGA, VGA)
+		case 0x1003:
+			// TODO: Attributes
+			gCurAttributes ^= 0x80;
+			break;
+		default:
+			printf("HLE Call INT 0x10 AX=0x%04x Unk\n", State->AX.W);
+			RME_DumpRegs(State);
+			exit(1);
+		}
 		break;
 	// VIDEO - GET BLANKING ATTRIBUTE
 	case 0x12:
@@ -600,6 +681,158 @@ int HLECall12(tRME_State *State, int IntNum)
 	State->AX.W = 0xA0000/1024 - 1;
 	return 0;
 }
+
+/*
+ * \brief HLE Calls "INT 0x13" Disk Subsystem
+ */
+int HLECall13(tRME_State *State, int IntNum)
+{
+	 int	ret;
+	switch(State->AX.B.H)
+	{
+	// DISK - RESET DISK SYSTEM
+	case 0x00:
+		printf("HLE 0x13:0x00 - Reset disk subsystem\n");
+		State->Flags &= ~FLAG_CF;
+		State->AX.B.H = 0;
+		// Does anything need to be done here?
+		break;
+	
+	case 0x02: {	// Read Sector(s) into memory
+		//RME_DumpRegs(State);
+		// AL - Number of sectors to read
+		// CH - Cylinder Number Low Bits
+		// CL - Sector Number (bits 0-5), Cylinder Number High (bits 6,7)
+		// DH - Head Number
+		// DL - Disk Number
+		// ES:BX - Destination Buffer
+		
+		// Zero count?
+		if( (State->AX.B.L & 0x3F) == 0 ) {
+			printf(" 0x13:0x02 Zero sectors\n");
+			State->Flags |= 1;
+			break;
+		}
+		
+		 int	disk = State->DX.B.L;
+		 int	cyl = State->CX.B.H | ((State->CX.B.L & 0xC0)<<2);
+		 int	head = State->DX.B.H;
+		 int	sect = State->CX.B.L & 0x3F;
+		 int	count = State->AX.B.L;
+		ret = ReadDiskCHS( disk, cyl, head, sect, count, &gaMemory[ State->ES*16 + State->BX.W ] );
+		// Error check
+		if( ret < 0 ) {
+			printf(" 0x13:0x02 ReadDiskCHS Ret -0x%x\n", -ret);
+			State->AX.B.H = -ret;
+			State->Flags |= 1;
+			break;
+		}
+		if( ret != State->AX.B.L ) {
+			printf(" 0x13:0x02 Incomplete read: %i/%i\n", ret, State->AX.B.L);
+			State->AX.B.L = ret;
+			State->Flags |= 1;
+			break;
+		}
+		printf("HLE 0x13:0x02 - Read sectors (D%02x,%i,%i,%i)+%i to %x:%x\n",
+			disk, cyl, head, sect, count, State->ES, State->BX.W 
+			);
+		State->AX.B.H = 0;
+		State->Flags &= ~1;
+		break; }
+	
+	case 0x08: {	// Get Drive Parameters
+		printf("HLE 0x13:0x08 - Get Drive Parameters (D%02x)\n", State->DX.B.L);
+		State->Flags &= ~(FLAG_CF);
+		 int	cyl, heads, sec;
+		 int	type;
+		type = GetDiskParams(State->DX.B.L, &cyl, &heads, &sec);
+		if( type == 0 ) {
+			State->Flags |= 1;
+			break;
+		}
+		
+		// Maximum values are wanted
+		cyl --;
+		heads --;
+		// Sector numbers are 1 based, so `sec` doesn't need to be changed
+		
+		State->AX.W = 0x0000;	// AX - Zero for success
+		State->BX.B.L = type;	// BL - Disk Type (1.44M Floppy)
+		State->CX.B.L = sec | ((cyl>>8)<<6);	// CL - Max Sector Number
+		State->CX.B.H = cyl&0xFF;	// CH - Cylinder Count (Bits 0-7)
+		State->DX.B.L = 1;	// DL - Number of drives
+		State->DX.B.H = heads;	// DH - Maximum Head Number
+		// Disk Parameter block
+		State->ES = 0xF100;	State->DI.W = 0x0000;
+		break; }
+
+	case 0x15:	// Get Disk Type
+		printf("HLE 0x13:0x15 - Get Disk Type 0x%02x\n", State->DX.B.L);
+		{
+			 int	cyl, heads, sec;
+			State->Flags &= ~FLAG_CF;
+			switch(GetDiskParams(State->DX.B.L, &cyl, &heads, &sec))
+			{
+			case 4:
+				State->AX.B.H = 2;
+				State->CX.W = sec * heads * cyl;
+				State->DX.W = 0;
+				break;
+			default:
+				printf(" - Disk type unknown\n");
+				State->AX.B.H = 0;
+				State->Flags |= FLAG_CF;
+				break;
+			}
+		}
+		break;		
+
+	// Extended Read
+	case 0x42:
+		{
+			uint32_t	laddr;
+			struct {
+				uint8_t	Size;
+				uint8_t	Rsvd;	// Zero
+				uint16_t	Count;
+				t_farptr	Buffer;
+				uint64_t	LBAStart;
+				uint64_t	BufferLong;
+			}	PACKED	*packet = (void*)&gaMemory[State->DS*16+State->SI.W];
+			
+			laddr = packet->Buffer.Segment*16 + packet->Buffer.Offset;
+			
+			
+			//printf(" packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,"
+			//	"LBAStart=0x%"PRIx64",BufferLong=0x%"PRIx64"}\n",
+			//	packet,
+			//	packet->Size, packet->Count,
+			//	packet->Buffer.Segment, packet->Buffer.Offset,
+			//	packet->LBAStart, packet->BufferLong);
+			
+			if(laddr + packet->Count*512 > 0x110000) {
+				State->Flags |= 1;
+				State->AX.B.H = 0xBB;
+				printf("Read past end of memory! (0x%x)\n",
+					laddr + packet->Count*512);
+				break;
+			}
+			ReadDiskLBA(State->DX.B.L,
+				packet->LBAStart, packet->Count,
+				&gaMemory[laddr]);
+			State->Flags &= ~1;
+			State->AX.B.H = 0x00;
+			
+		}
+		break;
+	
+	default:
+		printf("HLE Call INT 0x13 AH=0x%02x unknown\n", State->AX.B.H);
+		RME_DumpRegs(State);
+		exit(1);
+	}
+}
+
 /**
  * \brief Do a HLE call
  */
@@ -620,155 +853,6 @@ int HLECall(tRME_State *State, int IntNum)
 				if( gKeyBufferPos )
 					exit(0);
 			}
-		}
-		break;
-		
-	case 0x13:
-		switch(State->AX.B.H)
-		{
-		// DISK - RESET DISK SYSTEM
-		case 0x00:
-			printf(" 0x00 - Reset disk subsystem\n");
-			State->Flags &= ~FLAG_CF;
-			State->AX.B.H = 0;
-			// Does anything need to be done here?
-			break;
-		
-		case 0x02:	// Read Sector(s) into memory
-			//RME_DumpRegs(State);
-			// AL - Number of sectors to read
-			// CH - Cylinder Number Low Bits
-			// CL - Sector Number (bits 0-5), Cylinder Number High (bits 6,7)
-			// DH - Head Number
-			// DL - Disk Number
-			// ES:BX - Destination Buffer
-			
-			// Zero count?
-			if( (State->AX.B.L & 0x3F) == 0 ) {
-				printf(" 0x13:0x02 Zero sectors\n");
-				State->Flags |= 1;
-				break;
-			}
-			
-			ret = ReadDiskCHS(
-				State->DX.B.L,	// Disk
-				State->CX.B.H | ((State->CX.B.L & 0xC0)<<2),	// Cylinder
-				State->DX.B.H,	// Head
-				State->CX.B.L & 0x3F,	// Sector
-				State->AX.B.L,	// Count
-				&gaMemory[ State->ES*16 + State->BX.W ]
-				);
-			// Error check
-			if( ret < 0 ) {
-				printf(" 0x13:0x02 ReadDiskCHS Ret -0x%x\n", -ret);
-				State->AX.B.H = -ret;
-				State->Flags |= 1;
-				break;
-			}
-			if( ret != State->AX.B.L ) {
-				printf(" 0x13:0x02 Incomplete read: %i/%i\n", ret, State->AX.B.L);
-				State->AX.B.L = ret;
-				State->Flags |= 1;
-				break;
-			}
-			//printf("Read 0x%x bytes to %04x:%04x ([0] = 0x%02x)\n",
-			//	ret*512, State->ES, State->BX.W,
-			//	gaMemory[ State->ES*16 + State->BX.W ]);
-			State->AX.B.H = 0;
-			State->Flags &= ~1;
-			break;
-		
-		case 0x08:	// Get Drive Parameters
-			{
-				State->Flags &= ~1;
-				 int	cyl, heads, sec;
-				 int	type;
-				type = GetDiskParams(State->DX.B.L, &cyl, &heads, &sec);
-				if( type == 0 ) {
-					State->Flags |= 1;
-					break;
-				}
-				
-				// Maximum values are wanted
-				cyl --;
-				heads --;
-				// Sector numbers are 1 based, so `sec` doesn't need to be changed
-				
-				State->AX.W = 0x0000;	// AX - Zero for success
-				State->BX.B.L = type;	// BL - Disk Type (1.44M Floppy)
-				State->CX.B.L = sec | ((cyl>>8)<<6);	// CL - Max Sector Number
-				State->CX.B.H = cyl&0xFF;	// CH - Cylinder Count (Bits 0-7)
-				State->DX.B.L = 1;	// DL - Number of drives
-				State->DX.B.H = heads;	// DH - Maximum Head Number
-				// Disk Parameter block
-				State->ES = 0xF100;	State->DI.W = 0x0000;
-			}
-			break;
-
-		case 0x15:	// Get Disk Type
-			printf("HLE 0x13:0x15 - Get Disk Type 0x%02x\n", State->DX.B.L);
-			{
-				 int	cyl, heads, sec;
-				State->Flags &= ~FLAG_CF;
-				switch(GetDiskParams(State->DX.B.L, &cyl, &heads, &sec))
-				{
-				case 4:
-					State->AX.B.H = 2;
-					State->CX.W = sec * heads * cyl;
-					State->DX.W = 0;
-					break;
-				default:
-					printf(" - Disk type unknown\n");
-					State->AX.B.H = 0;
-					State->Flags |= FLAG_CF;
-					break;
-				}
-			}
-			break;		
-
-		// Extended Read
-		case 0x42:
-			{
-				uint32_t	laddr;
-				struct {
-					uint8_t	Size;
-					uint8_t	Rsvd;	// Zero
-					uint16_t	Count;
-					t_farptr	Buffer;
-					uint64_t	LBAStart;
-					uint64_t	BufferLong;
-				}	PACKED	*packet = (void*)&gaMemory[State->DS*16+State->SI.W];
-				
-				laddr = packet->Buffer.Segment*16 + packet->Buffer.Offset;
-				
-				
-				//printf(" packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,"
-				//	"LBAStart=0x%"PRIx64",BufferLong=0x%"PRIx64"}\n",
-				//	packet,
-				//	packet->Size, packet->Count,
-				//	packet->Buffer.Segment, packet->Buffer.Offset,
-				//	packet->LBAStart, packet->BufferLong);
-				
-				if(laddr + packet->Count*512 > 0x110000) {
-					State->Flags |= 1;
-					State->AX.B.H = 0xBB;
-					printf("Read past end of memory! (0x%x)\n",
-						laddr + packet->Count*512);
-					break;
-				}
-				ReadDiskLBA(State->DX.B.L,
-					packet->LBAStart, packet->Count,
-					&gaMemory[laddr]);
-				State->Flags &= ~1;
-				State->AX.B.H = 0x00;
-				
-			}
-			break;
-		
-		default:
-			printf("HLE Call INT 0x13 AH=0x%02x unknown\n", State->AX.B.H);
-			RME_DumpRegs(State);
-			exit(1);
 		}
 		break;
 	
