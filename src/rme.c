@@ -112,6 +112,7 @@ int RME_int_CallInt(tRME_State *State, int Num)
 	PUSH(State->Flags);
 	PUSH(State->CS);
 	PUSH(State->IP);
+	State->Flags &= ~(FLAG_IF|FLAG_TF);
 
 	ret = RME_Int_Read16(State, 0, Num*4, &State->IP);
 	if(ret)	return ret;
