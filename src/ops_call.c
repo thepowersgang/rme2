@@ -132,8 +132,9 @@ DEF_OPCODE_FCN(ENTER, z)
 	
 	// StackSize==16
 	State->BP.W = frameTemp;
-	if( State->SP.W < size )
-		;	// #SS
+	if( State->SP.W < size ) {
+		// Exception #SS
+	}
 	State->SP.W -= size;
 	
 	return 0;
