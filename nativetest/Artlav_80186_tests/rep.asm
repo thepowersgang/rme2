@@ -56,9 +56,9 @@ rb 0809h-$
 jmp rep_movs_nz
 
 rb 00ffch-$
-jmp near cont_n5
-;rb 00ffeh-$
-jmp near cont_n10
+jmp short cont_n5
+rb 00ffeh-$
+jmp short cont_n10
 ; Prefixes do not affect normal instructions
 ;rb 01000h-$
 mov cx,0

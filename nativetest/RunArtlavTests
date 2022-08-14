@@ -1,19 +1,19 @@
 #!/bin/sh
 cd `dirname $0`
 
-gcc -std=c99 cmpmembin.c -o cmpmembin || exit
+gcc -std=c99 cmpmemhex.c -o cmpmemhex || exit
 make -C src || exit
 
 echo "" > ArtlavTestLog.log
 
 for asmfile in Artlav_80186_tests/*.asm; do
 	binfile=${asmfile%.asm}.bin
-	memfile=`dirname $binfile`/res_`basename $binfile`
-	echo $binfile" "$memfile
-	if [ ! -f $binfile ] ; then
+	echo $binfile
+	if [ ! -f $binfile ] || [ $asmfile -nt $binfile ] ; then
+		echo "nasm $asmfile -f bin -o $binfile"
 		nasm $asmfile -f bin -o $binfile || exit
 	fi
 	./tester -b $binfile -O test_mem_dump.dmp --nogui "" >> ArtlavTestLog.log || exit
-	./cmpmembin $memfile test_mem_dump.dmp || exit
+	./cmpmemhex $asmfile test_mem_dump.dmp || exit
 done
 rm test_mem_dump.dmp

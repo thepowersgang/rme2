@@ -1,3 +1,5 @@
+;00: 01 40
+
 ;This code tests all kind of different jumps and movs that exist on the 8086.
 ;The program ends at address 0xf400C and the result is the number 0x4001 written in address 0. 
 ; mov: 1 (word), 2 (word), 3 (off, base+index+off), 4, 5 (off), 
@@ -74,7 +76,9 @@ mov word [0],ax
 hlt
 
 rb 65520-$
-jmp start               ; (1)  jmp
+;jmp start               ; (1)  jmp
+;jmp short start               ; (1)  jmp
+db 0xeb, 0x0e
 dw 1290h
 
 rb 65534-$

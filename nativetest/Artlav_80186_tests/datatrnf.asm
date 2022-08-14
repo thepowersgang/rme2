@@ -1,6 +1,6 @@
-;00h: c7 XX c7 a5 78 56 34 12 f1 8c cd ab 2d 8b d3 0c
-;10h: f1 8c cd ab ff ff f1 8c f1 8c XX XX XX XX XX XX
-;20h: c7 87
+;00: c7 XX c7 a5 78 56 34 12 f1 8c cd ab 2d 8b d3 0c
+;10: f1 8c cd ab ff ff f1 8c f1 8c XX XX XX XX XX XX
+;20: c7 87
 
 
 use16
