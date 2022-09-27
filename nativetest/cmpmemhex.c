@@ -31,6 +31,7 @@ int main(int argc, char *argv[])
 	int bytes = ftell(binfile);
 	fseek(binfile, 0, SEEK_SET);
 	
+	// Parse each expectation lines
 	int	failed = 0;
 	size_t	n_bytes = 0;
 	char	line[512];
@@ -71,6 +72,7 @@ int main(int argc, char *argv[])
 			}
 		}
 
+		// Check for differences
 		bool	local_failed = false;
 		for( int i = 0; i < 16; i ++ )
 		{
@@ -80,6 +82,7 @@ int main(int argc, char *argv[])
 		
 		if( local_failed )
 		{
+			// Dump the local content, then the expectation
 			fprintf(stderr, "%02x:", n_bytes);
 			for( int i = 0; i < 16; i ++ )
 			{
@@ -96,7 +99,8 @@ int main(int argc, char *argv[])
 					fprintf(stderr, " XX");
 			}
 			fprintf(stderr, "\n");
-			fprintf(stderr, "   ");
+			// Then print markers and the local values
+			fprintf(stderr, "   ");	// `%02x:`
 			for( int i = 0; i < 16; i ++ )
 			{
 				if( i == 8 )	fprintf(stderr, " ");
@@ -105,6 +109,7 @@ int main(int argc, char *argv[])
 				else
 					fprintf(stderr, "   ");
 			}
+			fprintf(stderr, "   ");	// The ` !=` from the previous line
 			for( int i = 0; i < 16; i ++ )
 			{
 				if( i == 8 )	fprintf(stderr, " ");

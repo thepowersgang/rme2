@@ -1,19 +1,27 @@
 #!/bin/sh
+set -eu
 cd `dirname $0`
 
+# Compile `cmpmemhex` and `tester`
 gcc -std=c99 cmpmemhex.c -o cmpmemhex || exit
 make -C src || exit
 
+# Clear the composite logfile
 echo "" > ArtlavTestLog.log
 
+# Iterate all test files
 for asmfile in Artlav_80186_tests/*.asm; do
 	binfile=${asmfile%.asm}.bin
 	echo $binfile
+	# Re-compile the test file (if it's missing or the source is newer)
 	if [ ! -f $binfile ] || [ $asmfile -nt $binfile ] ; then
 		echo "nasm $asmfile -f bin -o $binfile"
 		nasm $asmfile -f bin -o $binfile || exit
 	fi
+	# Run the test binary
 	./tester -b $binfile -O test_mem_dump.dmp --nogui "" >> ArtlavTestLog.log || exit
+	# Compare the memory dump the exepected memory contents (encoded in leading comments)
 	./cmpmemhex $asmfile test_mem_dump.dmp || exit
 done
+# Remove the memory dump, just for cleaniup
 rm test_mem_dump.dmp
