@@ -7,3 +7,11 @@
 .*
 *.ao
 testkern/obj/
+/nativetest/cmpmemhex
+/nativetest/cmpmembin
+/nativetest/tester
+/nativetest/*.dmp
+/nativetest/*.log
+
+/nativetest/trace-*
+/nativetest/gmon.out
