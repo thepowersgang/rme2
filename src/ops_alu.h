@@ -91,7 +91,7 @@
 	} \
 	else { \
 		State->Flags |= FLAG_CF; \
-		State->Flags |= (*src == 1 << (width-1)) ? FLAG_OF : 0;\
+		State->Flags |= (*src == 1u << (width-1)) ? FLAG_OF : 0;\
 		State->Flags |= ((*src&7) != 0) ? FLAG_AF : 0; \
 		*dest = ~*src + 1; \
 	} \
@@ -152,16 +152,15 @@
 	 int	amt = (*src & 31) % (width+1); \
 	if( amt > 0 ) { \
 		 int	cf_new, cf = (State->Flags & FLAG_CF) ? 1 : 0; \
+		State->Flags &= ~(FLAG_OF|FLAG_CF); \
 		typeof(*dest) val = *dest; \
+		State->Flags |= (((val >> (width-1)) & 1) ^ cf) ? FLAG_OF : 0; \
 		while(amt--) { \
 			cf_new = val & 1; \
 			val = (val >> 1) | (cf << (width-1)); \
 			cf = cf_new; \
 		} \
-		State->Flags &= ~(FLAG_OF|FLAG_CF); \
 		State->Flags |= cf ? FLAG_CF : 0; \
-		int high = val >> (width-2); \
-		State->Flags |= ((high & 1) ^ (high >> 1)) ? FLAG_OF : 0; \
 		*dest = val; \
 	}
 // 4: Shift Logical Left
@@ -243,7 +242,7 @@
 		State->Flags &= ~(FLAG_CF|FLAG_OF);
 
 #define _IMUL_FLAGS	\
-	if(result < -(1 << (width-1)) || result > ((1 << (width-1))-1)) \
+	if(result < -(1 << (width-1)) || result > (((uint32_t)1 << (width-1))-1)) \
 		State->Flags |= FLAG_CF|FLAG_OF; \
 	else \
 		State->Flags &= ~(FLAG_CF|FLAG_OF);
