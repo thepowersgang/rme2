@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
 	else if( gsBinaryFile )
 	{
 		FILE	*fp = fopen(gsBinaryFile, "rb");
-		 int	len;
+		off_t	len;
 
 		memset(gaMemory, 0, 0x400);	// clear IVT		
 

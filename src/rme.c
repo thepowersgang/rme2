@@ -248,6 +248,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 	if(State->Decoder.RepeatType)
 	{
 		DEBUG_S(" Prefix 0x%02x used with wrong opcode 0x%02x", State->Decoder.RepeatType, opcode);
+		// - Legal, but definitely not intentional
 		//return RME_ERR_UNDEFOPCODE;
 	}
 
@@ -278,25 +279,16 @@ int RME_Int_DoOpcode(tRME_State *State)
 
 	#if DEBUG
 	{
-		uint16_t	i = startIP;
+		uint16_t i = startIP;
 		uint8_t	byte;
 		 int	j = State->Decoder.IPOffset;
 
 		DEBUG_S("\t;");
-		while(i < 0x10000 && j--) {
+		while(j--) {
 			ret = RME_Int_Read8(State, startCS, i, &byte);
 			if(ret)	return ret;
 			DEBUG_S(" %02x", byte);
 			i ++;
-		}
-		if(j > 0)
-		{
-			while(j--) {
-				ret = RME_Int_Read8(State, startCS, i, &byte);
-				if(ret)	return ret;
-				DEBUG_S(" %02x", byte);
-				i ++;
-			}
 		}
 	}
 	#endif

@@ -60,7 +60,7 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 		size_t read_count = fread(data, 1, dataSize, fp);
 		if(read_count != dataSize) {
 			perror("LoadDosExe - read data");
-			fprintf(stderr, " - %i/%i bytes read\n", read_count, dataSize);
+			fprintf(stderr, " - %zu/%i bytes read\n", read_count, dataSize);
 			goto _error;
 		}
 	}

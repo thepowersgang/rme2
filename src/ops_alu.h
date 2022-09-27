@@ -242,7 +242,7 @@
 		State->Flags &= ~(FLAG_CF|FLAG_OF);
 
 #define _IMUL_FLAGS	\
-	if(result < -(1 << (width-1)) || result > (((uint32_t)1 << (width-1))-1)) \
+	if(result < -(1ll << (width-1)) || result > (((uint32_t)1 << (width-1))-1)) \
 		State->Flags |= FLAG_CF|FLAG_OF; \
 	else \
 		State->Flags &= ~(FLAG_CF|FLAG_OF);
