@@ -39,15 +39,11 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 		return ret;
 	}
 	
-	printf("hdr.cs = %x, hdr.ip = %x\n", hdr.cs, hdr.ip);
+	printf("LoadDosExe: hdr.cs = %x, hdr.ip = %x\n", hdr.cs, hdr.ip);
 	dataStart = hdr.header_paragraphs*16;
-	if( hdr.bytes_in_last_block )
-		dataSize = (hdr.blocks_in_file-1)*512 + hdr.bytes_in_last_block;
-	else
-		dataSize = hdr.blocks_in_file*512;
-	dataSize -= dataStart;
+	dataSize = hdr.blocks_in_file * 512 - (512 - hdr.bytes_in_last_block) % 512 - dataStart;
 	relocStart = hdr.reloc_table_offset;
-	printf("dataStart = %x, dataSize = %x, relocStart = %x\n",
+	printf("LoadDosExe: dataStart = %x, dataSize = %x, relocStart = %x\n",
 		dataStart, dataSize, relocStart);
 	
 	fseek(fp, dataStart, SEEK_SET);
@@ -87,13 +83,16 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 	if( (DESTINATION_SEG*16) % RME_BLOCK_SIZE != 0 ) {
 		off_t	ofs = (DESTINATION_SEG*16) % RME_BLOCK_SIZE;
 		size_t	copysize = MIN(RME_BLOCK_SIZE - ofs, dataSize);
+		printf("- Partial copy 0x%x+0x%x 0x%x", base*RME_BLOCK_SIZE, ofs, copysize);
 		memcpy(state->Memory[base] + ofs, readdata, copysize);
 		readdata += copysize;
+		dataSize -= copysize;
 		i ++;
 	}
-	for( ; i < dataSize/RME_BLOCK_SIZE; i ++ )
+	for( ; i < (dataSize + RME_BLOCK_SIZE-1)/RME_BLOCK_SIZE; i ++ )
 	{
 		size_t	copysize = MIN(RME_BLOCK_SIZE, dataSize-i*RME_BLOCK_SIZE);
+		printf("- Full copy 0x%x : 0x%x\n", (base+i)*RME_BLOCK_SIZE, copysize);
 		memcpy(state->Memory[base+i], readdata, copysize);
 		readdata += copysize;
 	}
