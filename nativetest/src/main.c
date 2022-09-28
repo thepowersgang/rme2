@@ -10,6 +10,7 @@
 #include <SDL/SDL.h>
 #include <assert.h>
 #include <errno.h>
+#include <stdbool.h>
 
 #define VIDEO_COLS	80
 #define VIDEO_ROWS	25
@@ -26,6 +27,8 @@
 t_farptr	LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr);
 
 // === PROTOTYPES ===
+void	ParseArgs(int argc, char* argv[]);
+void	PrintUsage(const char* argv0, bool show_full_help);
 void	HandleEvent(SDL_Event *Event, tRME_State *EmuState);
 Uint32	Video_RedrawTimerCb(Uint32 interval, void *unused);
  int	HLECall10(tRME_State *State, int IntNum);
@@ -66,44 +69,9 @@ int main(int argc, char *argv[])
 	FILE	*fp;
 	 int	ret, i;
 	 int	len, tmp;
-	 int	nFDDs = 0;
 
 	// TODO: Better parameter interpretation
-	for( i = 1; i < argc; i ++ )
-	{
-		if( argv[i][0] == '-' && argv[i][1] == '-' )
-		{
-			if( strcmp(argv[i], "--nogui") == 0 ) {
-				gbDisableGUI = 1;
-			}
-			else if( strcmp(argv[i], "--cpu") == 0 ) {
-				assert(i + 1 != argc);
-				gsCPUType = argv[++i];
-			}
-			else {
-			}
-		}
-		else if( argv[i][0] == '-' )
-		{
-			switch( argv[i][1] )
-			{
-			case 'b':
-				gsBinaryFile = argv[++i];
-				break;
-			case 'O':
-				gsMemoryDumpFile = argv[++i];
-				break;
-			case 'd':
-				gsDosExe = argv[++i];
-				break;
-			}
-		}
-		else
-		{
-			if(nFDDs < 4)
-				gasFDDs[nFDDs++] = argv[i];
-		}
-	}
+	ParseArgs(argc, argv);
 
 	signal(SIGINT, exit);
 	
@@ -175,6 +143,7 @@ int main(int argc, char *argv[])
 	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
 		emu->Memory[i/RME_BLOCK_SIZE] = &gaMemory[i];
 
+	// DOS .exe file
 	if( gsDosExe )
 	{
 		printf("Loading DOS Exe \"%s\"\n", gsDosExe);
@@ -191,6 +160,7 @@ int main(int argc, char *argv[])
 		emu->SP.W = stack.Offset;
 		printf("Entry %x:%x, Stack %x:%x\n", ep.Segment, ep.Offset, stack.Segment, stack.Offset);
 	}
+	// Raw binary blob, loaded as a BIOS image at the end of memory
 	else if( gsBinaryFile )
 	{
 		FILE	*fp = fopen(gsBinaryFile, "rb");
@@ -227,11 +197,11 @@ int main(int argc, char *argv[])
 		emu->CS = 0xF000;
 		emu->IP = 0xFFF0;
 	}
-	else
+	else if( gaFDDs[0] )
 	{
 		printf("Booting Disk #0\n");
 		// Read boot sector
-		if( fread( &gaMemory[0x7C00], 512, 1, gaFDDs[0] ) != 1 )
+		if( gaFDDs[0] && fread( &gaMemory[0x7C00], 512, 1, gaFDDs[0] ) != 1 )
 		{
 			fprintf(stderr, "Disk image < 512 bytes\n");
 			return 0;
@@ -245,6 +215,9 @@ int main(int argc, char *argv[])
 		emu->CS = 0x07C0;
 		emu->IP = 0x0000;
 		emu->DX.W = 0x0000;	// Disk
+	}
+	else {
+		fprintf(stderr, "Booting with no media!\n");
 	}
 	
 
@@ -331,6 +304,94 @@ int main(int argc, char *argv[])
 	}
 
 	return 0;
+}
+
+void ParseArgs(int argc, char* argv[])
+{
+	 int	nFDDs = 0;
+	bool all_free = false;
+	for( int i = 1; i < argc; i ++ )
+	{
+		const char* arg = argv[i];
+		if( arg[0] != '-' || all_free ) {
+			if(nFDDs < 4) {
+				gasFDDs[nFDDs++] = argv[i];
+			}
+			else {
+				fprintf(stderr, "To many FDD images provided\n");
+				PrintUsage(argv[0], false);
+				exit(1);
+			}
+		}
+		else if( arg[1] == '\0') {
+			fprintf(stderr, "'-' isn't a valid argument\n");
+			exit(1);
+		}
+		// Short
+		else if( arg[1] != '-' ) {
+			switch( arg[1] )
+			{
+			case 'h':
+				PrintUsage(arg, true);
+				exit(0);
+			case 'b':
+				gsBinaryFile = argv[++i];
+				break;
+			case 'O':
+				gsMemoryDumpFile = argv[++i];
+				break;
+			case 'd':
+				gsDosExe = argv[++i];
+				break;
+			default:
+				fprintf(stderr, "Unknown short option '-%c'\n", arg[1]);
+				PrintUsage(argv[0], false);
+				exit(1);
+			}
+		}
+		// AllFree
+		else if( arg[2] == '\0' ) {
+			all_free = true;
+		}
+		// Long
+		else
+		{
+			if( strcmp(arg, "--help") == 0 ) {
+				PrintUsage(argv[0], true);
+				exit(0);
+			}
+			else if( strcmp(arg, "--nogui") == 0 ) {
+				gbDisableGUI = 1;
+			}
+			else if( strcmp(arg, "--cpu") == 0 ) {
+				assert(i + 1 != argc);
+				gsCPUType = argv[++i];
+			}
+			else {
+				fprintf(stderr, "Unknown long option '%s'\n", arg);
+				PrintUsage(argv[0], false);
+				exit(1);
+			}
+		}
+	}
+}
+void PrintUsage(const char* argv0, bool show_full_help)
+{
+	fprintf(stderr, "Usage: %s [-d <exename>|-b <bios>|<fdd0> ...]\n", argv0);
+	if( !show_full_help ) {
+		fprintf(stderr, "  Pass --help to see full help\n");
+		return ;
+	}
+	fprintf(stderr, "\n"
+		"-d <exename> | Load a DOS .exe file and run it\n"
+		"-b <bios>    | Load the provided flat binary to the end of memory, and boot from 0xF000:FFF0\n"
+		"<fddN>       | Open FDD images and boot from the first one (defaults to 'fdd.img' if none provided)\n"
+		"\n"
+		"--nogui      | Do not display a GUI\n"
+		"--cpu <name> | Modify the emulated CPU variant (i8086, 80286, 386)\n"
+		"-O <output>  | Dump memory contents after emulator stalls\n"
+		"-h, --help   | Print this message\n"
+		);
 }
 
 void HandleEvent(SDL_Event *Event, tRME_State *EmuState)
