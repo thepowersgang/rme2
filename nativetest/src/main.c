@@ -49,6 +49,20 @@ const char	*gsMemoryDumpFile;
 const char	*gsCPUType = "80286";
  int	gbDisableGUI = 0;
 uint8_t	gaMemory[0x110000];
+uint8_t	gaMemory_prev[0x110000];
+struct PrevRegisters {
+	uint32_t	gprs[8];
+
+	uint16_t	ss;	//!< Stack Segment
+	uint16_t	ds;	//!< Data Segment
+	uint16_t	es;	//!< Extra Segment
+	uint16_t	fs;	//!< Extra Segment 2
+	uint16_t	gs;	//!< Extra Segment 3
+
+	uint16_t	cs;	//!< Code Segment
+	uint16_t	ip;	//!< Instruction Pointer
+	uint16_t	flags;	//!< State Flags
+} gPrevRegisters;
 // - GUI Key Queue
 const int	cKeyBufferSize = 16;
  int	gKeyBufferPos = 0;
@@ -240,9 +254,49 @@ int main(int argc, char *argv[])
 	emu->SP.W = 0xFFFE;
 	*(uint16_t*)&gaMemory[0xA0000-2] = 0xFFFF;
 
+	memcpy(gaMemory_prev, gaMemory, sizeof(gaMemory));
+
 	// Main emulation loop
 	while( (ret = RME_RunOne(emu)) == RME_ERR_OK )
 	{
+		// Check for a change to the state (memory or registers)
+		if(emu->DebugLevel >= 1)
+		{
+			bool printed = false;
+			#define PRINT(...) do { if(!printed) { printed = true; printf(">"); } printf(__VA_ARGS__); } while(0)
+			#define CHECK_REG(name, prev, cur)	do { if(prev != cur) { PRINT(" %s:%04x=>%04x", name, prev, cur); prev = cur; } } while(0)
+			CHECK_REG("AX", gPrevRegisters.gprs[0], emu->AX.D);
+			CHECK_REG("CX", gPrevRegisters.gprs[1], emu->CX.D);
+			CHECK_REG("DX", gPrevRegisters.gprs[2], emu->DX.D);
+			CHECK_REG("BX", gPrevRegisters.gprs[3], emu->BX.D);
+			CHECK_REG("SP", gPrevRegisters.gprs[4], emu->SP.D);
+			CHECK_REG("BP", gPrevRegisters.gprs[5], emu->BP.D);
+			CHECK_REG("SI", gPrevRegisters.gprs[6], emu->SI.D);
+			CHECK_REG("DI", gPrevRegisters.gprs[7], emu->DI.D);
+			CHECK_REG("SS", gPrevRegisters.ss, emu->SS);
+			CHECK_REG("DS", gPrevRegisters.ds, emu->DS);
+			CHECK_REG("ES", gPrevRegisters.es, emu->ES);
+			CHECK_REG("FS", gPrevRegisters.fs, emu->FS);
+			CHECK_REG("GS", gPrevRegisters.gs, emu->GS);
+			CHECK_REG("Flags", gPrevRegisters.flags, emu->Flags);
+			if( memcmp(gaMemory_prev, gaMemory, sizeof(gaMemory)) != 0 ) {
+					for(size_t i = 0; i < sizeof(gaMemory); i += 4) {
+						const uint8_t* cur = gaMemory+i;
+						uint8_t* prev = gaMemory_prev+i;
+						if( memcmp(prev, cur, 4) != 0 ) {
+							uint32_t pv = prev[0] | ((uint32_t)prev[1] << 8) | ((uint32_t)prev[2] << 16) | ((uint32_t)prev[3] << 24);
+							uint32_t cv = cur[0] | ((uint32_t)cur[1] << 8) | ((uint32_t)cur[2] << 16) | ((uint32_t)cur[3] << 24);
+							PRINT(" %05zx:%08x=>%08x", i, pv, cv);
+							memcpy(prev, cur, 4);
+						}
+					}
+			}
+			if(printed) printf("\n");
+			#undef PRINT
+			#undef CHECK_REG
+		}
+
+		// Check for SDL events
 		SDL_Event	ev;
 		while( SDL_PollEvent(&ev) )
 		{
