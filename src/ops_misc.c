@@ -283,11 +283,11 @@ DEF_OPCODE_FCN(XLAT, z)
 	seg = *Seg(State, State->Decoder.OverrideSegment == -1 ? SREG_DS : State->Decoder.OverrideSegment);
 
 	if( State->Decoder.bOverrideAddress ) {
-		DEBUG_S("[EBX+AL]");
+		RME_Int_DebugPrint(State, "[EBX+AL]");
 		address = State->BX.D;
 	}
 	else {
-		DEBUG_S("[BX+AL]");
+		RME_Int_DebugPrint(State, "[BX+AL]");
 		address = State->BX.W;
 	}
 	address += State->AX.B.L;

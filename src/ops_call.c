@@ -12,7 +12,7 @@ DEF_OPCODE_FCN(CALL, N)
 	 int	ret;
 	uint16_t	dist;
 	READ_INSTR16( dist );
-	DEBUG_S(" .+0x%04x", dist);
+	RME_Int_DebugPrint(State, " .+0x%04x", dist);
 	PUSH(State->IP + State->Decoder.IPOffset);
 	State->IP += dist;
 	return 0;
@@ -24,7 +24,7 @@ DEF_OPCODE_FCN(CALL, F)
 	uint16_t	ofs, seg;
 	READ_INSTR16( ofs );
 	READ_INSTR16( seg );
-	DEBUG_S(" 0x%04x:%04x", seg, ofs);
+	RME_Int_DebugPrint(State, " 0x%04x:%04x", seg, ofs);
 	PUSH(State->CS);
 	PUSH(State->IP + State->Decoder.IPOffset);
 	State->CS = seg;
@@ -87,10 +87,10 @@ DEF_OPCODE_FCN(ENTER, z)
 	uint16_t	frameTemp;
 	uint8_t 	level;
 	READ_INSTR16(size);
-	DEBUG_S(" 0x%04x", size);
+	RME_Int_DebugPrint(State, " 0x%04x", size);
 	READ_INSTR8(level);
 	level &= 32-1;
-	DEBUG_S(" %i", level);
+	RME_Int_DebugPrint(State, " %i", level);
 
 	// No operand override: selected by stack size	
 	PUSH(State->BP.W);
@@ -197,7 +197,7 @@ DEF_OPCODE_FCN(INT, I)	// INT imm8
 {
 	uint8_t	num;
 	READ_INSTR8(num);
-	DEBUG_S(" 0x%x", num);
+	RME_Int_DebugPrint(State, " 0x%x", num);
 	return _CallInterrupt(State, num);
 }
 DEF_OPCODE_FCN(INTO, z)	// INTO - INT 4 if OF

@@ -11,7 +11,7 @@
 // === CODE ===
 DEF_OPCODE_FCN(IN, ADx)
 {
-	DEBUG_S(" DX AL");
+	RME_Int_DebugPrint(State, " DX AL");
 	return inB(State, State->DX.W, &State->AX.B.L);
 }
 
@@ -19,12 +19,12 @@ DEF_OPCODE_FCN(IN, ADxX)
 {
 	if( State->Decoder.bOverrideOperand )
 	{
-		DEBUG_S(" DX EAX");
+		RME_Int_DebugPrint(State, " DX EAX");
 		return inD(State, State->DX.W, &State->AX.D);
 	}
 	else
 	{
-		DEBUG_S("DX AX");
+		RME_Int_DebugPrint(State, "DX AX");
 		return inW(State, State->DX.W, &State->AX.W);
 	}
 }
@@ -33,7 +33,7 @@ DEF_OPCODE_FCN(IN, AI)
 {
 	uint8_t	port;
 	READ_INSTR8(port);
-	DEBUG_S(" 0x%02x AL", port);
+	RME_Int_DebugPrint(State, " 0x%02x AL", port);
 	return inB(State, port, &State->AX.B.L);
 }
 
@@ -41,34 +41,34 @@ DEF_OPCODE_FCN(IN, AIX)
 {
 	uint8_t	port;
 	READ_INSTR8(port);
-	DEBUG_S(" 0x%02x", port);
+	RME_Int_DebugPrint(State, " 0x%02x", port);
 	if( State->Decoder.bOverrideOperand )
 	{
-		DEBUG_S(" EAX");
+		RME_Int_DebugPrint(State, " EAX");
 		return inD(State, port, &State->AX.D);
 	}
 	else
 	{
-		DEBUG_S(" AX");
+		RME_Int_DebugPrint(State, " AX");
 		return inW(State, port, &State->AX.W);
 	}
 }
 
 DEF_OPCODE_FCN(OUT, DxA)
 {
-	DEBUG_S(" AL DX");
+	RME_Int_DebugPrint(State, " AL DX");
 	return outB(State, State->DX.W, State->AX.B.L);
 }
 DEF_OPCODE_FCN(OUT, DxAX)
 {
 	if( State->Decoder.bOverrideOperand )
 	{
-		DEBUG_S(" EAX DX");
+		RME_Int_DebugPrint(State, " EAX DX");
 		return outD(State, State->DX.W, State->AX.D);
 	}
 	else
 	{
-		DEBUG_S(" AX DX");
+		RME_Int_DebugPrint(State, " AX DX");
 		return outW(State, State->DX.W, State->AX.W);
 	}
 }
@@ -77,7 +77,7 @@ DEF_OPCODE_FCN(OUT, AI)
 {
 	uint8_t	port;
 	READ_INSTR8(port);
-	DEBUG_S(" AL 0x%02x", port);
+	RME_Int_DebugPrint(State, " AL 0x%02x", port);
 	return outB(State, port, State->AX.B.L);
 }
 
@@ -87,12 +87,12 @@ DEF_OPCODE_FCN(OUT, AIX)
 	READ_INSTR8(port);
 	if( State->Decoder.bOverrideOperand )
 	{
-		DEBUG_S(" EAX 0x%02x", port);
+		RME_Int_DebugPrint(State, " EAX 0x%02x", port);
 		return outD(State, port, State->AX.D);
 	}
 	else
 	{
-		DEBUG_S(" AX 0x%02x", port);
+		RME_Int_DebugPrint(State, " AX 0x%02x", port);
 		return outW(State, port, State->AX.W);
 	}
 }

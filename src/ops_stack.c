@@ -133,7 +133,7 @@ DEF_OPCODE_FCN(PUSH, I)
 	 int	ret;
 	uint32_t	val;
 	READ_INSTR16( val );
-	DEBUG_S(" 0x%04x", val);
+	RME_Int_DebugPrint(State, " 0x%04x", val);
 	if( State->Decoder.bOverrideOperand )
 		PUSH(val>>16);
 	PUSH(val);
@@ -145,7 +145,7 @@ DEF_OPCODE_FCN(PUSH, I8)
 	 int	ret;
 	uint32_t	val;
 	READ_INSTR8S( val );
-	DEBUG_S(" 0x%02x", val);
+	RME_Int_DebugPrint(State, " 0x%02x", val);
 	if( State->Decoder.bOverrideOperand )
 		PUSH(val>>16);
 	PUSH(val);

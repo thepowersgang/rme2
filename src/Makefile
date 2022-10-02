@@ -8,6 +8,7 @@ RME_DEPS := $(RME_OBJ:%.o=%.dep)
 RME_DEPS := $(filter %.dep,$(RME_DEPS))
 
 CFLAGS = -Wall -O2 -Wextra -Wno-unused-parameter
+CFLAGS += -Werror=implicit-function-declaration
 CPPFLAGS = -I .
 
 all: $(RME_BIN)
@@ -18,7 +19,7 @@ clean:
 $(RME_BIN): $(RME_OBJ)
 	$(AR) cur $(RME_BIN) $(RME_OBJ)
 
-obj/%.o: %.c
+obj/%.o: %.c Makefile
 	@mkdir -p obj/
 	$(CC) -o $@ -c $< $(CFLAGS) $(CPPFLAGS) -MD -MT $@ -MF obj/$*.dep
 

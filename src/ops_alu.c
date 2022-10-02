@@ -85,7 +85,7 @@
 	uint8_t srcData, v; \
 	uint8_t	*dest=&State->AX.B.L, *src=&srcData; \
 	READ_INSTR8( srcData ); \
-	DEBUG_S(" AL 0x%02x", *src); \
+	RME_Int_DebugPrint(State, " AL 0x%02x", *src); \
 	__code \
 	SET_COMM_FLAGS(State,v,width); \
 	if(dest) *dest = v;\
@@ -97,7 +97,7 @@
 		uint32_t *dest=&State->AX.D, *src=&srcData; \
 		 int	width=32;\
 		READ_INSTR32( *src ); \
-		DEBUG_S(" EAX 0x%08x", *src); \
+		RME_Int_DebugPrint(State, " EAX 0x%08x", *src); \
 		__code \
 		SET_COMM_FLAGS(State,v,width); \
 		if(dest) *dest=v;\
@@ -106,7 +106,7 @@
 		uint16_t *dest=&State->AX.W, *src=&srcData; \
 		 int	width=16;\
 		READ_INSTR16( *src ); \
-		DEBUG_S(" AX 0x%04x", *src); \
+		RME_Int_DebugPrint(State, " AX 0x%04x", *src); \
 		__code \
 		SET_COMM_FLAGS(State,v,width); \
 		if(dest) *dest=v;\
@@ -159,14 +159,14 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	default: ERROR_S(" - Shift Undef %i\n", op_num); return RME_ERR_UNDEFOPCODE;\
 	} }while(0)
 #define _READIMM() do { switch(width) {\
-	case 8: 	READ_INSTR8(v); DEBUG_S(" 0x%02x", v); break;\
-	case 16:	READ_INSTR16(v);DEBUG_S(" 0x%04x", v); break;\
-	case 32:	READ_INSTR32(v);DEBUG_S(" 0x%08x", v); break;\
+	case 8: 	READ_INSTR8(v); RME_Int_DebugPrint(State, " 0x%02x", v); break;\
+	case 16:	READ_INSTR16(v);RME_Int_DebugPrint(State, " 0x%04x", v); break;\
+	case 32:	READ_INSTR32(v);RME_Int_DebugPrint(State, " 0x%08x", v); break;\
 	default: ERROR_S(" - _READIMM size %i unk", width); return RME_ERR_UNDEFOPCODE;\
 } } while(0)
 #define MISC_SELECT_OPERATION() do { switch( op_num ) { \
 	case 0:	{dest=&v; _READIMM(); ALU_OPCODE_TEST_CODE SET_COMM_FLAGS(State, v, width);} break;\
-	case 1:	DEBUG_S(" Misc /1 UNDEF");	return RME_ERR_UNDEFOPCODE; \
+	case 1:	RME_Int_DebugPrint(State, " Misc /1 UNDEF");	return RME_ERR_UNDEFOPCODE; \
 	case 2: {ALU_OPCODE_NOT_CODE} break; \
 	case 3: {ALU_OPCODE_NEG_CODE} break; \
 	case 4:	{ALU_OPCODE_MUL_CODE} break; \
@@ -189,14 +189,14 @@ DEF_OPCODE_FCN(Arith, MI)
 	if(ret)	return ret;
 	State->Decoder.IPOffset --;
 	
-//	DEBUG_S(" %s", casArithOps[op_num]);
+//	RME_Int_DebugPrint(State, " %s", casArithOps[op_num]);
 	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
 	
 	// Read data, perform operation, set common flags
 	READ_INSTR8(srcData);
-	DEBUG_S(" 0x%02x", srcData);
+	RME_Int_DebugPrint(State, " 0x%02x", srcData);
 	ALU_SELECT_OPERATION();
 	SET_COMM_FLAGS(State, v, width);
 	if(dest)	*dest = v;
@@ -214,7 +214,7 @@ DEF_OPCODE_FCN(Arith, MIX)
 	if(ret)	return ret;
 	State->Decoder.IPOffset --;
 	
-//	DEBUG_S(" %s", casArithOps[op_num]);
+//	RME_Int_DebugPrint(State, " %s", casArithOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
 	if(ret)	return ret;
@@ -225,7 +225,7 @@ DEF_OPCODE_FCN(Arith, MIX)
 		uint32_t	v, srcData, *src = &srcData, *dest = destPtr;
 		const int	width = 32;
 		READ_INSTR32(srcData);
-		DEBUG_S(" 0x%08x", srcData);
+		RME_Int_DebugPrint(State, " 0x%08x", srcData);
 		
 		ALU_SELECT_OPERATION();
 		SET_COMM_FLAGS(State, v, width);
@@ -236,7 +236,7 @@ DEF_OPCODE_FCN(Arith, MIX)
 		uint16_t	v, srcData, *src = &srcData, *dest = destPtr;
 		const int	width = 16;
 		READ_INSTR16(srcData);
-		DEBUG_S(" 0x%04x", srcData);
+		RME_Int_DebugPrint(State, " 0x%04x", srcData);
 		
 		ALU_SELECT_OPERATION();
 		SET_COMM_FLAGS(State, v, width);
@@ -256,7 +256,7 @@ DEF_OPCODE_FCN(Arith, MI8X)
 	if(ret)	return ret;
 	State->Decoder.IPOffset --;
 	
-//	DEBUG_S(" %s", casArithOps[op_num]);
+//	RME_Int_DebugPrint(State, " %s", casArithOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
 	if(ret)	return ret;
@@ -267,7 +267,7 @@ DEF_OPCODE_FCN(Arith, MI8X)
 		uint32_t	v, srcData, *src = &srcData, *dest = destPtr;
 		const int	width = 32;
 		READ_INSTR8S( srcData );
-		DEBUG_S(" 0x%08x", srcData);
+		RME_Int_DebugPrint(State, " 0x%08x", srcData);
 		
 		ALU_SELECT_OPERATION();
 		SET_COMM_FLAGS(State, v, width);
@@ -278,7 +278,7 @@ DEF_OPCODE_FCN(Arith, MI8X)
 		uint16_t	v, srcData, *src = &srcData, *dest = destPtr;
 		const int	width = 16;
 		READ_INSTR8S( srcData );
-		DEBUG_S(" 0x%04x", srcData);
+		RME_Int_DebugPrint(State, " 0x%04x", srcData);
 		
 		ALU_SELECT_OPERATION();
 		SET_COMM_FLAGS(State, v, width);
@@ -354,7 +354,7 @@ DEF_OPCODE_FCN(ArithMisc, MIX)	// 0xF7
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-//	DEBUG_S(" %s", casMiscOps[op_num]);
+//	RME_Int_DebugPrint(State, " %s", casMiscOps[op_num]);
 	
 	// Get argument (defaults to source)
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&arg, 0);
@@ -394,7 +394,7 @@ DEF_OPCODE_FCN(IMUL,MI8X)	// 0x6B
 	if(ret)	return ret;
 
 	READ_INSTR8S(imm16);
-	DEBUG_S(" 0x%04x", imm16);
+	RME_Int_DebugPrint(State, " 0x%04x", imm16);
 
 	result = *src * imm16;
 	SET_COMM_FLAGS(State, result, width);
@@ -422,7 +422,7 @@ DEF_OPCODE_FCN(IMUL,MIX)	// 0x69
 	if(ret)	return ret;
 
 	READ_INSTR16(imm16);
-	DEBUG_S(" 0x%04x", imm16);
+	RME_Int_DebugPrint(State, " 0x%04x", imm16);
 
 	result = *src * imm16;
 	SET_COMM_FLAGS(State, result, width);
@@ -472,7 +472,7 @@ DEF_OPCODE_FCN(Shift, MI)
 	if(ret)	return ret;
 	
 	READ_INSTR8(srcData);
-	DEBUG_S(" 0x%02x", srcData);
+	RME_Int_DebugPrint(State, " 0x%02x", srcData);
 	
 	SHIFT_SELECT_OPERATION();
 	
@@ -489,13 +489,13 @@ DEF_OPCODE_FCN(Shift, MI8X)
 	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
 	if(ret)	return ret;
 	
-//	DEBUG_S(" %s", casLogicOps[op_num]);
+//	RME_Int_DebugPrint(State, " %s", casLogicOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
 	
 	READ_INSTR8(srcData);
-	DEBUG_S(" 0x%02x", srcData);
+	RME_Int_DebugPrint(State, " 0x%02x", srcData);
 	
 	if( State->Decoder.bOverrideOperand )
 	{
@@ -533,7 +533,7 @@ DEF_OPCODE_FCN(Shift, M1)
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
 	
-	DEBUG_S(" 1");
+	RME_Int_DebugPrint(State, " 1");
 	
 	SHIFT_SELECT_OPERATION();
 	
@@ -553,7 +553,7 @@ DEF_OPCODE_FCN(Shift, M1X)
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
 	
-	DEBUG_S(" 1");
+	RME_Int_DebugPrint(State, " 1");
 	
 	if( State->Decoder.bOverrideOperand )
 	{
@@ -587,7 +587,7 @@ DEF_OPCODE_FCN(Shift, MCl)
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
 	
-	DEBUG_S(" CL");
+	RME_Int_DebugPrint(State, " CL");
 	
 	SHIFT_SELECT_OPERATION();
 	
@@ -607,7 +607,7 @@ DEF_OPCODE_FCN(Shift, MClX)
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
 	
-	DEBUG_S(" CL");
+	RME_Int_DebugPrint(State, " CL");
 	
 	if( State->Decoder.bOverrideOperand )
 	{
@@ -638,7 +638,7 @@ DEF_OPCODE_FCN(SHRD, I8)
 	if(ret)	return ret;	
 	
 	READ_INSTR8(amt);
-	DEBUG_S(" %i", amt);
+	RME_Int_DebugPrint(State, " %i", amt);
 
 	_EXT_OP_SD(srcPtr, destPtr, ALU_OPCODE_SHRD_CODE);
 	return 0;
@@ -654,7 +654,7 @@ DEF_OPCODE_FCN(SHRD, Cl)
 	ret = RME_Int_ParseModRM(State, (void*)&srcPtr, (void*)&destPtr, 0);
 	if(ret)	return ret;	
 	
-	DEBUG_S(" CL");
+	RME_Int_DebugPrint(State, " CL");
 	amt = State->CX.B.L;
 
 	_EXT_OP_SD(srcPtr, destPtr, ALU_OPCODE_SHRD_CODE);
@@ -672,7 +672,7 @@ DEF_OPCODE_FCN(SHLD, I8)
 	if(ret)	return ret;	
 	
 	READ_INSTR8(amt);
-	DEBUG_S(" %i", amt);
+	RME_Int_DebugPrint(State, " %i", amt);
 
 	_EXT_OP_SD(srcPtr, destPtr, ALU_OPCODE_SHLD_CODE);
 	return 0;
@@ -688,7 +688,7 @@ DEF_OPCODE_FCN(SHLD, Cl)
 	ret = RME_Int_ParseModRM(State, (void*)&srcPtr, (void*)&destPtr, 0);
 	if(ret)	return ret;	
 	
-	DEBUG_S(" CL");
+	RME_Int_DebugPrint(State, " CL");
 	amt = State->CX.B.L;
 
 	_EXT_OP_SD(srcPtr, destPtr, ALU_OPCODE_SHLD_CODE);

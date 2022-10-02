@@ -152,7 +152,9 @@ typedef struct sRME_State
 
 	uint16_t	Flags;	//!< State Flags
 
+	/// Emulated CPU variant
 	enum eRME_CPUType	CPUType;
+	 int	DebugLevel;
 
 	/**
 	 * \brief Emulator's Memory
@@ -192,7 +194,11 @@ typedef struct sRME_State
 		 int	bOverrideAddress;	// Address size override provided
 		 int	bDontChangeIP;	// Don't change IP after the instruction is executed
 		 int	IPOffset;
+
+		 int	DebugStringLen;
+		char	DebugString[64];	// Debug text
 	}	Decoder;
+
 }	tRME_State;
 
 

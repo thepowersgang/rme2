@@ -20,7 +20,7 @@ DEF_OPCODE_FCN(Ovr, OpSize)
 {
 	if( State->Decoder.bOverrideOperand )
 		return RME_ERR_UNDEFOPCODE;
-	DEBUG_S(" <OPER>");
+	RME_Int_DebugPrint(State, " <OPER>");
 	State->Decoder.bOverrideOperand = 1;
 	return RME_ERR_CONTINUE;	// Not an error
 }
@@ -28,7 +28,7 @@ DEF_OPCODE_FCN(Ovr, AddrSize)
 {
 	if( State->Decoder.bOverrideAddress )
 		return RME_ERR_UNDEFOPCODE;
-	DEBUG_S(" <ADDR>");
+	RME_Int_DebugPrint(State, " <ADDR>");
 	State->Decoder.bOverrideAddress = 1;
 	return RME_ERR_CONTINUE;	// Not an error
 }

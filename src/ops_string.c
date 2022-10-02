@@ -16,17 +16,17 @@
 	uint32_t	srcOfs, destOfs; \
 	uint16_t	srcSeg, destSeg; \
 	uint32_t	mask; \
-	DEBUG_S("%s",__before); \
+	RME_Int_DebugPrint(State, "%s",__before); \
 	if( __use_di ) { \
 		destSeg = *Seg(State, SREG_ES); \
 		if( State->Decoder.bOverrideAddress ) { \
 			mask = 0xFFFFFFFF; \
 			destOfs = State->DI.D; \
-			DEBUG_S(":[EDI]"); \
+			RME_Int_DebugPrint(State, ":[EDI]"); \
 		} else { \
 			mask = 0xFFFF; \
 			destOfs = State->DI.W; \
-			DEBUG_S(":[DI]"); \
+			RME_Int_DebugPrint(State, ":[DI]"); \
 		}\
 	} \
 	if( __use_si ) { \
@@ -35,16 +35,16 @@
 		if( State->Decoder.bOverrideAddress ) { \
 			mask = 0xFFFFFFFF; \
 			srcOfs = State->SI.D; \
-			DEBUG_S(":[ESI]"); \
+			RME_Int_DebugPrint(State, ":[ESI]"); \
 		} else { \
 			mask = 0xFFFF; \
 			srcOfs = State->SI.W; \
-			DEBUG_S(":[SI]"); \
+			RME_Int_DebugPrint(State, ":[SI]"); \
 		}\
 	} \
-	DEBUG_S("%s",__after); \
+	RME_Int_DebugPrint(State, "%s",__after); \
 	if( State->Decoder.RepeatType ) { \
-		DEBUG_S(" (max 0x%x times)", State->CX.W); \
+		RME_Int_DebugPrint(State, " (max 0x%x times)", State->CX.W); \
 		if( State->CX.W == 0 ) { \
 			State->Decoder.RepeatType = 0; \
 			return 0; \
@@ -82,7 +82,7 @@
 	destSeg = srcSeg; \
 	srcSeg = destSeg; \
 	if( State->Decoder.RepeatType ) { \
-		DEBUG_S(" (%i skipped)", State->CX.W); \
+		RME_Int_DebugPrint(State, " (%i skipped)", State->CX.W); \
 		State->Decoder.RepeatType = 0; \
 	} \
 	} while(0)

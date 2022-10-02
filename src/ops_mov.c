@@ -83,7 +83,7 @@ DEF_OPCODE_FCN(MOV, MI )
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
 	READ_INSTR8( val );
-	DEBUG_S(" 0x%02x", val);
+	RME_Int_DebugPrint(State, " 0x%02x", val);
 	*dest = val;
 	return 0;
 }
@@ -101,14 +101,14 @@ DEF_OPCODE_FCN(MOV, MIX)
 	{
 		uint32_t	val;
 		READ_INSTR32( val );
-		DEBUG_S(" 0x%08x", val);
+		RME_Int_DebugPrint(State, " 0x%08x", val);
 		*dest.D = val;
 	}
 	else
 	{
 		uint16_t	val;
 		READ_INSTR16( val );
-		DEBUG_S(" 0x%04x", val);
+		RME_Int_DebugPrint(State, " 0x%04x", val);
 		*dest.W = val;
 	}
 	return 0;
@@ -121,16 +121,16 @@ DEF_OPCODE_FCN(MOV, AMo)
 	uint16_t	seg;
 	uint32_t	ofs;
 	
-	DEBUG_S(" AL");
+	RME_Int_DebugPrint(State, " AL");
 	
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR32( ofs );
-		DEBUG_S(":[0x%x]", ofs);
+		RME_Int_DebugPrint(State, ":[0x%x]", ofs);
 	}
 	else {
 		READ_INSTR16( ofs );
-		DEBUG_S(":[0x%x]", ofs);
+		RME_Int_DebugPrint(State, ":[0x%x]", ofs);
 	}
 	
 	ret = RME_Int_Read8(State, seg, ofs, &State->AX.B.L);
@@ -143,16 +143,16 @@ DEF_OPCODE_FCN(MOV, AMoX)
 	 int	ret;
 	uint32_t	ofs;
 	
-	DEBUG_S(" %s", (State->Decoder.bOverrideOperand?"EAX":"AX"));
+	RME_Int_DebugPrint(State, " %s", (State->Decoder.bOverrideOperand?"EAX":"AX"));
 	
 	uint16_t seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR32( ofs );
-		DEBUG_S(":[0x%x]", ofs);
+		RME_Int_DebugPrint(State, ":[0x%x]", ofs);
 	}
 	else {
 		READ_INSTR16( ofs );
-		DEBUG_S(":[0x%x]", ofs);
+		RME_Int_DebugPrint(State, ":[0x%x]", ofs);
 	}
 	
 	if( State->Decoder.bOverrideOperand )
@@ -175,13 +175,13 @@ DEF_OPCODE_FCN(MOV, MoA)
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR32( ofs );
-		DEBUG_S(":[0x%x]", ofs);
+		RME_Int_DebugPrint(State, ":[0x%x]", ofs);
 	}
 	else {
 		READ_INSTR16( ofs );
-		DEBUG_S(":[0x%x]", ofs);
+		RME_Int_DebugPrint(State, ":[0x%x]", ofs);
 	}
-	DEBUG_S(" AL");
+	RME_Int_DebugPrint(State, " AL");
 	ret = RME_Int_Write8(State, seg, ofs, State->AX.B.L);
 	if(ret)	return ret;
 	
@@ -196,14 +196,14 @@ DEF_OPCODE_FCN(MOV, MoAX)
 	seg = *GET_SEGMENT(State, SREG_DS);
 	if( State->Decoder.bOverrideAddress ) {
 		READ_INSTR32( ofs );
-		DEBUG_S(":[0x%x]", ofs);
+		RME_Int_DebugPrint(State, ":[0x%x]", ofs);
 	}
 	else {
 		READ_INSTR16( ofs );
-		DEBUG_S(":[0x%x]", ofs);
+		RME_Int_DebugPrint(State, ":[0x%x]", ofs);
 	}
 	
-	DEBUG_S(" %s", (State->Decoder.bOverrideOperand?"EAX":"AX"));
+	RME_Int_DebugPrint(State, " %s", (State->Decoder.bOverrideOperand?"EAX":"AX"));
 	
 	if( State->Decoder.bOverrideOperand )
 		ret = RME_Int_Write32(State, seg, ofs, State->AX.D);
@@ -230,10 +230,10 @@ DEF_OPCODE_FCN(MOV, RS)
 	
 	READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 	
-	src.W = Seg(State, (byte2>>3)&7);
-	
 	ret = RME_Int_ParseModRMX(State, NULL, &dest.W, 0);
 	if(ret)	return ret;
+	
+	src.W = Seg(State, (byte2>>3)&7);
 	
 	*dest.W = *src.W;
 	
@@ -269,7 +269,7 @@ DEF_OPCODE_FCN(MOV, RegB)
 	uint8_t	val, *dest;
 	READ_INSTR8(val);
 	dest = RegB(State, Param);
-	DEBUG_S(" 0x%02x", val);
+	RME_Int_DebugPrint(State, " 0x%02x", val);
 	*dest = val;
 	return 0;
 }
@@ -280,7 +280,7 @@ DEF_OPCODE_FCN(MOV, Reg)
 		uint32_t	val, *dest;
 		READ_INSTR32(val);
 		dest = (void*)RegW(State, Param);
-		DEBUG_S(" 0x%08x", val);
+		RME_Int_DebugPrint(State, " 0x%08x", val);
 		*dest = val;
 	}
 	else
@@ -288,7 +288,7 @@ DEF_OPCODE_FCN(MOV, Reg)
 		uint16_t	val, *dest;
 		READ_INSTR16(val);
 		dest = RegW(State, Param);
-		DEBUG_S(" 0x%04x", val);
+		RME_Int_DebugPrint(State, " 0x%04x", val);
 		*dest = val;
 	}
 	return 0;
@@ -372,11 +372,11 @@ DEF_OPCODE_FCN(XCHG, Reg)	// A with Reg
 		uint32_t	*D;
 	}	src;
 	if( Param == 0 ) {
-		DEBUG_S(" - NOP");
+		RME_Int_DebugPrint(State, " - NOP");
 		return 0;
 	}
 	
-	DEBUG_S(" %s", (State->Decoder.bOverrideOperand?"EAX":"AX"));
+	RME_Int_DebugPrint(State, " %s", (State->Decoder.bOverrideOperand?"EAX":"AX"));
 	
 	src.W = RegW(State, Param);
 	if(State->Decoder.bOverrideOperand)

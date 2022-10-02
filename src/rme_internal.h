@@ -12,6 +12,7 @@
 #define _RME_INTERNAL_H_
 
 #include <stdint.h>
+#include <stdarg.h>
 #include <rme_config.h>
 
 /**
@@ -181,16 +182,31 @@ enum opcodes {
 };
 
 // --- Debug Macro ---
-#if DEBUG
-# define DEBUG_S(v...)	printf(v)
-#else
-# define DEBUG_S(...)
-#endif
 #if ERR_OUTPUT
 # define ERROR_S(v...)	printf(v)
 #else
 # define ERROR_S(...)
 #endif
+
+__attribute__((format(printf, 2, 3)))
+static inline void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...)
+{
+	va_list	args;
+	va_start(args, fmt);
+
+	int space = sizeof(State->Decoder.DebugString) - State->Decoder.DebugStringLen;
+	int len = vsnprintf(State->Decoder.DebugString + State->Decoder.DebugStringLen, space, fmt, args);
+	if(len < space) {
+		State->Decoder.DebugStringLen += len;
+	}
+	else {
+		State->Decoder.DebugStringLen = sizeof(State->Decoder.DebugString);
+		State->Decoder.DebugString[ sizeof(State->Decoder.DebugString) - 2 ] = '$';
+		State->Decoder.DebugString[ sizeof(State->Decoder.DebugString) - 1 ] = '\0';
+	}
+
+	va_end(args);
+}
 
 // --- Operation helpers
 //#define PAIRITY8(v)	((((v)>>7)&1)^(((v)>>6)&1)^(((v)>>5)&1)^(((v)>>4)&1)^(((v)>>3)&1)^(((v)>>2)&1)^(((v)>>1)&1)^((v)&1))
@@ -257,7 +273,7 @@ extern WARN_UNUSED_RET int	RME_Int_ParseModRM(tRME_State *State, uint8_t **to, u
 extern WARN_UNUSED_RET int	RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from, int bReverse);
 extern WARN_UNUSED_RET int	RME_Int_GetMMM(tRME_State *State, int Mod, int MMM, uint16_t *Segment, uint32_t *Address);
 
-static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint16_t Ofs, void **Ptr)
+static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, void **Ptr)
 {
 	uint32_t	addr = (int)Seg * 16 + Ofs;
 	 int	block = addr/RME_BLOCK_SIZE;
@@ -342,26 +358,26 @@ static inline int RME_Int_GetModRM(tRME_State *State, int *Mod, int *RRR, int *M
 // --- Register Selecting ---
 static inline uint16_t	*Seg(tRME_State *State, int code)
 {
+	static const char regnames[][3] = {"ES","CS","SS","DS","FS","GS"};
+	RME_Int_DebugPrint(State, " %s", regnames[code]);
 	switch(code) {
-	case SREG_ES:	DEBUG_S(" ES");	return &State->ES;
-	case SREG_CS:	DEBUG_S(" CS");	return &State->CS;
-	case SREG_SS:	DEBUG_S(" SS");	return &State->SS;
-	case SREG_DS:	DEBUG_S(" DS");	return &State->DS;
-	case SREG_FS:	DEBUG_S(" FS");	return &State->FS;
-	case SREG_GS:	DEBUG_S(" GS");	return &State->GS;
+	case SREG_ES:	return &State->ES;
+	case SREG_CS:	return &State->CS;
+	case SREG_SS:	return &State->SS;
+	case SREG_DS:	return &State->DS;
+	case SREG_FS:	return &State->FS;
+	case SREG_GS:	return &State->GS;
 	default:
-		DEBUG_S("ERROR - Invalid value passed to Seg(). (%i is not a segment)", code);
+		ERROR_S("ERROR - Invalid value passed to Seg(). (%i is not a segment)", code);
 	}
 	return NULL;
 }
 
 static inline uint8_t	*RegB(tRME_State *State, int num)
 {
-	#if DEBUG
-	static const char regnamesB[][3] = {"AL","CL","DL","BL","AH","CH","DH","BH"};
-	DEBUG_S(" %s", regnamesB[num]);
-	#endif
 	if(num > 7 || num < 0)	return NULL;
+	static const char regnamesB[][3] = {"AL","CL","DL","BL","AH","CH","DH","BH"};
+	RME_Int_DebugPrint(State, " %s", regnamesB[num]);
 	if( num >= 4 )
 		return &State->GPRs[num-4].B.H;
 	else
@@ -370,16 +386,10 @@ static inline uint8_t	*RegB(tRME_State *State, int num)
 
 static inline uint16_t	*RegW(tRME_State *State, int num)
 {
-	#if DEBUG
+	if(num > 7 || num < 0)	return NULL;
 	static const char regnamesD[][4] = {"EAX","ECX","EDX","EBX","ESP","EBP","ESI","EDI"};
 	static const char regnamesW[][3] = {"AX","CX","DX","BX","SP","BP","SI","DI"};
-	#endif
-	if(num > 7 || num < 0)	return NULL;
-	if(State->Decoder.bOverrideOperand) {
-		DEBUG_S(" %s", regnamesD[num]);
-	} else {
-		DEBUG_S(" %s", regnamesW[num]);
-	}
+	RME_Int_DebugPrint(State, " %s", State->Decoder.bOverrideOperand ? regnamesD[num] : regnamesW[num]);
 	return &State->GPRs[num].W;
 }
 

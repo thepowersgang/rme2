@@ -56,6 +56,7 @@ tRME_State *RME_CreateState(void)
 
 	if(state == NULL)	return NULL;
 
+	state->DebugLevel = DEBUG;
 	// Initial Stack
 	state->Flags = FLAG_DEFAULT;
 
@@ -102,7 +103,9 @@ void RME_DumpRegs(tRME_State *State)
 int RME_int_CallInt(tRME_State *State, int Num)
 {
 	 int	ret;
-	DEBUG_S("RM_Int: Calling Int 0x%x\n", Num);
+	if(State->DebugLevel > 0) {
+		printf("RM_Int: Calling Int 0x%x\n", Num);
+	}
 
 	if(Num < 0 || Num > 0xFF) {
 		ERROR_S("WARNING: %i is not a valid interrupt number", Num);
@@ -159,9 +162,9 @@ int RME_Call(tRME_State *State)
  */
 int RME_RunOne(tRME_State *State)
 {
-	#if DEBUG >= 2
-	RME_DumpRegs(State);
-	#endif
+	if(State->DebugLevel >= 2) {
+		RME_DumpRegs(State);
+	}
 	
 	if(State->IP == RME_MAGIC_IP && State->CS == RME_MAGIC_CS)
 		return RME_ERR_FCNRET;
@@ -210,9 +213,13 @@ int RME_Int_DoOpcode(tRME_State *State)
 	State->Decoder.bOverrideAddress = 0;
 	State->Decoder.bDontChangeIP = 0;
 	State->Decoder.IPOffset = 0;
+	State->Decoder.DebugStringLen = 0;
+	State->Decoder.DebugString[0] = 0;
 	State->InstrNum ++;
 
-	DEBUG_S("(%8i) [0x%x] %04x:%04x", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
+	if( State->DebugLevel > 0 ) {
+		printf("(%8i) [0x%x] %04x:%04x", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
+	}
 
 	do
 	{
@@ -228,16 +235,19 @@ int RME_Int_DoOpcode(tRME_State *State)
 			ERROR_S(" Unkown Opcode 0x%02x", opcode);
 			return RME_ERR_UNDEFOPCODE;
 		}
+		
+		const char* name;
 		if(caOperations[opcode].ModRMNames) {
 			 int	rrr;
 			RME_Int_GetModRM(State, NULL, &rrr, NULL);
 			State->Decoder.IPOffset --;
-			DEBUG_S(" %s", caOperations[opcode].ModRMNames[rrr]);
+			name = caOperations[opcode].ModRMNames[rrr];
 		}
 		else {
-			DEBUG_S(" %s", caOperations[opcode].Name);
+			name = caOperations[opcode].Name;
 		}
-		DEBUG_S(" (%s)", caOperations[opcode].Type);
+		if(State->Decoder.DebugStringLen)	RME_Int_DebugPrint(State, " ");
+		RME_Int_DebugPrint(State, "%s (%s)", name, caOperations[opcode].Type);
 		ret = caOperations[opcode].Function(State, caOperations[opcode].Arg);
 	} while( ret == RME_ERR_CONTINUE );	// RME_ERR_CONTINUE is returned by prefixes
 	
@@ -247,7 +257,9 @@ int RME_Int_DoOpcode(tRME_State *State)
 	// repType is cleared if it is used, so if it's not used, it's invalid
 	if(State->Decoder.RepeatType)
 	{
-		DEBUG_S(" Prefix 0x%02x used with wrong opcode 0x%02x", State->Decoder.RepeatType, opcode);
+		if( State->DebugLevel > 0 ) {
+			printf(" Prefix 0x%02x used with wrong opcode 0x%02x", State->Decoder.RepeatType, opcode);
+		}
 		// - Legal, but definitely not intentional
 		//return RME_ERR_UNDEFOPCODE;
 	}
@@ -277,22 +289,22 @@ int RME_Int_DoOpcode(tRME_State *State)
 		State->bWasLastOperationNull = 0;
 	#endif
 
-	#if DEBUG
+	if( State->DebugLevel >= 1 )
 	{
 		uint16_t i = startIP;
 		uint8_t	byte;
 		 int	j = State->Decoder.IPOffset;
 
-		DEBUG_S("\t;");
+		printf(" %s", State->Decoder.DebugString);
+		printf("\t;");
 		while(j--) {
 			ret = RME_Int_Read8(State, startCS, i, &byte);
 			if(ret)	return ret;
-			DEBUG_S(" %02x", byte);
+			printf(" %02x", byte);
 			i ++;
 		}
+		printf("\n");
 	}
-	#endif
-	DEBUG_S("\n");
 	return 0;
 }
 
@@ -307,7 +319,7 @@ DEF_OPCODE_FCN(Ext,0F)
 		return RME_ERR_UNDEFOPCODE;
 	}
 	
-	DEBUG_S(" %s", caOperations0F[extra].Name);
+	RME_Int_DebugPrint(State, " %s", caOperations0F[extra].Name);
 	return caOperations0F[extra].Function(State, caOperations0F[extra].Arg);
 }
 
@@ -324,13 +336,13 @@ DEF_OPCODE_FCN(Unary, M)	// INC/DEC r/m8
 	switch(op_num)
 	{
 	case 0:	// INC
-		DEBUG_S(" INC");
+		RME_Int_DebugPrint(State, " INC");
 		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 		if(ret)	return ret;
 		{ALU_OPCODE_INC_CODE}
 		break;
 	case 1:	// DEC
-		DEBUG_S(" DEC");
+		RME_Int_DebugPrint(State, " DEC");
 		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 		if(ret)	return ret;
 		{ALU_OPCODE_DEC_CODE}
@@ -350,7 +362,13 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 	ret = RME_Int_GetModRM(State, &mod, &op_num, &mmm);
 	if(ret)	return ret;
 	State->Decoder.IPOffset --;
-	
+
+	static const char* op_names[] = {
+		"INC", "DEC", "CALL (NI)", "CALL (FI)",
+		"JMP (NI)", "JMP (FI)", "PUSH", "?"
+		};
+	RME_Int_DebugPrint(State, " %s", op_names[op_num]);
+
 	if( State->Decoder.bOverrideOperand )
 	{
 		uint32_t	*dest;
@@ -358,21 +376,18 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 		switch( op_num )
 		{
 		case 0:
-			DEBUG_S(" INC");
 			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_INC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 1:
-			DEBUG_S(" DEC");
 			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_DEC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 6:
-			DEBUG_S(" PUSH");
 			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);	//Get Register Value
 			if(ret)	return ret;
 			PUSH( *dest );
@@ -388,22 +403,19 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 		const int	width = 16;	
 		switch( op_num )
 		{
-		case 0:
-			DEBUG_S(" INC");
+		case 0:	// INC
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_INC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
-		case 1:
-			DEBUG_S(" DEC");
+		case 1:	// DEC
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_DEC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 2:	// Call Near Indirect
-			DEBUG_S(" CALL (NI)");
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			PUSH(State->IP + State->Decoder.IPOffset);
@@ -411,7 +423,6 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 3:	// Call Far Indirect
-			DEBUG_S(" CALL (FI)");
 			if( mod == 3 )	return RME_ERR_UNDEFOPCODE;	// TODO: Check this
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
@@ -422,14 +433,12 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 4:	// Jump Near Indirect
-			DEBUG_S(" JMP (NI)");
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			State->IP = *dest;
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 5:	// Jump Far Indirect
-			DEBUG_S(" JMP (FI)");
 			if( mod == 3 )	return RME_ERR_UNDEFOPCODE;	// TODO: Check this
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
@@ -437,8 +446,7 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->CS = dest[1];	// NOTE: Possible edge case on segment boundary
 			State->Decoder.bDontChangeIP = 1;
 			break;
-		case 6:
-			DEBUG_S(" PUSH");
+		case 6:	// Push
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);	//Get Register Value
 			if(ret)	return ret;
 			PUSH( *dest );
@@ -482,46 +490,46 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, uint16_t *Segment, u
 
 	seg = *Seg(State, seg);
 
-	DEBUG_S(":[");
+	RME_Int_DebugPrint(State, ":[");
 	switch(mmm & 7)
 	{
 	case 0:
-		DEBUG_S("BX+SI");
+		RME_Int_DebugPrint(State, "BX+SI");
 		addr = State->BX.W + State->SI.W;
 		break;
 	case 1:
-		DEBUG_S("BX+DI");
+		RME_Int_DebugPrint(State, "BX+DI");
 		addr = State->BX.W + State->DI.W;
 		break;
 	case 2:
-		DEBUG_S("BP+SI");
+		RME_Int_DebugPrint(State, "BP+SI");
 		addr = State->BP.W + State->SI.W;
 		break;
 	case 3:
-		DEBUG_S("BP+DI");
+		RME_Int_DebugPrint(State, "BP+DI");
 		addr = State->BP.W + State->DI.W;
 		break;
 	case 4:
-		DEBUG_S("SI");
+		RME_Int_DebugPrint(State, "SI");
 		addr = State->SI.W;
 		break;
 	case 5:
-		DEBUG_S("DI");
+		RME_Int_DebugPrint(State, "DI");
 		addr = State->DI.W;
 		break;
 	case 6:
 		if( mmm & 8 ) {
 			READ_INSTR16( disp );
-			DEBUG_S("0x%04x", disp);
+			RME_Int_DebugPrint(State, "0x%04x", disp);
 			addr = disp;
 		}
 		else {
-			DEBUG_S("BP");
+			RME_Int_DebugPrint(State, "BP");
 			addr = State->BP.W;
 		}
 		break;
 	case 7:
-		DEBUG_S("BX");
+		RME_Int_DebugPrint(State, "BX");
 		addr = State->BX.W;
 		break;
 	default:
@@ -529,10 +537,10 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, uint16_t *Segment, u
 		return RME_ERR_BUG;
 	}
 	if( !(mmm & 8) ) {
-		DEBUG_S("+0x%x", disp);
+		RME_Int_DebugPrint(State, "+0x%x", disp);
 		addr += disp;
 	}
-	DEBUG_S("]");
+	RME_Int_DebugPrint(State, "]");
 	*Segment = seg;
 	*Offset = addr;
 	return 0;
@@ -565,23 +573,23 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 
 	seg = *Seg(State, seg);
 
-	DEBUG_S(":[");
+	RME_Int_DebugPrint(State, ":[");
 	switch(mmm & 7)
 	{
 	case 0:
-		DEBUG_S("EAX");
+		RME_Int_DebugPrint(State, "EAX");
 		addr = State->AX.D;
 		break;
 	case 1:
-		DEBUG_S("ECX");
+		RME_Int_DebugPrint(State, "ECX");
 		addr = State->CX.D;
 		break;
 	case 2:
-		DEBUG_S("EDX");
+		RME_Int_DebugPrint(State, "EDX");
 		addr = State->DX.D;
 		break;
 	case 3:
-		DEBUG_S("EBX");
+		RME_Int_DebugPrint(State, "EBX");
 		addr = State->BX.D;
 		break;
 	case 4:	// SIB (uses ESP's slot)
@@ -590,38 +598,38 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 		// Index Reg
 		switch( (sib >> 3) & 7 )
 		{
-		case 0:	DEBUG_S("EAX");	addr = State->AX.D;	break;
-		case 1:	DEBUG_S("ECX");	addr = State->CX.D;	break;
-		case 2:	DEBUG_S("EDX");	addr = State->DX.D;	break;
-		case 3:	DEBUG_S("EBX");	addr = State->BX.D;	break;
-		case 4:	DEBUG_S("EIZ");	addr = 0;	break;
-		case 5:	DEBUG_S("EBP");	addr = State->BP.D;	break;
-		case 6:	DEBUG_S("ESI");	addr = State->SI.D;	break;
-		case 7:	DEBUG_S("EDI");	addr = State->DI.D;	break;
+		case 0:	RME_Int_DebugPrint(State, "EAX");	addr = State->AX.D;	break;
+		case 1:	RME_Int_DebugPrint(State, "ECX");	addr = State->CX.D;	break;
+		case 2:	RME_Int_DebugPrint(State, "EDX");	addr = State->DX.D;	break;
+		case 3:	RME_Int_DebugPrint(State, "EBX");	addr = State->BX.D;	break;
+		case 4:	RME_Int_DebugPrint(State, "EIZ");	addr = 0;	break;
+		case 5:	RME_Int_DebugPrint(State, "EBP");	addr = State->BP.D;	break;
+		case 6:	RME_Int_DebugPrint(State, "ESI");	addr = State->SI.D;	break;
+		case 7:	RME_Int_DebugPrint(State, "EDI");	addr = State->DI.D;	break;
 		}
 		// Scale
-		DEBUG_S("*%i", 1 << (sib >> 6));
+		RME_Int_DebugPrint(State, "*%i", 1 << (sib >> 6));
 		addr <<= (sib >> 6);
 		// Base
 		switch( sib & 7 )
 		{
-		case 0:	DEBUG_S("+EAX");	addr += State->AX.D;	break;
-		case 1:	DEBUG_S("+ECX");	addr += State->CX.D;	break;
-		case 2:	DEBUG_S("+EDX");	addr += State->DX.D;	break;
-		case 3:	DEBUG_S("+EBX");	addr += State->BX.D;	break;
-		case 4:	DEBUG_S("+ESP");	addr += State->SP.D;	break;
+		case 0:	RME_Int_DebugPrint(State, "+EAX");	addr += State->AX.D;	break;
+		case 1:	RME_Int_DebugPrint(State, "+ECX");	addr += State->CX.D;	break;
+		case 2:	RME_Int_DebugPrint(State, "+EDX");	addr += State->DX.D;	break;
+		case 3:	RME_Int_DebugPrint(State, "+EBX");	addr += State->BX.D;	break;
+		case 4:	RME_Int_DebugPrint(State, "+ESP");	addr += State->SP.D;	break;
 		case 5:	// SPECIAL CASE
 			if( mmm & 8 ) {
 				READ_INSTR32(disp);
 			}
 			else
 			{
-				DEBUG_S("+EBP");
+				RME_Int_DebugPrint(State, "+EBP");
 				addr += State->BP.D;
 			}
 			break;
-		case 6:	DEBUG_S("+ESI");	addr += State->SI.D;	break;
-		case 7:	DEBUG_S("+EDI");	addr += State->DI.D;	break;
+		case 6:	RME_Int_DebugPrint(State, "+ESI");	addr += State->SI.D;	break;
+		case 7:	RME_Int_DebugPrint(State, "+EDI");	addr += State->DI.D;	break;
 		}
 		break;
 	case 5:
@@ -629,20 +637,20 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 		{
 			// R/M == 5 and Mod == 0, disp32
 			READ_INSTR32( addr );
-			DEBUG_S("0x%x", addr);
+			RME_Int_DebugPrint(State, "0x%x", addr);
 		}
 		else
 		{
-			DEBUG_S("EBP");
+			RME_Int_DebugPrint(State, "EBP");
 			addr = State->BP.D;
 		}
 		break;
 	case 6:
-		DEBUG_S("ESI");
+		RME_Int_DebugPrint(State, "ESI");
 		addr = State->SI.D;
 		break;
 	case 7:
-		DEBUG_S("EDI");
+		RME_Int_DebugPrint(State, "EDI");
 		addr = State->DI.D;
 		break;
 	default:
@@ -650,10 +658,10 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 		return RME_ERR_BUG;
 	}
 	if( !(mmm & 8) ) {
-		DEBUG_S("+0x%x", disp);
+		RME_Int_DebugPrint(State, "+0x%x", disp);
 		addr += disp;
 	}
-	DEBUG_S("]");
+	RME_Int_DebugPrint(State, "]");
 	*Segment = seg;
 	*Offset = addr;
 	return 0;
@@ -732,13 +740,9 @@ int RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from, int bRev
 
 	RME_Int_GetModRM(State, &mod, &rrr, &mmm);
 	
-	#if DEBUG
 	if(!bReverse) {
-	#endif
 		if(to) *to = RegB( State, rrr );
-	#if DEBUG
 	}
-	#endif
 	if(from)
 	{
 		if( mod == 3 )
@@ -753,11 +757,9 @@ int RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from, int bRev
 			if(ret)	return ret;
 		}
 	}
-	#if DEBUG
 	if(bReverse) {
 		if(to) *to = RegB( State, rrr );
 	}
-	#endif
 	return 0;
 }
 
@@ -774,13 +776,9 @@ int RME_Int_ParseModRMX(tRME_State *State, uint16_t **reg, uint16_t **mem, int b
 
 	RME_Int_GetModRM(State, &mod, &rrr, &mmm);
 	
-	#if DEBUG
 	if(!bReverse) {
-	#endif
 		if(reg) *reg = RegW( State, rrr );
-	#if DEBUG
 	}
-	#endif
 	if(mem)
 	{
 		if( mod == 3 )
@@ -800,10 +798,8 @@ int RME_Int_ParseModRMX(tRME_State *State, uint16_t **reg, uint16_t **mem, int b
 			if(ret)	return ret;
 		}
 	}
-	#if DEBUG
 	if(bReverse) {
 		if(reg) *reg = RegW( State, rrr );
 	}
-	#endif
 	return 0;
 }
