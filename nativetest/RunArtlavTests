@@ -3,15 +3,22 @@ set -eu
 cd `dirname $0`
 
 # Compile `cmpmemhex` and `tester`
-gcc -std=c99 cmpmemhex.c -o cmpmemhex || exit
-make -C src || exit
+mkdir -p bin
+gcc -std=c99 cmpmemhex.c -o bin/cmpmemhex || exit
+gcc -std=c99 cmpmembin.c -o bin/cmpmembin || exit
+make || exit
 
 # Clear the composite logfile
 echo "" > ArtlavTestLog.log
 
 # Iterate all test files
 for asmfile in Artlav_80186_tests/*.asm; do
-	binfile=${asmfile%.asm}.bin
+	testname=${asmfile#Artlav_80186_tests/}
+	testname=${testname%.asm}
+	binfile=Artlav_80186_tests/out/${testname}.bin
+	dumpfile=Artlav_80186_tests/out/${testname}.dmp
+	logfile=Artlav_80186_tests/out/${testname}.log
+	mkdir -p $(dirname ${binfile})
 	echo $binfile
 	# Re-compile the test file (if it's missing or the source is newer)
 	if [ ! -f $binfile ] || [ $asmfile -nt $binfile ] ; then
@@ -19,9 +26,7 @@ for asmfile in Artlav_80186_tests/*.asm; do
 		nasm $asmfile -f bin -o $binfile || exit
 	fi
 	# Run the test binary
-	./tester -b $binfile -O test_mem_dump.dmp --nogui "" --debug-level 2 >> ArtlavTestLog.log || exit
+	./bin/tester -b $binfile -O ${dumpfile} --nogui "" --debug-level 2 > ${logfile} || exit
 	# Compare the memory dump the exepected memory contents (encoded in leading comments)
-	./cmpmemhex $asmfile test_mem_dump.dmp || exit
+	./bin/cmpmemhex $asmfile ${dumpfile} || exit
 done
-# Remove the memory dump, just for cleaniup
-rm test_mem_dump.dmp

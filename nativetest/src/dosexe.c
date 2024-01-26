@@ -8,6 +8,7 @@
 #include "dosexe.h"
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>	// off_t
 
 #define DESTINATION_SEG	0x100
 
@@ -81,9 +82,9 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 	uint8_t	*readdata = data;
 	int i = 0;
 	if( (DESTINATION_SEG*16) % RME_BLOCK_SIZE != 0 ) {
-		off_t	ofs = (DESTINATION_SEG*16) % RME_BLOCK_SIZE;
+		unsigned ofs = (DESTINATION_SEG*16) % RME_BLOCK_SIZE;
 		size_t	copysize = MIN(RME_BLOCK_SIZE - ofs, dataSize);
-		printf("- Partial copy 0x%x+0x%x 0x%x", base*RME_BLOCK_SIZE, ofs, copysize);
+		printf("- Partial copy 0x%x+0x%x 0x%zx", base*RME_BLOCK_SIZE, ofs, copysize);
 		memcpy(state->Memory[base] + ofs, readdata, copysize);
 		readdata += copysize;
 		dataSize -= copysize;
@@ -92,7 +93,7 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 	for( ; i < (dataSize + RME_BLOCK_SIZE-1)/RME_BLOCK_SIZE; i ++ )
 	{
 		size_t	copysize = MIN(RME_BLOCK_SIZE, dataSize-i*RME_BLOCK_SIZE);
-		printf("- Full copy 0x%x : 0x%x\n", (base+i)*RME_BLOCK_SIZE, copysize);
+		printf("- Full copy 0x%x : 0x%zx\n", (base+i)*RME_BLOCK_SIZE, copysize);
 		memcpy(state->Memory[base+i], readdata, copysize);
 		readdata += copysize;
 	}

@@ -1,4 +1,6 @@
 *.bin
+*.dmp
+*.log
 *.dep
 *.a
 *.o
@@ -7,9 +9,7 @@
 .*
 *.ao
 testkern/obj/
-/nativetest/cmpmemhex
-/nativetest/cmpmembin
-/nativetest/tester
+/nativetest/bin
 /nativetest/*.dmp
 /nativetest/*.log
 

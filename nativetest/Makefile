@@ -1,5 +1,5 @@
 
-RMEDIR = ../../src/
+RMEDIR = ../src/
 
 ENABLE_GUI :=
 
@@ -15,8 +15,8 @@ RME_LIB = $(RMEDIR)rme.a
 
 OBJ := main.o dosexe.o
 #OBJ += $(RMEDIR)rme_composite.o
-OBJ += $(RME_LIB)
-BIN := ../tester
+OBJ := $(OBJ:%=.obj/%)
+BIN := bin/tester
 
 DEPFILES := $(OBJ:%.o=%.dep)
 DEPFILES := $(filter %.dep,$(DEPFILES))
@@ -28,11 +28,13 @@ all:	$(BIN)
 clean:
 	$(RM) $(BIN) $(OBJ) $(DEPFILES)
 
-$(BIN): $(OBJ)
-	$(CC) -o $(BIN) $(OBJ) $(LDFLAGS)
+$(BIN): $(OBJ) $(RME_LIB)
+	@mkdir -p $(dir $@)
+	$(CC) -o $(BIN) $(OBJ) $(RME_LIB) $(LDFLAGS)
 
-%.o: %.c
-	$(CC) -o $@ -c $< $(CFLAGS) -MP -MD -MT $@ -MF $*.dep
+.obj/%.o: src/%.c
+	@mkdir -p $(dir $@)
+	$(CC) -o $@ -c $< $(CFLAGS) -MP -MD -MT $@ -MF .obj/$*.dep
 
 $(RME_LIB): $(wildcard $(RMEDIR)*.c $(RMEDIR)*.h)
 	$(MAKE) -C $(RMEDIR)
