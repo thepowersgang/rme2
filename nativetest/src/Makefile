@@ -1,9 +1,15 @@
 
 RMEDIR = ../../src/
 
+ENABLE_GUI :=
+
 CPPFLAGS := -I . -I $(RMEDIR)
 CFLAGS	:= $(CPPFLAGS) -O3 -g -std=gnu99
-LDFLAGS	:= -g -lSDL -lSDLmain
+LDFLAGS	:= -g
+ifneq ($(ENABLE_GUI),)
+CPPFLAGS += -D ENABLE_GUI=1
+LDFLAGS += -lSDL -lSDLmain
+endif
 
 RME_LIB = $(RMEDIR)rme.a
 

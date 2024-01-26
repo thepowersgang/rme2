@@ -1,16 +1,24 @@
 /*
  * Realmode Emulator - Native Tester
  */
+#ifndef ENABLE_GUI
+# define ENABLE_GUI	0
+#endif
 #include "common.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
 #include <rme.h>
-#include <SDL/SDL.h>
+#if ENABLE_GUI
+# include <SDL/SDL.h>
+#else
+//typedef uint32_t Uint32;
+#endif
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <sys/types.h>	// off_t
 
 #define VIDEO_COLS	80
 #define VIDEO_ROWS	25
@@ -29,8 +37,10 @@ t_farptr	LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr);
 // === PROTOTYPES ===
 void	ParseArgs(int argc, char* argv[]);
 void	PrintUsage(const char* argv0, bool show_full_help);
+#if ENABLE_GUI
 void	HandleEvent(SDL_Event *Event, tRME_State *EmuState);
 Uint32	Video_RedrawTimerCb(Uint32 interval, void *unused);
+#endif
  int	HLECall10(tRME_State *State, int IntNum);
  int	HLECall12(tRME_State *State, int IntNum);
  int	HLECall13(tRME_State *State, int IntNum);
@@ -40,7 +50,9 @@ void	PutString(const char *String, uint8_t attr);
 void	Video_Redraw(void);
 
 // === GLOBALS ===
+#if ENABLE_GUI
 SDL_Surface	*gScreen;
+#endif
 char	*gasFDDs[4] = {"fdd.img", NULL, NULL, NULL};
 FILE	*gaFDDs[4];
 const char	*gsBinaryFile;
@@ -63,6 +75,7 @@ struct PrevRegisters {
 	uint16_t	ip;	//!< Instruction Pointer
 	uint16_t	flags;	//!< State Flags
 } gPrevRegisters;
+int gDebugLevel = DEBUG;
 // - GUI Key Queue
 const int	cKeyBufferSize = 16;
  int	gKeyBufferPos = 0;
@@ -93,12 +106,14 @@ int main(int argc, char *argv[])
 	memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
 	memset(gaMemory+0xB8000, 0x00, VIDEO_ROWS*VIDEO_COLS*2);
 
+#if ENABLE_GUI
 	if( !gbDisableGUI ) {
 		SDL_Init(SDL_INIT_TIMER);
 		gScreen = SDL_SetVideoMode(VIDEO_COLS*8, VIDEO_ROWS*16, 32, SDL_HWSURFACE);
 		SDL_AddTimer(100, Video_RedrawTimerCb, NULL);
 		PutString("RME NativeTest\r\n", 0x0F);
 	}
+#endif
 
 	// Open FDD image
 	if( gasFDDs[0] && gasFDDs[0][0] != '\0' )
@@ -147,6 +162,7 @@ int main(int argc, char *argv[])
 
 	// Create and initialise RME State
 	emu = RME_CreateState();
+	emu->DebugLevel = gDebugLevel;
 	emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
 	emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
 	emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
@@ -280,13 +296,13 @@ int main(int argc, char *argv[])
 			CHECK_REG("GS", gPrevRegisters.gs, emu->GS);
 			CHECK_REG("Flags", gPrevRegisters.flags, emu->Flags);
 			if( memcmp(gaMemory_prev, gaMemory, sizeof(gaMemory)) != 0 ) {
-					for(size_t i = 0; i < sizeof(gaMemory); i += 4) {
+					for(size_t i = 0; i < sizeof(gaMemory); i += 2) {
 						const uint8_t* cur = gaMemory+i;
 						uint8_t* prev = gaMemory_prev+i;
-						if( memcmp(prev, cur, 4) != 0 ) {
-							uint32_t pv = prev[0] | ((uint32_t)prev[1] << 8) | ((uint32_t)prev[2] << 16) | ((uint32_t)prev[3] << 24);
-							uint32_t cv = cur[0] | ((uint32_t)cur[1] << 8) | ((uint32_t)cur[2] << 16) | ((uint32_t)cur[3] << 24);
-							PRINT(" %05zx:%08x=>%08x", i, pv, cv);
+						if( memcmp(prev, cur, 2) != 0 ) {
+							uint16_t pv = prev[0] | ((uint16_t)prev[1] << 8);
+							uint16_t cv = cur[0] | ((uint16_t)cur[1] << 8);
+							PRINT(" %05zx:%04x=>%04x", i, pv, cv);
 							memcpy(prev, cur, 4);
 						}
 					}
@@ -296,12 +312,14 @@ int main(int argc, char *argv[])
 			#undef CHECK_REG
 		}
 
+#if ENABLE_GUI
 		// Check for SDL events
 		SDL_Event	ev;
 		while( SDL_PollEvent(&ev) )
 		{
 			HandleEvent(&ev, emu);
 		}
+#endif
 	}
 
 	// Write out memory
@@ -334,11 +352,8 @@ int main(int argc, char *argv[])
 	case RME_ERR_BREAKPOINT:
 		printf("\n--- STOP: Breakpoint\n");
 	case RME_ERR_HALT:
-		if( gbDisableGUI ) {
-			printf("\n");
-			return 0;
-		}
-		else
+		#if ENABLE_GUI
+		if(! gbDisableGUI )
 		{
 			SDL_Event	e;
 			SDL_WM_SetCaption("RME - CPU Halted, press any key to quit", "RME - Halted");
@@ -351,6 +366,9 @@ int main(int argc, char *argv[])
 			}
 			printf("\n--- STOP: CPU Halted\n");
 		}
+		#endif
+		printf("\n");
+		return 0;
 		break;
 	default:
 		printf("\n--- ERROR: Unknown error %i\n", ret);
@@ -421,6 +439,10 @@ void ParseArgs(int argc, char* argv[])
 				assert(i + 1 != argc);
 				gsCPUType = argv[++i];
 			}
+			else if( strcmp(arg, "--debug-level") == 0 ) {
+				assert(i + 1 != argc);
+				gDebugLevel = strtol(argv[++i], NULL, 10);
+			}
 			else {
 				fprintf(stderr, "Unknown long option '%s'\n", arg);
 				PrintUsage(argv[0], false);
@@ -428,6 +450,12 @@ void ParseArgs(int argc, char* argv[])
 			}
 		}
 	}
+	#if ENABLE_GUI
+	#else
+	if( !gbDisableGUI ) {
+		fprintf(stderr, "NOTE: GUI disabled at compile-time\n");
+	}
+	#endif
 }
 void PrintUsage(const char* argv0, bool show_full_help)
 {
@@ -448,6 +476,7 @@ void PrintUsage(const char* argv0, bool show_full_help)
 		);
 }
 
+#if ENABLE_GUI
 void HandleEvent(SDL_Event *Event, tRME_State *EmuState)
 {
 	switch(Event->type)
@@ -492,13 +521,18 @@ Uint32 Video_RedrawTimerCb(Uint32 interval, void *unused)
 	}
 	return interval;
 }
+#endif
 
+#if ENABLE_GUI
 #include "font.h"
+#endif
+
 void DrawChar(int X, int Y, uint8_t ch, uint32_t BGC, uint32_t FGC)
 {
 	if( gbDisableGUI )
 		return ;
 
+#if ENABLE_GUI
 	Uint8	*font;
 	Uint32	*buf;
 
@@ -523,6 +557,7 @@ void DrawChar(int X, int Y, uint8_t ch, uint32_t BGC, uint32_t FGC)
 		buf = (void*)( (intptr_t)buf + gScreen->pitch );
 		font ++;
 	}
+#endif
 }
 
 void Video_ScrollUp(int Page, uint8_t Attr, int nLines, int Top, int Left, int Bottom, int Right)
@@ -547,7 +582,9 @@ void Video_Redraw(void)
 			DrawChar(col, row, ch, colours[at>>4], colours[at&15]);
 		}
 	}
+	#if ENABLE_GUI
 	SDL_Flip(gScreen);
+	#endif
 //	printf("Video redraw complete\n");
 }
 
@@ -958,6 +995,7 @@ int HLECall(tRME_State *State, int IntNum)
 	{
 	case 0x03:
 		printf("\nDebug Exception, press any key to exit\n");
+		#if ENABLE_GUI
 		{
 			SDL_Event	e;
 			SDL_WM_SetCaption("RME - Debug Exception, press any key to quit", "RME - Stopped");
@@ -969,6 +1007,9 @@ int HLECall(tRME_State *State, int IntNum)
 					exit(0);
 			}
 		}
+		#else
+		exit(0);
+		#endif
 		break;
 	
 	// --- Keyboard Input ---
@@ -979,9 +1020,14 @@ int HLECall(tRME_State *State, int IntNum)
 		case 0x00:
 			while( gKeyBufferPos == 0 )
 			{
+				#if ENABLE_GUI
 				SDL_Event	e;
 				SDL_WaitEvent(&e);
 				HandleEvent(&e, State);
+				#else
+				int ch = getchar();
+				exit(0);
+				#endif
 			}
 			State->AX.B.H = gKeyBuffer[0].Scancode;
 			State->AX.B.L = gKeyBuffer[0].ASCII;
@@ -1041,6 +1087,7 @@ int HLECall(tRME_State *State, int IntNum)
 	// --- System Bootstrap Loader (called by MSDOS to reboot) ---
 	case 0x19:
 		PutString("\r\n[BIOS] Boot Error. Press any key to terminate emulator", 0x04);
+		#if ENABLE_GUI
 		{
 			SDL_Event	e;
 			while( SDL_WaitEvent(&e) )
@@ -1051,6 +1098,9 @@ int HLECall(tRME_State *State, int IntNum)
 					exit(0);
 			}
 		}
+		#else
+		exit(0);
+		#endif
 		break;
 	
 	default:
