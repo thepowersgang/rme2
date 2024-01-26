@@ -11,6 +11,10 @@
 #ifndef _RME_INTERNAL_H_
 #define _RME_INTERNAL_H_
 
+#ifndef __GNUC__
+# define __attribute__(...)
+#endif
+
 #include <stdint.h>
 #include <stdarg.h>
 #include <rme_config.h>
@@ -269,9 +273,6 @@ static inline void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...)
 #define	WARN_UNUSED_RET	__attribute__((warn_unused_result))
 
 // --- Functions ---
-extern WARN_UNUSED_RET int	RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from, int bReverse);
-extern WARN_UNUSED_RET int	RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from, int bReverse);
-extern WARN_UNUSED_RET int	RME_Int_GetMMM(tRME_State *State, int Mod, int MMM, uint16_t *Segment, uint32_t *Address);
 
 static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, void **Ptr)
 {
@@ -284,7 +285,7 @@ static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg
 	if(State->Memory[block] == NULL)	return RME_ERR_BADMEM;
 	# endif
 	#endif
-	*Ptr = (void*)( (uintptr_t)State->Memory[block] + (addr%RME_BLOCK_SIZE) );
+	*Ptr = (void*)( (uint8_t*)State->Memory[block] + (addr%RME_BLOCK_SIZE) );
 	return 0;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Read8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst) {
@@ -330,15 +331,25 @@ static inline WARN_UNUSED_RET int	RME_Int_Write32(tRME_State *State, uint16_t Se
 	return 0;
 }
 
-static inline int RME_Int_GetModRM(tRME_State *State, int *Mod, int *RRR, int *MMM)
+struct ModRM {
+	unsigned mod: 2;
+	unsigned rrr: 3;
+	unsigned mmm: 3;
+};
+static inline int RME_Int_GetModRM(tRME_State *State, struct ModRM *out)
 {
 	uint8_t	byte;
 	READ_INSTR8(byte);
-	if(Mod)	*Mod = byte >> 6;
-	if(RRR)	*RRR = (byte >> 3) & 7;
-	if(MMM)	*MMM = byte & 7;
+	out->mod = byte >> 6;
+	out->rrr = (byte >> 3) & 7;
+	out->mmm = (byte >> 0) & 7;
 	return 0;
 }
+extern WARN_UNUSED_RET int	RME_Int_ParseModRM (tRME_State *State, uint8_t **to, uint8_t **from, int bReverse);
+extern WARN_UNUSED_RET int	RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from, int bReverse);
+extern WARN_UNUSED_RET int	RME_Int_DecodeModM (tRME_State *State, uint8_t  **mem, const struct ModRM* modrm);
+extern WARN_UNUSED_RET int	RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* modrm);
+extern WARN_UNUSED_RET int	RME_Int_GetMMM(tRME_State *State, const struct ModRM* modrm, uint16_t *Segment, uint32_t *Address);
 
 // --- Stack Primiatives ---
 // TODO: Possible support for non 16-bit stack segment

@@ -146,6 +146,7 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	case 5: do { ALU_OPCODE_SUB_CODE } while(0);	break; \
 	case 6: do { ALU_OPCODE_XOR_CODE } while(0);	break; \
 	case 7: do { ALU_OPCODE_CMP_CODE } while(0);	break; \
+	default: ERROR_S(" - ALU Undef %i\n", op_num); return RME_ERR_UNDEFOPCODE;\
 	} } while(0)
 #define SHIFT_SELECT_OPERATION()	do{ switch( op_num ) {\
 	case 0: { ALU_OPCODE_ROL_CODE }	break; \
@@ -182,14 +183,7 @@ DEF_OPCODE_FCN(Arith, MI)
 	const int width = 8;
 	uint8_t	srcData, v;
 	uint8_t *dest, *src = &srcData;
-	 int	op_num;
-	
-	// Get rrr term from ModRM byte
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);
-	if(ret)	return ret;
-	State->Decoder.IPOffset --;
-	
-//	RME_Int_DebugPrint(State, " %s", casArithOps[op_num]);
+	 int	op_num = Param;
 	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
@@ -206,15 +200,9 @@ DEF_OPCODE_FCN(Arith, MI)
 
 DEF_OPCODE_FCN(Arith, MIX)
 {
-	 int	ret, op_num;
+	 int	ret;
+	const int op_num = Param;
 	void	*destPtr;
-	
-	// Read rrr from ModRM
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);
-	if(ret)	return ret;
-	State->Decoder.IPOffset --;
-	
-//	RME_Int_DebugPrint(State, " %s", casArithOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
 	if(ret)	return ret;
@@ -248,15 +236,8 @@ DEF_OPCODE_FCN(Arith, MIX)
 
 DEF_OPCODE_FCN(Arith, MI8X)
 {
-	 int	ret, op_num;
+	 int	ret, op_num = Param;
 	void	*destPtr;
-	
-	// Read rrr from ModRM
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);
-	if(ret)	return ret;
-	State->Decoder.IPOffset --;
-	
-//	RME_Int_DebugPrint(State, " %s", casArithOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
 	if(ret)	return ret;
@@ -325,13 +306,10 @@ DEF_OPCODE_FCN(DEC, Reg)
 
 DEF_OPCODE_FCN(ArithMisc, MI)	// 0xF6
 {
-	 int	ret, op_num;
+	 int	ret, op_num = Param;
 	const int	width = 8;
 	uint8_t	v=0, *arg;
 	uint8_t	*src, *dest;
-
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
-	if(ret)	return ret;
 	
 	ret = RME_Int_ParseModRM(State, NULL, &arg, 0);
 	if(ret)	return ret;
@@ -347,14 +325,8 @@ DEF_OPCODE_FCN(ArithMisc, MI)	// 0xF6
 
 DEF_OPCODE_FCN(ArithMisc, MIX)	// 0xF7
 {
-	 int	ret, op_num;
+	 int	ret, op_num = Param;
 	void	*arg;
-
-	// Get operation number
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
-	if(ret)	return ret;
-	
-//	RME_Int_DebugPrint(State, " %s", casMiscOps[op_num]);
 	
 	// Get argument (defaults to source)
 	ret = RME_Int_ParseModRMX(State, NULL, (void*)&arg, 0);
@@ -461,12 +433,9 @@ DEF_OPCODE_FCN(IMUL,RMX)	// 0x0F 0xAF
 DEF_OPCODE_FCN(Shift, MI)
 {
 	const int	width = 8;
-	 int	ret, op_num;
+	 int	ret, op_num = Param;
 	uint8_t	*dest;
 	uint8_t	srcData, *src = &srcData;
-
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
-	if(ret)	return ret;
 	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
@@ -482,14 +451,9 @@ DEF_OPCODE_FCN(Shift, MI)
 // 0xC1 - Shift Extended by Imm8
 DEF_OPCODE_FCN(Shift, MI8X)
 {
-	 int	ret, op_num;
+	 int	ret, op_num = Param;
 	uint16_t	*destPtr;
 	uint8_t	srcData, *src = &srcData;
-
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
-	if(ret)	return ret;
-	
-//	RME_Int_DebugPrint(State, " %s", casLogicOps[op_num]);
 	
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
@@ -523,12 +487,9 @@ DEF_OPCODE_FCN(Shift, MI8X)
 DEF_OPCODE_FCN(Shift, M1)
 {
 	const int	width = 8;
-	 int	ret, op_num;
+	 int	ret, op_num = Param;
 	uint8_t	*dest;
 	uint8_t	srcData = 1, *src = &srcData;
-
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
-	if(ret)	return ret;
 	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
@@ -543,12 +504,9 @@ DEF_OPCODE_FCN(Shift, M1)
 // 0xD1 - Shift Extended with 1
 DEF_OPCODE_FCN(Shift, M1X)
 {
-	 int	ret, op_num;
+	 int	ret, op_num = Param;
 	uint16_t	*destPtr;
 	uint8_t	srcData = 1, *src = &srcData;
-
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
-	if(ret)	return ret;
 	
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
@@ -577,12 +535,9 @@ DEF_OPCODE_FCN(Shift, M1X)
 DEF_OPCODE_FCN(Shift, MCl)
 {
 	const int	width = 8;
-	 int	ret, op_num;
+	 int	ret, op_num = Param;
 	uint8_t	*dest;
 	uint8_t	srcData = State->CX.B.L, *src = &srcData;
-
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
-	if(ret)	return ret;
 	
 	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 	if(ret)	return ret;
@@ -597,12 +552,9 @@ DEF_OPCODE_FCN(Shift, MCl)
 // 0xD3 - Shift Extended with CL
 DEF_OPCODE_FCN(Shift, MClX)
 {
-	 int	ret, op_num;
+	 int	ret, op_num = Param;
 	uint16_t	*destPtr;
 	uint8_t	srcData = State->CX.B.L, *src = &srcData;
-
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);	State->Decoder.IPOffset --;
-	if(ret)	return ret;
 	
 	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
 	if(ret)	return ret;

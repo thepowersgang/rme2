@@ -13,7 +13,7 @@
 #define DEF_OP_X(name,type,arg,subnames)	{#name,#type,RME_Op_##name##_##type,arg,subnames}
 #define DEF_OP_A(name,type,arg)	DEF_OP_X(name, type, arg, NULL)
 #define DEF_OP_N(name,type,names)	DEF_OP_X(name, type, 0, names)
-#define DEF_OP(name,type)	DEF_OP_X(name, type, 0, NULL)
+#define DEF_OP(name,type)	DEF_OP_A(name, type, 0)
 
 #define DEF_ALU_OP(name)	DEF_OP(name,MR), DEF_OP(name,MRX),\
 	DEF_OP(name,RM), DEF_OP(name,RMX),\
@@ -32,6 +32,7 @@
 static const char *casArithOps[] = {"ADD", "OR", "ADC", "SBB", "AND", "SUB", "XOR", "CMP"};
 static const char *casMiscOps[] = {"TEST", "M1-", "NOT", "NEG", "MUL", "IMUL", "DIV", "IDIV"};
 static const char *casShiftOps[] = {"ROL", "ROR", "RCL", "RCR", "SHL", "SHR", "SAL", "SAR"};
+static const char* casUnaryOps[] = {"INC", "DEC", "CALL (NI)", "CALL (FI)",  "JMP (NI)", "JMP (FI)", "PUSH", "?" };
 //static const char *casUnaryOps[] = {"INC", "DEC", "", "", "", "", "PUSH", ""};
 
 typedef struct sOperation
@@ -112,9 +113,11 @@ const tOperation	caOperations[256] = {
 	/*  0xF4*/	DEF_OP(HLT,z), DEF_OP(Flag,CMC),
 				DEF_OP_N(ArithMisc, MI,casMiscOps), DEF_OP_N(ArithMisc, MIX,casMiscOps),
 	/* 0xF8 */	DEF_OP(Flag, CLC), DEF_OP(Flag, STC), DEF_OP(Flag, CLI), DEF_OP(Flag, STI),
-	/*  0xFC*/	DEF_OP(Flag, CLD), DEF_OP(Flag, STD), DEF_OP(Unary,M), DEF_OP(Unary,MX)
+	/*  0xFC*/	DEF_OP(Flag, CLD), DEF_OP(Flag, STD), DEF_OP_N(Unary,M, casUnaryOps), DEF_OP_N(Unary,MX, casUnaryOps)
 	/*0x100 */
 };
+
+static const char* casOpsBTx[] = {"BT?0", "BT?1", "BT?2", "BT?3",  "BT", "BTS", "BTR", "BTC" };
 
 const tOperation	caOperations0F[256] = {
 	/* 0x00 */	REP_8(UNDEF_OP),	// 0x01 = LGDT
@@ -145,7 +148,7 @@ const tOperation	caOperations0F[256] = {
 	/*  0xAC*/	DEF_OP(SHRD, I8), DEF_OP(SHRD, Cl), UNDEF_OP, DEF_OP(IMUL,RMX),
 	/* 0xB0 */	UNDEF_OP, UNDEF_OP, DEF_OP(LSS,z), UNDEF_OP,
 	/*  0xB4*/	DEF_OP(LFS, z), DEF_OP(LGS,z), DEF_OP(MOV,Z), DEF_OP(MOV,ZX),
-	/* 0xB8 */	REP_2(UNDEF_OP), DEF_OP(BTx,RI8), UNDEF_OP,
+	/* 0xB8 */	REP_2(UNDEF_OP), DEF_OP_N(BTx,RI8, casOpsBTx), UNDEF_OP,
 	/*  0xBC*/	DEF_OP(BSF,z), UNDEF_OP, UNDEF_OP, UNDEF_OP,
 	/* 0xC0 */	REP_8(UNDEF_OP),
 	/* 0xC8 */	REP_8(UNDEF_OP),

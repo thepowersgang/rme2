@@ -194,16 +194,16 @@ static inline int _LDS_LES_internal(tRME_State *State, uint16_t *SegRegPtr)
 	 int	ret;
 	uint16_t	seg, *dest;
 	uint32_t	addr;
-	 int	mod, rrr, mmm;
+	struct ModRM	modrm;
 	
-	RME_Int_GetModRM(State, &mod, &rrr, &mmm);
+	RME_Int_GetModRM(State, &modrm);
 	
-	if( mod == 3 )
+	if( modrm.mod == 3 )
 		return RME_ERR_UNDEFOPCODE;	// Source cannot be a register
 	
-	ret = RME_Int_GetMMM(State, mod, mmm, &seg, &addr);
+	ret = RME_Int_GetMMM(State, &modrm, &seg, &addr);
 	if(ret)	return ret;
-	dest = RegW(State, rrr);
+	dest = RegW(State, modrm.rrr);
 	
 	// Get address of the destination
 	
@@ -254,16 +254,17 @@ DEF_OPCODE_FCN(LEA, z)
 	 int	ret;
 	uint16_t	seg, *dest;
 	uint32_t	addr;
-	 int	mod, rrr, mmm;
+	struct ModRM modrm;
 	
-	RME_Int_GetModRM(State, &mod, &rrr, &mmm);
+	ret = RME_Int_GetModRM(State, &modrm);
+	if(ret)	return ret;
 	
-	if( mod == 3 )
+	if( modrm.mod == 3 )
 		return RME_ERR_UNDEFOPCODE;	// Source cannot be a register
 	
-	dest = RegW(State, rrr);
+	dest = RegW(State, modrm.rrr);
 	
-	ret = RME_Int_GetMMM(State, mod, mmm, &seg, &addr);
+	ret = RME_Int_GetMMM(State, &modrm, &seg, &addr);
 	if(ret)	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
@@ -273,43 +274,40 @@ DEF_OPCODE_FCN(LEA, z)
 	return 0;
 }
 
+// XLAT/XLATB — Table Look-up Translation
 DEF_OPCODE_FCN(XLAT, z)
 {
-	void	*ptr;
+	 int	ret;
 	uint32_t	address;
 	uint16_t	seg;
-	 int	rv;
+
+	RME_Int_DebugPrint(State, " AL,");
 
 	seg = *Seg(State, State->Decoder.OverrideSegment == -1 ? SREG_DS : State->Decoder.OverrideSegment);
 
 	if( State->Decoder.bOverrideAddress ) {
-		RME_Int_DebugPrint(State, "[EBX+AL]");
+		RME_Int_DebugPrint(State, ":[EBX+AL]");
 		address = State->BX.D;
 	}
 	else {
-		RME_Int_DebugPrint(State, "[BX+AL]");
+		RME_Int_DebugPrint(State, ":[BX+AL]");
 		address = State->BX.W;
 	}
 	address += State->AX.B.L;
 
-	if( (rv = RME_Int_GetPtr(State, seg, address, &ptr)) )
-		return rv;
+	ret = RME_Int_Read8(State, seg, address, &State->AX.B.L);
+	if(ret)	return ret;
 
-	State->AX.B.L = *(uint8_t*)ptr;
 	return 0;
 }
 
 DEF_OPCODE_FCN(BTx,RI8)
 {
 	 int	ret;
-	 int	op_num;
+	 int	op_num = Param;
 	uint16_t	*src;
 	uint32_t	*src32;
 	uint8_t	ofs;
-	
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);
-	if(ret)	return ret;
-	State->Decoder.IPOffset --;
 	
 	if( op_num < 4 ) {
 		return RME_ERR_UNDEFOPCODE;
@@ -340,7 +338,7 @@ DEF_OPCODE_FCN(BTx,RI8)
 	case 6:	// BTR
 		val &= ~(1 << ofs);
 		break;
-	case 7:	// BTC
+	case 7:	// BTC - Bit Test and Complement
 		val ^= (1 << ofs);
 		break;
 	}

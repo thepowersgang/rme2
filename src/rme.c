@@ -237,18 +237,19 @@ int RME_Int_DoOpcode(tRME_State *State)
 		}
 		
 		const char* name;
+		struct ModRM	modrm;
 		if(caOperations[opcode].ModRMNames) {
-			 int	rrr;
-			RME_Int_GetModRM(State, NULL, &rrr, NULL);
+			RME_Int_GetModRM(State, &modrm);
 			State->Decoder.IPOffset --;
-			name = caOperations[opcode].ModRMNames[rrr];
+			name = caOperations[opcode].ModRMNames[modrm.rrr];
+			//assert(caOperations[opcode].Arg == 0);
 		}
 		else {
 			name = caOperations[opcode].Name;
 		}
 		if(State->Decoder.DebugStringLen)	RME_Int_DebugPrint(State, " ");
 		RME_Int_DebugPrint(State, "%s (%s)", name, caOperations[opcode].Type);
-		ret = caOperations[opcode].Function(State, caOperations[opcode].Arg);
+		ret = caOperations[opcode].Function(State, caOperations[opcode].ModRMNames ? modrm.rrr : caOperations[opcode].Arg);
 	} while( ret == RME_ERR_CONTINUE );	// RME_ERR_CONTINUE is returned by prefixes
 	
 	if( ret )
@@ -326,54 +327,64 @@ DEF_OPCODE_FCN(Ext,0F)
 DEF_OPCODE_FCN(Unary, M)	// INC/DEC r/m8
 {
 	const int	width = 8;
-	 int	ret, op_num;
+	 int	ret;
 	uint8_t	*dest;
 	
-	ret = RME_Int_GetModRM(State, NULL, &op_num, NULL);
-	if(ret)	return ret;
-	State->Decoder.IPOffset --;
-	
-	switch(op_num)
+	switch(Param)
 	{
 	case 0:	// INC
-		RME_Int_DebugPrint(State, " INC");
 		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 		if(ret)	return ret;
 		{ALU_OPCODE_INC_CODE}
 		break;
 	case 1:	// DEC
-		RME_Int_DebugPrint(State, " DEC");
 		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
 		if(ret)	return ret;
 		{ALU_OPCODE_DEC_CODE}
 		break;
 	default:
-		ERROR_S(" - Unary M /%i unimplemented\n", op_num);
+		ERROR_S(" - Unary M /%i unimplemented\n", Param);
 		return RME_ERR_UNDEFOPCODE;
 	}
 	
 	return 0;
 }
 
+int RME_Int_ParseModRMX_FarPtr(tRME_State* State, uint16_t* cs, uint16_t* ip)
+{
+	int ret;
+
+	struct ModRM modrm;
+	ret = RME_Int_GetModRM(State, &modrm);
+	if(ret)	return ret;
+
+	if(modrm.mod == 3) {
+		ERROR_S(" - Reading a far pointer w/ mod=3");
+		return RME_ERR_UNDEFOPCODE;
+	}
+
+	uint16_t	segment;
+	uint32_t	offset;
+	ret = RME_Int_GetMMM( State, &modrm, &segment, &offset );
+	if(ret)	return ret;
+
+	ret = RME_Int_Read16(State, segment, offset, ip);
+	if(ret) return ret;
+	ret = RME_Int_Read16(State, segment, offset+2, cs);
+	if(ret) return ret;
+
+	return 0;
+}
+
 DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 {
-	 int	ret, op_num, mod, mmm;
-	
-	ret = RME_Int_GetModRM(State, &mod, &op_num, &mmm);
-	if(ret)	return ret;
-	State->Decoder.IPOffset --;
-
-	static const char* op_names[] = {
-		"INC", "DEC", "CALL (NI)", "CALL (FI)",
-		"JMP (NI)", "JMP (FI)", "PUSH", "?"
-		};
-	RME_Int_DebugPrint(State, " %s", op_names[op_num]);
+	 int	ret;
 
 	if( State->Decoder.bOverrideOperand )
 	{
 		uint32_t	*dest;
 		const int	width = 32;	
-		switch( op_num )
+		switch( Param )
 		{
 		case 0:
 			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);
@@ -393,15 +404,16 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			PUSH( *dest );
 			break;
 		default:
-			ERROR_S(" - Unary MX (32) /%i unimplemented\n", op_num);
+			ERROR_S(" - Unary MX (32) /%i unimplemented\n", Param);
 			return RME_ERR_UNDEFOPCODE;
 		}
 	}
 	else
 	{
+		uint16_t cs, ip;
 		uint16_t	*dest;
 		const int	width = 16;	
-		switch( op_num )
+		switch( Param )
 		{
 		case 0:	// INC
 			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
@@ -423,13 +435,12 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 3:	// Call Far Indirect
-			if( mod == 3 )	return RME_ERR_UNDEFOPCODE;	// TODO: Check this
-			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
-			if(ret)	return ret;
+			ret = RME_Int_ParseModRMX_FarPtr(State, &cs, &ip);
+			if(ret) return ret;
 			PUSH(State->CS);
 			PUSH(State->IP + State->Decoder.IPOffset);
-			State->IP = dest[0];
-			State->CS = dest[1];	// NOTE: Possible edge case on segment boundary
+			State->IP = ip;
+			State->CS = cs;
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 4:	// Jump Near Indirect
@@ -439,21 +450,21 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 5:	// Jump Far Indirect
-			if( mod == 3 )	return RME_ERR_UNDEFOPCODE;	// TODO: Check this
-			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			ret = RME_Int_ParseModRMX_FarPtr(State, &cs, &ip);
+			if(ret) return ret;
 			if(ret)	return ret;
-			State->IP = dest[0];
-			State->CS = dest[1];	// NOTE: Possible edge case on segment boundary
+			State->IP = ip;
+			State->CS = cs;
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 6:	// Push
-			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);	//Get Register Value
+			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			PUSH( *dest );
 			break;
 			
 		default:
-			ERROR_S(" - Unary MX (16) /%i unimplemented\n", op_num);
+			ERROR_S(" - Unary MX (16) /%i unimplemented\n", Param);
 			return RME_ERR_UNDEFOPCODE;
 		}
 	}
@@ -667,62 +678,101 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 	return 0;
 }
 
-inline int RME_Int_GetMMM(tRME_State *State, int mod, int mmm, uint16_t *Segment, uint32_t *Offset)
+int RME_Int_GetMMM(tRME_State *State, const struct ModRM* modrm, uint16_t *Segment, uint32_t *Offset)
 {
 	uint16_t	ofs;
 	 int	ret;
 	
 	if( State->Decoder.bOverrideAddress )
 	{
-		switch(mod)
+		switch(modrm->mod)
 		{
 		case 0:	// No Offset
-			ret = DoFunc32( State, mmm | 8, 0, Segment, Offset );
+			ret = DoFunc32( State, modrm->mmm | 8, 0, Segment, Offset );
 			if(ret)	return ret;
 			break;
 		case 1:	// disp8
 			READ_INSTR8S( ofs );
-			ret = DoFunc32( State, mmm, ofs, Segment, Offset);
+			ret = DoFunc32( State, modrm->mmm, ofs, Segment, Offset);
 			if(ret)	return ret;
 			break;
 		case 2:	// disp32
 			READ_INSTR32( ofs );
-			ret = DoFunc32( State, mmm, ofs, Segment, Offset );
+			ret = DoFunc32( State, modrm->mmm, ofs, Segment, Offset );
 			if(ret)	return ret;
 			break;
 		case 3:
 			ERROR_S("mod=3 passed to RME_Int_GetMMM");
 			return RME_ERR_BUG;
 		default:
-			ERROR_S("Unknown mod value passed to RME_Int_GetMMM (%i)", mod);
+			ERROR_S("Unknown mod value passed to RME_Int_GetMMM (%i)", modrm->mod);
 			return RME_ERR_BUG;
 		}
 	}
 	else
 	{
-		switch(mod)
+		switch(modrm->mod)
 		{
 		case 0:	// No Offset
-			ret = DoFunc( State, mmm | 8, 0, Segment, Offset );
+			ret = DoFunc( State, modrm->mmm | 8, 0, Segment, Offset );
 			if(ret)	return ret;
 			break;
 		case 1:	// 8 Bit
 			READ_INSTR8S( ofs );
-			ret = DoFunc( State, mmm, ofs, Segment, Offset);
+			ret = DoFunc( State, modrm->mmm, ofs, Segment, Offset);
 			if(ret)	return ret;
 			break;
 		case 2:	// 16 Bit
 			READ_INSTR16( ofs );
-			ret = DoFunc( State, mmm, ofs, Segment, Offset );
+			ret = DoFunc( State, modrm->mmm, ofs, Segment, Offset );
 			if(ret)	return ret;
 			break;
 		case 3:
 			ERROR_S("mod=3 passed to RME_Int_GetMMM");
 			return RME_ERR_BUG;
 		default:
-			ERROR_S("Unknown mod value passed to RME_Int_GetMMM (%i)", mod);
+			ERROR_S("Unknown mod value passed to RME_Int_GetMMM (%i)", modrm->mod);
 			return RME_ERR_BUG;
 		}
+	}
+	return 0;
+}
+
+int RME_Int_DecodeModM(tRME_State *State, uint8_t **dst, const struct ModRM* modrm)
+{
+	int ret = 0;
+	if( modrm->mod == 3 ) {
+		*dst = RegB( State, modrm->mmm );
+	}
+	else {
+		uint16_t	segment;
+		uint32_t	offset;
+		ret = RME_Int_GetMMM( State, modrm, &segment, &offset );
+		if(ret)	return ret;
+		ret = RME_Int_GetPtr(State, segment, offset, (void**)dst);
+		if(ret)	return ret;
+	}
+	return ret;
+}
+
+int RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* modrm)
+{
+	int ret;
+	if( modrm->mod == 3 ) {
+		*mem = RegW( State, modrm->mmm );
+	}
+	else {
+		uint16_t	segment;
+		uint32_t	offset;
+		ret = RME_Int_GetMMM( State, modrm, &segment, &offset );
+		if(ret)	return ret;
+		if( (segment * 0x10 + offset) % RME_BLOCK_SIZE == RME_BLOCK_SIZE-1 ) {
+			ERROR_S("%x:%x Word read across boundary (0x%x)",
+				State->CS, State->IP, segment * 0x10 + offset);
+			return RME_ERR_BADMEM;
+		}
+		ret = RME_Int_GetPtr(State, segment, offset, (void**)mem);
+		if(ret)	return ret;
 	}
 	return 0;
 }
@@ -733,33 +783,20 @@ inline int RME_Int_GetMMM(tRME_State *State, int mod, int mmm, uint16_t *Segment
  * \param to	R field destination (ignored if NULL)
  * \param from	M field destination (ignored if NULL)
  */
-int RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from, int bReverse)
+int RME_Int_ParseModRM(tRME_State *State, uint8_t **reg, uint8_t **mem, int bReverse)
 {
 	 int	ret;
-	 int	mod, rrr, mmm;
 
-	RME_Int_GetModRM(State, &mod, &rrr, &mmm);
+	struct ModRM modrm;
+	ret = RME_Int_GetModRM(State, &modrm);
+	if(ret) return ret;
 	
-	if(!bReverse) {
-		if(to) *to = RegB( State, rrr );
+	if(!bReverse && reg) *reg = RegB( State, modrm.rrr );
+	if(mem) {
+		ret = RME_Int_DecodeModM(State, mem, &modrm);
+		if(ret) return ret;
 	}
-	if(from)
-	{
-		if( mod == 3 )
-			*from = RegB( State, mmm );
-		else
-		{
-			uint16_t	segment;
-			uint32_t	offset;
-			ret = RME_Int_GetMMM( State, mod, mmm, &segment, &offset );
-			if(ret)	return ret;
-			ret = RME_Int_GetPtr(State, segment, offset, (void**)from);
-			if(ret)	return ret;
-		}
-	}
-	if(bReverse) {
-		if(to) *to = RegB( State, rrr );
-	}
+	if( bReverse && reg) *reg = RegB( State, modrm.rrr );
 	return 0;
 }
 
@@ -772,34 +809,16 @@ int RME_Int_ParseModRM(tRME_State *State, uint8_t **to, uint8_t **from, int bRev
 int RME_Int_ParseModRMX(tRME_State *State, uint16_t **reg, uint16_t **mem, int bReverse)
 {
 	 int	ret;
-	 int	mod, rrr, mmm;
 
-	RME_Int_GetModRM(State, &mod, &rrr, &mmm);
+	struct ModRM modrm;
+	ret = RME_Int_GetModRM(State, &modrm);
+	if(ret) return ret;
 	
-	if(!bReverse) {
-		if(reg) *reg = RegW( State, rrr );
+	if(!bReverse && reg) *reg = RegW( State, modrm.rrr );
+	if(mem) {
+		ret = RME_Int_DecodeModMX(State, mem, &modrm);
+		if(ret) return ret;
 	}
-	if(mem)
-	{
-		if( mod == 3 )
-			*mem = RegW( State, mmm );
-		else
-		{
-			uint16_t	segment;
-			uint32_t	offset;
-			ret = RME_Int_GetMMM( State, mod, mmm, &segment, &offset );
-			if(ret)	return ret;
-			if( (segment * 0x10 + offset) % RME_BLOCK_SIZE == RME_BLOCK_SIZE-1 ) {
-				ERROR_S("%x:%x Word read across boundary (0x%x)",
-					State->CS, State->IP, segment * 0x10 + offset);
-				return RME_ERR_BADMEM;
-			}
-			ret = RME_Int_GetPtr(State, segment, offset, (void**)mem);
-			if(ret)	return ret;
-		}
-	}
-	if(bReverse) {
-		if(reg) *reg = RegW( State, rrr );
-	}
+	if( bReverse && reg) *reg = RegW( State, modrm.rrr );
 	return 0;
 }

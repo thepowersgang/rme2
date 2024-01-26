@@ -297,15 +297,16 @@ DEF_OPCODE_FCN(MOV, Reg)
 // Move and Zero Extend
 DEF_OPCODE_FCN(MOV,Z)
 {
+	 int	ret;
 	uint8_t	*src;
 	void	*dest;
-	 int	ret, rrr;
+	struct ModRM	modrm;
 	
-	ret = RME_Int_GetModRM(State, NULL, &rrr, NULL);	State->Decoder.IPOffset --;
+	ret = RME_Int_GetModRM(State, &modrm);
 	if( ret )	return ret;
 	
-	dest = RegW(State, rrr);
-	ret = RME_Int_ParseModRM(State, NULL, &src, 0);
+	dest = RegW(State, modrm.rrr);
+	ret = RME_Int_DecodeModM(State, &src, &modrm);
 	if( ret )	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
@@ -317,15 +318,17 @@ DEF_OPCODE_FCN(MOV,Z)
 }
 DEF_OPCODE_FCN(MOV,ZX)
 {
+	 int	ret;
 	uint16_t	*src;
 	void	*dest;
-	 int	ret, rrr;
 	
-	ret = RME_Int_GetModRM(State, NULL, &rrr, NULL);	State->Decoder.IPOffset --;
+	struct ModRM	modrm;
+	
+	ret = RME_Int_GetModRM(State, &modrm);
 	if( ret )	return ret;
 	
-	dest = RegW(State, rrr);
-	ret = RME_Int_ParseModRMX(State, NULL, &src, 0);
+	dest = RegW(State, modrm.rrr);
+	ret = RME_Int_DecodeModMX(State, &src, &modrm);
 	if( ret )	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
