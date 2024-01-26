@@ -19,7 +19,7 @@ for asmfile in Artlav_80186_tests/*.asm; do
 		nasm $asmfile -f bin -o $binfile || exit
 	fi
 	# Run the test binary
-	./tester -b $binfile -O test_mem_dump.dmp --nogui "" >> ArtlavTestLog.log || exit
+	./tester -b $binfile -O test_mem_dump.dmp --nogui "" --debug-level 2 >> ArtlavTestLog.log || exit
 	# Compare the memory dump the exepected memory contents (encoded in leading comments)
 	./cmpmemhex $asmfile test_mem_dump.dmp || exit
 done
