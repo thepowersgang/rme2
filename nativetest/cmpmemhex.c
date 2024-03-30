@@ -1,3 +1,10 @@
+//
+// Compare a hexdump template in an assembly source file with a binary file
+//
+// Templates are at the top of the file, as semicolon comments consisting of a hex
+// address, a colon, and then a sequence of hex byte values - where `XX` marks a
+// byte as ignored.
+//
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -83,7 +90,7 @@ int main(int argc, char *argv[])
 		if( local_failed )
 		{
 			// Dump the local content, then the expectation
-			fprintf(stderr, "%02x:", n_bytes);
+			fprintf(stderr, "%02zx:", n_bytes);
 			for( int i = 0; i < 16; i ++ )
 			{
 				if( i == 8 )	fprintf(stderr, " ");

@@ -187,6 +187,9 @@ DEF_OPCODE_FCN(CWD, z)
 
 /**
  * \brief Internals of LDS and LES 
+ * 
+ * Loads a fat pointer from memory (offset then segment)
+ * 
  * \note Does ModR/M parsing for it self to avoid issues with alignment
  */
 static inline int _LDS_LES_internal(tRME_State *State, uint16_t *SegRegPtr)
