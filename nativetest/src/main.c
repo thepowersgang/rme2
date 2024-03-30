@@ -296,16 +296,16 @@ int main(int argc, char *argv[])
 			CHECK_REG("GS", gPrevRegisters.gs, emu->GS);
 			CHECK_REG("Flags", gPrevRegisters.flags, emu->Flags);
 			if( memcmp(gaMemory_prev, gaMemory, sizeof(gaMemory)) != 0 ) {
-					for(size_t i = 0; i < sizeof(gaMemory); i += 2) {
-						const uint8_t* cur = gaMemory+i;
-						uint8_t* prev = gaMemory_prev+i;
-						if( memcmp(prev, cur, 2) != 0 ) {
-							uint16_t pv = prev[0] | ((uint16_t)prev[1] << 8);
-							uint16_t cv = cur[0] | ((uint16_t)cur[1] << 8);
-							PRINT(" %05zx:%04x=>%04x", i, pv, cv);
-							memcpy(prev, cur, 4);
-						}
+				for(size_t i = 0; i < sizeof(gaMemory); i += 2) {
+					const uint8_t* cur = gaMemory+i;
+					uint8_t* prev = gaMemory_prev+i;
+					if( memcmp(prev, cur, 2) != 0 ) {
+						uint16_t pv = prev[0] | ((uint16_t)prev[1] << 8);
+						uint16_t cv = cur[0] | ((uint16_t)cur[1] << 8);
+						PRINT(" %05zx:%04x=>%04x", i, pv, cv);
+						memcpy(prev, cur, 2);
 					}
+				}
 			}
 			if(printed) printf("\n");
 			#undef PRINT
