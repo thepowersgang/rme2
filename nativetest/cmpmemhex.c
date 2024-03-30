@@ -45,8 +45,9 @@ int main(int argc, char *argv[])
 	while( fgets(line, sizeof(line)-1, hexfile) )
 	{
 		size_t	line_len = strlen(line);
-		if( line[0] != ';' || line[1] == ' ' )
+		if( line[0] != ';' || line[1] == ' ' ) {
 			break;
+		}
 
 		int ofs = 1;
 		assert(isxdigit(line[ofs++]));
@@ -129,6 +130,10 @@ int main(int argc, char *argv[])
 			failed = 1;
 		}
 		n_bytes += 16;
+	}
+
+	if( n_bytes == 0 ) {
+		fprintf(stderr, "WARNING: No expected values in '%s'\n", argv[1]);
 	}
 
 	return failed;

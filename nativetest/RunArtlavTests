@@ -1,4 +1,9 @@
 #!/bin/sh
+# Execute a suite of tests written by "Artlav" (I can't remember where I got these from)
+# 
+# Expected values obtained by runing `qemu-system-i386 -bios Artlav_80186_tests/out/${testname}.bin` and
+# using `memsave 0 1024 2.dmp` and then `hd -v 2.dmp`
+
 set -eu
 cd `dirname $0`
 

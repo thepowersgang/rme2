@@ -1,3 +1,9 @@
+;00: 00 01 0f 00 09 ff 00 5d  06 47 04 ff 03 fe 09 ff
+;10: 00 dc 05 5e 12 00 5f ff  58 ff 91 ff 82 00 42 cd
+;20: 06 3f 46 00 93 ff 98 ff  85 ff 82 00 34 05 90 54
+;30: 7f 00 XX XX 80 ff XX XX  ed ff XX XX 00 80 ff ff
+;40: ff 7f 00 00 f1 43 00 00
+
 use16
 start:
 

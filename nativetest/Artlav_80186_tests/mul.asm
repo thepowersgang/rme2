@@ -1,3 +1,12 @@
+;00: 15 00 00 00 e0 5c 1f a3  01 00 ff ff 00 00 ff ff
+;10: 01 00 fe ff 00 00 00 00  00 00 eb ee 09 a5 20 42
+;20: 8c 00 ff ff dc 23 ff ff  01 ff 00 ff ff ff ff ff
+;30: 00 00 00 00 eb ee 0d b0  00 f9 00 00 15 00 00 00
+;40: e0 5c 00 00 01 00 ff ff  ff ff ff ff 01 00 00 00
+;50: 00 00 00 00 00 00 eb ee  09 a5 45 fb 8c 00 ff ff
+;60: dc ff ff ff 01 ff ff ff  ff ff ff ff 00 00 00 00
+;70: eb ee 0d 02 00 f9 f6 00  ed 00 ff 00 a8 00 00 00
+
 use16
 start:
 

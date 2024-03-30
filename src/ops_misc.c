@@ -7,10 +7,10 @@
 #include "opcode_prototypes.h"
 
 // === CODE ===
-DEF_OPCODE_FCN(CBW, z)	// Convert signed Byte to Word
+DEF_OPCODE_FCN(CBW, z)	// Convert signed Byte to Word (Or, Convert signed Word to DWord)
 {
 	if( State->Decoder.bOverrideOperand )
-		State->AX.D = (uint32_t)( (int8_t)State->AX.B.L );
+		State->AX.D = (uint32_t)( (int16_t)State->AX.W );
 	else
 		State->AX.W = (uint16_t)( (int8_t)State->AX.B.L );
 	return 0;

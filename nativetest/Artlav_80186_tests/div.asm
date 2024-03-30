@@ -1,3 +1,13 @@
+;00: 00 10 00 f0 00 00 ff ff  21 a3 fb 66 ff ff 01 00
+;10: ff ff ff ff ff ff ff ff  da c3 8e ae b4 fb 21 28
+;20: 00 5e 04 00 05 00 00 5e  ff 00 c4 9e 20 a3 ff ff
+;30: 20 01 ff ff ff ff 20 01  00 8a 8e ae 91 50 69 06
+;40: 00 00 fa 00 14 00 ff ff  da c3 20 a3 ff ff 01 00
+;50: 00 00 ff ff 01 00 00 00  7f 0d 8e ae 68 f5 10 f1
+;60: c9 25 04 00 05 00 c9 25  ff 00 da c3 20 a3 ff 00
+;70: 20 01 ff ff 01 00 20 01  ff 18 8e ae f3 89 69 06
+;80: 04 00 05 00 ff ff 00 ff  05 19 00 ff 00 00 01 19
+
 use16
 start:
 mov sp,208
@@ -359,7 +369,9 @@ add bp,02h
 mov word[142],ax
 pushf
 
+hlt_:
 hlt
+jmp hlt_
 
 ; Exception handler (int 0)
 times 01000h-($-$$) db 0
