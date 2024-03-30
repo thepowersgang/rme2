@@ -553,7 +553,7 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, uint16_t *Segment, u
 	}
 	RME_Int_DebugPrint(State, "]");
 	*Segment = seg;
-	*Offset = addr;
+	*Offset = addr & 0xFFFF;
 	return 0;
 }
 
