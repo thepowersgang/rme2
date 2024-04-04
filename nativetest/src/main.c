@@ -60,6 +60,7 @@ const char	*gsDosExe;
 const char	*gsMemoryDumpFile;
 const char	*gsCPUType = "80286";
  int	gbDisableGUI = 0;
+bool	gbDiff_Memory;
 uint8_t	gaMemory[0x110000];
 uint8_t	gaMemory_prev[0x110000];
 struct PrevRegisters {
@@ -188,6 +189,9 @@ int main(int argc, char *argv[])
 		emu->IP = ep.Offset;
 		emu->SS = stack.Segment;
 		emu->SP.W = stack.Offset;
+		// Is this correct?
+		emu->DS = emu->SS;
+		emu->ES = emu->CS;
 		printf("Entry %x:%x, Stack %x:%x\n", ep.Segment, ep.Offset, stack.Segment, stack.Offset);
 	}
 	// Raw binary blob, loaded as a BIOS image at the end of memory
@@ -295,15 +299,24 @@ int main(int argc, char *argv[])
 			CHECK_REG("FS", gPrevRegisters.fs, emu->FS);
 			CHECK_REG("GS", gPrevRegisters.gs, emu->GS);
 			CHECK_REG("Flags", gPrevRegisters.flags, emu->Flags);
-			if( memcmp(gaMemory_prev, gaMemory, sizeof(gaMemory)) != 0 ) {
-				for(size_t i = 0; i < sizeof(gaMemory); i += 2) {
-					const uint8_t* cur = gaMemory+i;
-					uint8_t* prev = gaMemory_prev+i;
-					if( memcmp(prev, cur, 2) != 0 ) {
-						uint16_t pv = prev[0] | ((uint16_t)prev[1] << 8);
-						uint16_t cv = cur[0] | ((uint16_t)cur[1] << 8);
-						PRINT(" %05zx:%04x=>%04x", i, pv, cv);
-						memcpy(prev, cur, 2);
+			if( gbDiff_Memory )
+			{
+				assert( (sizeof(gaMemory) % RME_BLOCK_SIZE) == 0 );
+				for(size_t ofs = 0; ofs < sizeof(gaMemory); ofs += RME_BLOCK_SIZE)
+				{
+					if( emu->MemoryTouched[ofs / RME_BLOCK_SIZE] )
+					{
+						emu->MemoryTouched[ofs / RME_BLOCK_SIZE] = 0;
+						for(size_t i = ofs; i < ofs + RME_BLOCK_SIZE; i += 2) {
+							const uint8_t* cur = gaMemory+i;
+							uint8_t* prev = gaMemory_prev+i;
+							if( memcmp(prev, cur, 2) != 0 ) {
+								uint16_t pv = prev[0] | ((uint16_t)prev[1] << 8);
+								uint16_t cv = cur[0] | ((uint16_t)cur[1] << 8);
+								PRINT(" %05zx:%04x=>%04x", i, pv, cv);
+								memcpy(prev, cur, 2);
+							}
+						}
 					}
 				}
 			}
@@ -442,6 +455,9 @@ void ParseArgs(int argc, char* argv[])
 			else if( strcmp(arg, "--debug-level") == 0 ) {
 				assert(i + 1 != argc);
 				gDebugLevel = strtol(argv[++i], NULL, 10);
+			}
+			else if( strcmp(arg, "--diff-memory") == 0 ) {
+				gbDiff_Memory = true;
 			}
 			else {
 				fprintf(stderr, "Unknown long option '%s'\n", arg);

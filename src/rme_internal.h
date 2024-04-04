@@ -286,6 +286,7 @@ static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg
 	# endif
 	#endif
 	*Ptr = (void*)( (uint8_t*)State->Memory[block] + (addr%RME_BLOCK_SIZE) );
+	State->MemoryTouched[block] = 1;
 	return 0;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Read8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst) {

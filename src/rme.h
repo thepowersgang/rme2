@@ -168,6 +168,10 @@ typedef struct sRME_State
 	 *       segmentation scheme (true max is 0xFFFF0+0xFFFF = 0x10FFEF)
 	 */
 	void	*Memory[0x110000/RME_BLOCK_SIZE];	// 1Mib,64KiB in 256 4 KiB blocks
+	/**
+	 * Flags indicating that a memory block has been touched (not nessesarily written)
+	 */
+	uint8_t	MemoryTouched[0x110000/RME_BLOCK_SIZE];
 
 	/**
 	 * \brief High-Level Emulation Callback
