@@ -279,8 +279,10 @@ int RME_Int_DoOpcode(tRME_State *State)
 		
 		if( byte1 == 0 && byte2 == 0 )
 		{
-			if( State->bWasLastOperationNull )
+			if( State->bWasLastOperationNull ) {
+				printf(" Detected execution of null bytes\n");
 				return RME_ERR_BREAKPOINT;
+			}
 			State->bWasLastOperationNull = 1;
 		}
 		else
@@ -766,13 +768,21 @@ int RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* m
 		uint32_t	offset;
 		ret = RME_Int_GetMMM( State, modrm, &segment, &offset );
 		if(ret)	return ret;
-		if( (segment * 0x10 + offset) % RME_BLOCK_SIZE == RME_BLOCK_SIZE-1 ) {
-			ERROR_S("%x:%x Word read across boundary (0x%x)",
-				State->CS, State->IP, segment * 0x10 + offset);
-			return RME_ERR_BADMEM;
-		}
 		ret = RME_Int_GetPtr(State, segment, offset, (void**)mem);
 		if(ret)	return ret;
+		if( (segment * 0x10 + offset) % RME_BLOCK_SIZE == RME_BLOCK_SIZE-1 ) {
+			#if 1
+			uint8_t* mem2;
+			ret = RME_Int_GetPtr(State, segment, offset+1, (void**)&mem2);
+			if(ret)	return ret;
+			if( mem2-1 != (uint8_t*)*mem)
+			#endif
+			{
+				ERROR_S("%x:%x Word read across boundary (0x%x)",
+					State->CS, State->IP, segment * 0x10 + offset);
+				return RME_ERR_BADMEM;
+			}
+		}
 	}
 	return 0;
 }

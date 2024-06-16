@@ -189,9 +189,9 @@ int main(int argc, char *argv[])
 		emu->IP = ep.Offset;
 		emu->SS = stack.Segment;
 		emu->SP.W = stack.Offset;
-		// Is this correct?
-		emu->DS = emu->SS;
-		emu->ES = emu->CS;
+		// DS/ES are set to the load address
+		emu->DS = 0x100;
+		emu->ES = 0x100;
 		printf("Entry %x:%x, Stack %x:%x\n", ep.Segment, ep.Offset, stack.Segment, stack.Offset);
 	}
 	// Raw binary blob, loaded as a BIOS image at the end of memory

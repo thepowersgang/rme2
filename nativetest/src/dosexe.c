@@ -14,6 +14,31 @@
 
 inline unsigned int MIN(unsigned int a, unsigned int b) {return (a < b)?a:b;}
 
+struct FAR
+{
+	uint16_t	ip;
+	uint16_t	cs;
+};
+struct ProgramSegmentPrefix
+{
+	uint8_t	exit_op[2];
+	uint16_t	first_free_seg;
+	uint8_t	_reserved4;
+	uint8_t	os_entrypt_deprecated[5];
+	//uint16_t	program_bytes;
+	struct FAR	int22_addr;
+	struct FAR	int23_addr;
+	struct FAR	int24_addr;
+
+	//uint16_t	pproc_seg;
+	char	_pad[0x80 - 0x16];
+
+	// 0x80
+	uint8_t	command_tail_len;
+	uint8_t command_tail[0x7F];
+} __attribute__((packed));
+static int ssert_size_ProgramSegmentPrefix[sizeof(struct ProgramSegmentPrefix) == 0x100 ? 1 : -1];
+
 // === CODE ===
 t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 {
@@ -93,7 +118,7 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 	for( ; i < (dataSize + RME_BLOCK_SIZE-1)/RME_BLOCK_SIZE; i ++ )
 	{
 		size_t	copysize = MIN(RME_BLOCK_SIZE, dataSize-i*RME_BLOCK_SIZE);
-		printf("- Full copy 0x%x : 0x%zx\n", (base+i)*RME_BLOCK_SIZE, copysize);
+		printf("- Full copy 0x%05x : 0x%zx\n", (base+i)*RME_BLOCK_SIZE, copysize);
 		memcpy(state->Memory[base+i], readdata, copysize);
 		readdata += copysize;
 	}
@@ -105,6 +130,13 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 	ret.Offset = hdr.ip;
 	stackptr->Segment = DESTINATION_SEG + hdr.ss;
 	stackptr->Offset = hdr.sp;
+
+	{
+		struct ProgramSegmentPrefix* psp = state->Memory[base];
+		psp->exit_op[0] = 0xCD; psp->exit_op[1] = 0x20;	// INT 0x20
+		psp->first_free_seg = DESTINATION_SEG + hdr.min_extra_paragraphs;
+		//psp->program_bytes = 0;
+	}
 
 	return ret;
 _error:
