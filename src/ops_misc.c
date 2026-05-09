@@ -21,7 +21,7 @@ DEF_OPCODE_FCN(BSF,z)
 	int ret;
 	uint16_t	*dest, *src;
 	
-	ret = RME_Int_ParseModRMX(State, &dest, &src, 0);
+	ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
 	if(ret)	return ret;
 	
 	if( *src == 0 )
@@ -308,22 +308,28 @@ DEF_OPCODE_FCN(BTx,RI8)
 {
 	 int	ret;
 	 int	op_num = Param;
-	uint16_t	*src;
+	uint16_t	*src16;
 	uint32_t	*src32;
 	uint8_t	ofs;
 	
 	if( op_num < 4 ) {
 		return RME_ERR_UNDEFOPCODE;
 	}
-	
-	ret = RME_Int_ParseModRMX(State, NULL, &src, 0);
+	uint32_t	val;
+	 int	width;
+	if( State->Decoder.bOverrideOperand ) {
+		ret = RME_Int_ParseModRMX32(State, NULL, &src32, 0);
+		val = *src32;
+		width = 32;
+	}
+	else {
+		ret = RME_Int_ParseModRMX16(State, NULL, &src16, 0);
+		val = *src16;
+		width = 16;
+	}
 	if(ret)	return ret;
-	src32 = (void*)src;
 	
 	READ_INSTR8(ofs);
-
-	 uint32_t	val = (State->Decoder.bOverrideOperand ? *src32 : *src);
-	 int	width = (State->Decoder.bOverrideOperand ? 32 : 16);
 
 	ofs %= width;
 	if( val & (1 << ofs) )
@@ -349,7 +355,7 @@ DEF_OPCODE_FCN(BTx,RI8)
 	if( State->Decoder.bOverrideOperand )
 		*src32 = val;
 	else
-		*src = val;
+		*src16 = val;
 	return 0;
 }
 

@@ -144,7 +144,7 @@ int main(int argc, char *argv[])
 	while( (ret = RME_RunOne(emu)) == RME_ERR_OK )
 	{
 		// Check for a change to the state (memory or registers)
-		if(emu->DebugLevel >= 1)
+		if(emu->DebugLevel >= 2)
 		{
 			bool printed = false;
 			#define PRINT(...) do { if(!printed) { printed = true; printf(">"); } printf(__VA_ARGS__); } while(0)
@@ -164,16 +164,16 @@ int main(int argc, char *argv[])
 			CHECK_REG("GS", gPrevRegisters.gs, emu->GS);
 			CHECK_REG("Flags", gPrevRegisters.flags, emu->Flags);
 			if( memcmp(gaMemory_prev, gaMemory, sizeof(gaMemory)) != 0 ) {
-					for(size_t i = 0; i < sizeof(gaMemory); i += 2) {
-						const uint8_t* cur = gaMemory+i;
-						uint8_t* prev = gaMemory_prev+i;
-						if( memcmp(prev, cur, 2) != 0 ) {
-							uint16_t pv = prev[0] | ((uint16_t)prev[1] << 8);
-							uint16_t cv = cur[0] | ((uint16_t)cur[1] << 8);
-							PRINT(" %05zx:%04x=>%04x", i, pv, cv);
-							memcpy(prev, cur, 4);
-						}
+				for(size_t i = 0; i < sizeof(gaMemory); i += 2) {
+					const uint8_t* cur = gaMemory+i;
+					uint8_t* prev = gaMemory_prev+i;
+					if( cur[0] != prev[0] || cur[1] != prev[1] ) {
+						uint16_t pv = prev[0] | ((uint16_t)prev[1] << 8);
+						uint16_t cv = cur[0] | ((uint16_t)cur[1] << 8);
+						PRINT(" %05zx:%04x=>%04x", i, pv, cv);
+						memcpy(prev, cur, 2);
 					}
+				}
 			}
 			if(printed) printf("\n");
 			#undef PRINT

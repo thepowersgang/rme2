@@ -97,21 +97,21 @@ DEF_OPCODE_FCN(POP, F)
 DEF_OPCODE_FCN(PUSH, MX)
 {
 	 int	ret;
-	void	*destPtr;
 	if(State->Decoder.bOverrideOperand)	return RME_ERR_UNDEFOPCODE;
-	
-	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
-	if(ret)	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
 	{
-		uint32_t	*ptr = destPtr;
+		uint32_t	*ptr;
+		ret = RME_Int_ParseModRMX32(State, NULL, &ptr, 0);
+		if(ret)	return ret;
 		PUSH(*ptr >> 16);
 		PUSH(*ptr);
 	}
 	else
 	{
-		uint16_t	*ptr = destPtr;
+		uint16_t	*ptr;
+		ret = RME_Int_ParseModRMX16(State, NULL, &ptr, 0);
+		if(ret)	return ret;
 		PUSH(*ptr);
 	}
 	return 0;
@@ -122,7 +122,7 @@ DEF_OPCODE_FCN(POP, MX)
 	uint16_t	*ptr;
 	if( State->Decoder.bOverrideOperand )	return RME_ERR_UNDEFOPCODE;
 	
-	ret = RME_Int_ParseModRMX(State, NULL, &ptr, 0);
+	ret = RME_Int_ParseModRMX16(State, NULL, &ptr, 0);
 	if(ret)	return ret;
 	POP(*ptr);
 	return 0;
@@ -134,8 +134,9 @@ DEF_OPCODE_FCN(PUSH, I)
 	uint32_t	val;
 	READ_INSTR16( val );
 	RME_Int_DebugPrint(State, " 0x%04x", val);
-	if( State->Decoder.bOverrideOperand )
+	if( State->Decoder.bOverrideOperand ) {
 		PUSH(val>>16);
+	}
 	PUSH(val);
 	return 0;
 }
@@ -146,8 +147,9 @@ DEF_OPCODE_FCN(PUSH, I8)
 	uint32_t	val;
 	READ_INSTR8S( val );
 	RME_Int_DebugPrint(State, " 0x%02x", val);
-	if( State->Decoder.bOverrideOperand )
+	if( State->Decoder.bOverrideOperand ) {
 		PUSH(val>>16);
+	}
 	PUSH(val);
 	return 0;
 }

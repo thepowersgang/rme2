@@ -31,17 +31,18 @@
 }
 #define CREATE_ALU_OPCODE_FCN_RMX(__name, __code...) DEF_OPCODE_FCN(__name,RMX) {\
 	 int	ret; \
-	void	*destPtr=0, *srcPtr=0; \
-	ret = RME_Int_ParseModRMX(State, (void*)&destPtr, (void*)&srcPtr, 0); \
-	if(ret)	return ret; \
 	if(State->Decoder.bOverrideOperand) { \
-		uint32_t v,*dest=destPtr, *src=srcPtr; \
+		uint32_t v, *dest, *src; \
+		ret = RME_Int_ParseModRMX32(State, &dest, &src, 0); \
+		if(ret)	return ret; \
 		 int	width=32;\
 		__code \
 		SET_COMM_FLAGS(State,v,width); \
 		if(dest) *dest = v; \
 	} else { \
-		uint16_t v,*dest=destPtr, *src=srcPtr; \
+		uint16_t v, *dest, *src; \
+		ret = RME_Int_ParseModRMX16(State, &dest, &src, 0); \
+		if(ret)	return ret; \
 		 int	width=16;\
 		__code \
 		SET_COMM_FLAGS(State,v,width); \
@@ -62,17 +63,18 @@
 }
 #define CREATE_ALU_OPCODE_FCN_MRX(__name, __code...) DEF_OPCODE_FCN(__name,MRX) {\
 	 int	ret; \
-	void	*destPtr=0, *srcPtr=0; \
-	ret = RME_Int_ParseModRMX(State, (void*)&srcPtr, (void*)&destPtr, 1); \
-	if(ret)	return ret; \
 	if(State->Decoder.bOverrideOperand) { \
-		uint32_t v, *dest=destPtr, *src=srcPtr; \
+		uint32_t v, *dest, *src; \
+		ret = RME_Int_ParseModRMX32(State, &src, &dest, 1); \
+		if(ret)	return ret; \
 		 int	width=32;\
 		__code \
 		SET_COMM_FLAGS(State,v,width); \
 		if(dest) *dest = v; \
 	} else { \
-		uint16_t v, *dest=destPtr, *src=srcPtr; \
+		uint16_t v, *dest, *src; \
+		ret = RME_Int_ParseModRMX16(State, &src, &dest, 1); \
+		if(ret)	return ret; \
 		 int	width=16;\
 		__code \
 		SET_COMM_FLAGS(State,v,width); \
@@ -84,7 +86,7 @@
 	const int	width=8; \
 	uint8_t srcData, v; \
 	uint8_t	*dest=&State->AX.B.L, *src=&srcData; \
-	READ_INSTR8( srcData ); \
+	READ_INSTR8( *src ); \
 	RME_Int_DebugPrint(State, " AL 0x%02x", *src); \
 	__code \
 	SET_COMM_FLAGS(State,v,width); \
@@ -204,12 +206,11 @@ DEF_OPCODE_FCN(Arith, MIX)
 	const int op_num = Param;
 	void	*destPtr;
 	
-	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
-	if(ret)	return ret;
-	
 	State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
 	if( State->Decoder.bOverrideOperand )
 	{
+		ret = RME_Int_ParseModRMX32(State, NULL, (void*)&destPtr, 0);
+		if(ret)	return ret;
 		uint32_t	v, srcData, *src = &srcData, *dest = destPtr;
 		const int	width = 32;
 		READ_INSTR32(srcData);
@@ -221,6 +222,8 @@ DEF_OPCODE_FCN(Arith, MIX)
 	}
 	else
 	{
+		ret = RME_Int_ParseModRMX16(State, NULL, (void*)&destPtr, 0);
+		if(ret)	return ret;
 		uint16_t	v, srcData, *src = &srcData, *dest = destPtr;
 		const int	width = 16;
 		READ_INSTR16(srcData);
@@ -237,15 +240,13 @@ DEF_OPCODE_FCN(Arith, MIX)
 DEF_OPCODE_FCN(Arith, MI8X)
 {
 	 int	ret, op_num = Param;
-	void	*destPtr;
-	
-	ret = RME_Int_ParseModRMX(State, NULL, (void*)&destPtr, 0);
-	if(ret)	return ret;
 	
 	State->Flags &= ~(FLAG_OF|FLAG_ZF|FLAG_SF|FLAG_PF);
 	if( State->Decoder.bOverrideOperand )
 	{
-		uint32_t	v, srcData, *src = &srcData, *dest = destPtr;
+		uint32_t	v, srcData, *src = &srcData, *dest;
+		ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);
+		if(ret)	return ret;
 		const int	width = 32;
 		READ_INSTR8S( srcData );
 		RME_Int_DebugPrint(State, " 0x%08x", srcData);
@@ -256,7 +257,9 @@ DEF_OPCODE_FCN(Arith, MI8X)
 	}
 	else
 	{
-		uint16_t	v, srcData, *src = &srcData, *dest = destPtr;
+		uint16_t	v, srcData, *src = &srcData, *dest;
+		ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
+		if(ret)	return ret;
 		const int	width = 16;
 		READ_INSTR8S( srcData );
 		RME_Int_DebugPrint(State, " 0x%04x", srcData);
@@ -326,22 +329,23 @@ DEF_OPCODE_FCN(ArithMisc, MI)	// 0xF6
 DEF_OPCODE_FCN(ArithMisc, MIX)	// 0xF7
 {
 	 int	ret, op_num = Param;
-	void	*arg;
-	
-	// Get argument (defaults to source)
-	ret = RME_Int_ParseModRMX(State, NULL, (void*)&arg, 0);
-	if(ret)	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
 	{
+		uint32_t* src;
+		ret = RME_Int_ParseModRMX32(State, NULL, &src, 0);
+		if(ret)	return ret;
 		const int	width=32;
-		uint32_t	v=0, *dest=arg, *src = arg;
+		uint32_t	v=0, *dest=src;
 		MISC_SELECT_OPERATION();
 	}
 	else
 	{
+		uint16_t* src;
+		ret = RME_Int_ParseModRMX16(State, NULL, &src, 0);
+		if(ret)	return ret;
 		const int	width=16;
-		uint16_t	v=0, *dest=arg, *src = arg;
+		uint16_t	v=0, *dest=src;
 		MISC_SELECT_OPERATION();
 	}
 	
@@ -362,7 +366,7 @@ DEF_OPCODE_FCN(IMUL,MI8X)	// 0x6B
 		ERROR_S("IMUL (MIX) OvrSize Unimpl");
 		return RME_ERR_BUG;
 	}
-	ret = RME_Int_ParseModRMX(State, &dest, &src, 0);
+	ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
 	if(ret)	return ret;
 
 	READ_INSTR8S(imm16);
@@ -390,7 +394,7 @@ DEF_OPCODE_FCN(IMUL,MIX)	// 0x69
 		ERROR_S("IMUL (MIX) OvrSize Unimpl");
 		return RME_ERR_BUG;
 	}
-	ret = RME_Int_ParseModRMX(State, &dest, &src, 0);
+	ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
 	if(ret)	return ret;
 
 	READ_INSTR16(imm16);
@@ -417,7 +421,7 @@ DEF_OPCODE_FCN(IMUL,RMX)	// 0x0F 0xAF
 		ERROR_S("IMUL (MIX) OvrSize Unimpl");
 		return RME_ERR_BUG;
 	}
-	ret = RME_Int_ParseModRMX(State, &dest, &src, 0);
+	ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
 	if(ret)	return ret;
 	
 	result = *src * *dest;
@@ -455,7 +459,7 @@ DEF_OPCODE_FCN(Shift, MI8X)
 	uint16_t	*destPtr;
 	uint8_t	srcData, *src = &srcData;
 	
-	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
+	ret = RME_Int_ParseModRMX16(State, NULL, &destPtr, 0);
 	if(ret)	return ret;
 	
 	READ_INSTR8(srcData);
@@ -505,25 +509,27 @@ DEF_OPCODE_FCN(Shift, M1)
 DEF_OPCODE_FCN(Shift, M1X)
 {
 	 int	ret, op_num = Param;
-	uint16_t	*destPtr;
 	uint8_t	srcData = 1, *src = &srcData;
-	
-	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
-	if(ret)	return ret;
-	
-	RME_Int_DebugPrint(State, " 1");
 	
 	if( State->Decoder.bOverrideOperand )
 	{
 		const int	width = 32;
-		uint32_t	*dest = (void*)destPtr;
+		uint32_t	*dest;
+		
+		ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);
+		if(ret)	return ret;
+		RME_Int_DebugPrint(State, " 1");
 		
 		SHIFT_SELECT_OPERATION();
 	}
 	else
 	{
 		const int	width = 16;
-		uint16_t	*dest = destPtr;
+		uint16_t	*dest;
+		
+		ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
+		if(ret)	return ret;
+		RME_Int_DebugPrint(State, " 1");
 		
 		SHIFT_SELECT_OPERATION();
 	}
@@ -553,25 +559,27 @@ DEF_OPCODE_FCN(Shift, MCl)
 DEF_OPCODE_FCN(Shift, MClX)
 {
 	 int	ret, op_num = Param;
-	uint16_t	*destPtr;
 	uint8_t	srcData = State->CX.B.L, *src = &srcData;
-	
-	ret = RME_Int_ParseModRMX(State, NULL, &destPtr, 0);
-	if(ret)	return ret;
-	
-	RME_Int_DebugPrint(State, " CL");
 	
 	if( State->Decoder.bOverrideOperand )
 	{
 		const int	width = 32;
-		uint32_t	*dest = (void*)destPtr;
+		uint32_t	*dest;
+		
+		ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);
+		if(ret)	return ret;
+		RME_Int_DebugPrint(State, " CL");
 		
 		SHIFT_SELECT_OPERATION();
 	}
 	else
 	{
 		const int	width = 16;
-		uint16_t	*dest = destPtr;
+		uint16_t	*dest;
+		
+		ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
+		if(ret)	return ret;
+		RME_Int_DebugPrint(State, " CL");
 		
 		SHIFT_SELECT_OPERATION();
 	}

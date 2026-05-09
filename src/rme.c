@@ -389,19 +389,19 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 		switch( Param )
 		{
 		case 0:
-			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);
+			ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_INC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 1:
-			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);
+			ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_DEC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 6:
-			ret = RME_Int_ParseModRMX(State, NULL, (void*)&dest, 0);	//Get Register Value
+			ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);	//Get Register Value
 			if(ret)	return ret;
 			PUSH( *dest );
 			break;
@@ -418,19 +418,19 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 		switch( Param )
 		{
 		case 0:	// INC
-			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_INC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 1:	// DEC
-			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			{ALU_OPCODE_DEC_CODE}
 			SET_COMM_FLAGS(State, *dest, width);
 			break;
 		case 2:	// Call Near Indirect
-			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			PUSH(State->IP + State->Decoder.IPOffset);
 			State->IP = *dest;
@@ -446,7 +446,7 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 4:	// Jump Near Indirect
-			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			State->IP = *dest;
 			State->Decoder.bDontChangeIP = 1;
@@ -454,13 +454,12 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 		case 5:	// Jump Far Indirect
 			ret = RME_Int_ParseModRMX_FarPtr(State, &cs, &ip);
 			if(ret) return ret;
-			if(ret)	return ret;
 			State->IP = ip;
 			State->CS = cs;
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 6:	// Push
-			ret = RME_Int_ParseModRMX(State, NULL, &dest, 0);
+			ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
 			if(ret)	return ret;
 			PUSH( *dest );
 			break;
@@ -740,24 +739,32 @@ int RME_Int_GetMMM(tRME_State *State, const struct ModRM* modrm, uint16_t *Segme
 	return 0;
 }
 
-int RME_Int_DecodeModM(tRME_State *State, uint8_t **dst, const struct ModRM* modrm)
+int RME_Int_DecodeModM(tRME_State *State, uint8_t **mem, const struct ModRM* modrm)
 {
 	int ret = 0;
 	if( modrm->mod == 3 ) {
-		*dst = RegB( State, modrm->mmm );
+		*mem = RegB( State, modrm->mmm );
 	}
 	else {
 		uint16_t	segment;
 		uint32_t	offset;
 		ret = RME_Int_GetMMM( State, modrm, &segment, &offset );
 		if(ret)	return ret;
-		ret = RME_Int_GetPtr(State, segment, offset, (void**)dst);
+		struct MemRef mr;
+		ret = RME_Int_GetPtr(State, segment, offset, 1, &mr);
 		if(ret)	return ret;
+		*mem = mr.range1;
 	}
 	return ret;
 }
 
-int RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* modrm)
+/// @brief Decode the M part of the ModRM byte into a pointer
+/// @param State 
+/// @param mem Output pointer (may be a pointer to a 32-bit slot, if `|write_size|==4`)
+/// @param modrm Input ModRM byte
+/// @param write_size If positive, this is a write. If negative, it's a read. Magnitude is the size
+/// @return Status code
+int RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* modrm, int write_size)
 {
 	int ret;
 	if( modrm->mod == 3 ) {
@@ -768,21 +775,16 @@ int RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* m
 		uint32_t	offset;
 		ret = RME_Int_GetMMM( State, modrm, &segment, &offset );
 		if(ret)	return ret;
-		ret = RME_Int_GetPtr(State, segment, offset, (void**)mem);
+		struct MemRef mr;
+		size_t len = write_size < 0 ? -write_size : write_size;
+		ret = RME_Int_GetPtr(State, segment, offset, len, &mr);
 		if(ret)	return ret;
-		if( (segment * 0x10 + offset) % RME_BLOCK_SIZE == RME_BLOCK_SIZE-1 ) {
-			#if 1
-			uint8_t* mem2;
-			ret = RME_Int_GetPtr(State, segment, offset+1, (void**)&mem2);
-			if(ret)	return ret;
-			if( mem2-1 != (uint8_t*)*mem)
-			#endif
-			{
-				ERROR_S("%x:%x Word read across boundary (0x%x)",
-					State->CS, State->IP, segment * 0x10 + offset);
-				return RME_ERR_BADMEM;
-			}
+		if( mr.len_1 != len ) {
+			ERROR_S("%x:%x Word access across boundary (0x%x)",
+				State->CS, State->IP, segment * 0x10 + offset);
+			return RME_ERR_BADMEM;
 		}
+		*mem = mr.range1;
 	}
 	return 0;
 }
@@ -812,11 +814,12 @@ int RME_Int_ParseModRM(tRME_State *State, uint8_t **reg, uint8_t **mem, int bRev
 
 /**
  * \brief Parses the ModR/M byte as a 16-bit value
- * \param State	Emulator State
- * \param to	R field destination (ignored if NULL)
- * \param from	M field destination (ignored if NULL)
+ * \param State Emulator State
+ * \param to    R field destination (ignored if NULL)
+ * \param from  M field destination (ignored if NULL)
+ * \param bReverse `rrr` is the second (source) parameter instead of first (destination)
  */
-int RME_Int_ParseModRMX(tRME_State *State, uint16_t **reg, uint16_t **mem, int bReverse)
+int RME_Int_ParseModRMX16(tRME_State *State, uint16_t **reg, uint16_t **mem, int bReverse)
 {
 	 int	ret;
 
@@ -826,9 +829,32 @@ int RME_Int_ParseModRMX(tRME_State *State, uint16_t **reg, uint16_t **mem, int b
 	
 	if(!bReverse && reg) *reg = RegW( State, modrm.rrr );
 	if(mem) {
-		ret = RME_Int_DecodeModMX(State, mem, &modrm);
+		ret = RME_Int_DecodeModMX(State, mem, &modrm, bReverse ? 2 : -2);
 		if(ret) return ret;
 	}
 	if( bReverse && reg) *reg = RegW( State, modrm.rrr );
+	return 0;
+}
+
+/**
+ * \brief Parses the ModR/M byte as a 32-bit value
+ * \param State	Emulator State
+ * \param to	R field destination (ignored if NULL)
+ * \param from	M field destination (ignored if NULL)
+ */
+int RME_Int_ParseModRMX32(tRME_State *State, uint32_t **reg, uint32_t **mem, int bReverse)
+{
+	 int	ret;
+
+	struct ModRM modrm;
+	ret = RME_Int_GetModRM(State, &modrm);
+	if(ret) return ret;
+	
+	if(!bReverse && reg) *reg = (void*)RegW( State, modrm.rrr );
+	if(mem) {
+		ret = RME_Int_DecodeModMX(State, (uint16_t**)mem, &modrm, bReverse ? 4 : -4);
+		if(ret) return ret;
+	}
+	if( bReverse && reg) *reg = (void*)RegW( State, modrm.rrr );
 	return 0;
 }

@@ -15,8 +15,10 @@
 # define __attribute__(...)
 #endif
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <string.h>
 #include <rme_config.h>
 
 /**
@@ -273,63 +275,98 @@ static inline void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...)
 #define	WARN_UNUSED_RET	__attribute__((warn_unused_result))
 
 // --- Functions ---
-
-static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, void **Ptr)
+struct MemRef {
+	void*	range1;
+	void*	range2;
+	size_t	len_1;
+};
+/// @param PtrFirst	Pointer to the first byte in the range
+/// @param LenFirst Length of the first portion of the range
+/// @param PtrLast	Pointer to the last byte in the range (might be in a different allocation to PtrFirst)
+static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, uint16_t Len, struct MemRef* Out)
 {
+	assert(Out);
+	// PtrLast can be null
 	uint32_t	addr = (int)Seg * 16 + Ofs;
-	 int	block = addr/RME_BLOCK_SIZE;
+	assert(1 <= Len && Len <= RME_BLOCK_SIZE);
+	 int	block_s = addr/RME_BLOCK_SIZE;
+	 int	block_e = (addr+Len-1)/RME_BLOCK_SIZE;
 	#if RME_DO_NULL_CHECK
 	# if RME_ALLOW_ZERO_TO_BE_NULL
-	if(block && State->Memory[block] == NULL)	return RME_ERR_BADMEM;
+	if(block_s && State->Memory[block_s] == NULL)	return RME_ERR_BADMEM;
+	if(block_e && State->Memory[block_e] == NULL)	return RME_ERR_BADMEM;
 	# else
-	if(State->Memory[block] == NULL)	return RME_ERR_BADMEM;
+	if(State->Memory[block_s] == NULL)	return RME_ERR_BADMEM;
+	if(State->Memory[block_e] == NULL)	return RME_ERR_BADMEM;
 	# endif
 	#endif
-	*Ptr = (void*)( (uint8_t*)State->Memory[block] + (addr%RME_BLOCK_SIZE) );
-	State->MemoryTouched[block] = 1;
+	Out->range1 = (void*)( (uint8_t*)State->Memory[block_s] + (addr%RME_BLOCK_SIZE) );
+	uint16_t space = RME_BLOCK_SIZE - addr % RME_BLOCK_SIZE;
+	Out->len_1 = space < Len ? space : Len;
+	uint16_t tail_len = Len - Out->len_1;
+	Out->range2 = (void*)( (uint8_t*)State->Memory[block_e] + ((addr+Len-1)%RME_BLOCK_SIZE) + 1 - tail_len );
+	//if( addr == 0x10002 ) {
+	//	printf("%%%%");
+	//}
+	State->MemoryTouched[block_s] = 1;
+	State->MemoryTouched[block_e] = 1;
+	return 0;
+}
+static inline WARN_UNUSED_RET int	RME_Int_ReadBytes(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst, uint16_t Len) {
+	if( Len > 0 ) {
+		struct MemRef	mr;
+		int	ret = RME_Int_GetPtr(State, Seg, Ofs, Len, &mr);
+		if(ret)	return ret;
+		if( mr.len_1 < Len ) {
+			memcpy(Dst, mr.range1, mr.len_1);
+			memcpy(Dst+mr.len_1, mr.range2, Len-mr.len_1);
+		}
+		else {
+			memcpy(Dst, mr.range1, Len);
+		}
+	}
+	return 0;
+}
+static inline WARN_UNUSED_RET int	RME_Int_WriteBytes(tRME_State *State, uint16_t Seg, uint16_t Ofs, const uint8_t *Src, uint16_t Len) {
+	if( Len > 0 ) {
+		struct MemRef	mr;
+		int	ret = RME_Int_GetPtr(State, Seg, Ofs, Len, &mr);
+		if(ret)	return ret;
+		if( mr.len_1 < Len ) {
+			memcpy(mr.range1, Src, mr.len_1);
+			memcpy(mr.range2, Src+mr.len_1, Len-mr.len_1);
+		}
+		else {
+			memcpy(mr.range1, Src, Len);
+		}
+	}
 	return 0;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Read8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst) {
-	void	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
-	if(ret)	return ret;
-	*Dst = *(uint8_t*)ptr;
-	return 0;
+	return RME_Int_ReadBytes(State, Seg, Ofs, Dst, 1);
 }
 static inline WARN_UNUSED_RET int	RME_Int_Read16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t *Dst) {
-	void	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
-	if(ret)	return ret;
-	*Dst = *(uint16_t*)ptr;
-	return 0;
+	int ret = RME_Int_ReadBytes(State, Seg, Ofs, (uint8_t*)Dst, 2);
+	if(ret != 0)	return ret;
+	// TODO: Check endian
+	return ret;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Read32(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint32_t *Dst) {
-	void	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
-	if(ret)	return ret;
-	*Dst = *(uint32_t*)ptr;
-	return 0;
+	int ret = RME_Int_ReadBytes(State, Seg, Ofs, (uint8_t*)Dst, 4);
+	if(ret != 0)	return ret;
+	// TODO: Check endian
+	return ret;
 }
 static inline WARN_UNUSED_RET int	RME_Int_Write8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t Val) {
-	void	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
-	if(ret)	return ret;
-	*(uint8_t*)ptr = Val;
-	return 0;
+	return RME_Int_WriteBytes(State, Seg, Ofs, &Val, 1);
 }
 static inline WARN_UNUSED_RET int	RME_Int_Write16(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint16_t Val) {
-	void	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
-	if(ret)	return ret;
-	*(uint16_t*)ptr = Val;
-	return 0;
+	// TODO: Endian
+	return RME_Int_WriteBytes(State, Seg, Ofs, (const uint8_t*)&Val, 2);
 }
 static inline WARN_UNUSED_RET int	RME_Int_Write32(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint32_t Val) {
-	void	*ptr;
-	 int	ret = RME_Int_GetPtr(State, Seg, Ofs, &ptr);
-	if(ret)	return ret;
-	*(uint32_t*)ptr = Val;
-	return 0;
+	// TODO: Endian
+	return RME_Int_WriteBytes(State, Seg, Ofs, (const uint8_t*)&Val, 4);
 }
 
 struct ModRM {
@@ -347,9 +384,10 @@ static inline int RME_Int_GetModRM(tRME_State *State, struct ModRM *out)
 	return 0;
 }
 extern WARN_UNUSED_RET int	RME_Int_ParseModRM (tRME_State *State, uint8_t **to, uint8_t **from, int bReverse);
-extern WARN_UNUSED_RET int	RME_Int_ParseModRMX(tRME_State *State, uint16_t **to, uint16_t **from, int bReverse);
+extern WARN_UNUSED_RET int	RME_Int_ParseModRMX16(tRME_State *State, uint16_t **to, uint16_t **from, int bReverse);
+extern WARN_UNUSED_RET int	RME_Int_ParseModRMX32(tRME_State *State, uint32_t **to, uint32_t **from, int bReverse);
 extern WARN_UNUSED_RET int	RME_Int_DecodeModM (tRME_State *State, uint8_t  **mem, const struct ModRM* modrm);
-extern WARN_UNUSED_RET int	RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* modrm);
+extern WARN_UNUSED_RET int	RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* modrm, int WriteSize);
 extern WARN_UNUSED_RET int	RME_Int_GetMMM(tRME_State *State, const struct ModRM* modrm, uint16_t *Segment, uint32_t *Address);
 
 // --- Stack Primiatives ---

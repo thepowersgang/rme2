@@ -25,18 +25,19 @@ DEF_OPCODE_FCN(MOV, MR)
 DEF_OPCODE_FCN(MOV, MRX)
 {
 	 int	ret;
-	void	*destPtr, *srcPtr;
-	ret = RME_Int_ParseModRMX(State, (uint16_t**)&srcPtr, (uint16_t**)&destPtr, 1);
-	if(ret)	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
 	{
-		uint32_t	*dest=destPtr, *src=srcPtr;
+		uint32_t	*dest, *src;
+		ret = RME_Int_ParseModRMX32(State, &src, &dest, 1);
+		if(ret)	return ret;
 		*dest = *src;
 	}
 	else
 	{
-		uint16_t	*dest=destPtr, *src=srcPtr;
+		uint16_t	*dest, *src;
+		ret = RME_Int_ParseModRMX16(State, &src, &dest, 1);
+		if(ret)	return ret;
 		*dest = *src;
 	}
 	
@@ -58,18 +59,19 @@ DEF_OPCODE_FCN(MOV, RM)
 DEF_OPCODE_FCN(MOV, RMX)
 {
 	 int	ret;
-	void	*destPtr, *srcPtr;
-	ret = RME_Int_ParseModRMX(State, (uint16_t**)&destPtr, (uint16_t**)&srcPtr, 0);
-	if(ret)	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
 	{
-		uint32_t	*dest=destPtr, *src=srcPtr;
+		uint32_t	*dest, *src;
+		ret = RME_Int_ParseModRMX32(State, &dest, &src, 0);
+		if(ret)	return ret;
 		*dest = *src;
 	}
 	else
 	{
-		uint16_t	*dest=destPtr, *src=srcPtr;
+		uint16_t	*dest, *src;
+		ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
+		if(ret)	return ret;
 		*dest = *src;
 	}
 	
@@ -90,26 +92,24 @@ DEF_OPCODE_FCN(MOV, MI )
 DEF_OPCODE_FCN(MOV, MIX)
 {
 	 int	ret;
-	union {
-		uint32_t	*D;
-		uint16_t	*W;
-	}	dest;
-	ret = RME_Int_ParseModRMX(State, NULL, &dest.W, 0);
-	if(ret)	return ret;
 	
 	if(State->Decoder.bOverrideOperand)
 	{
-		uint32_t	val;
+		uint32_t	val, *dest;
+		ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);
+		if(ret)	return ret;
 		READ_INSTR32( val );
 		RME_Int_DebugPrint(State, " 0x%08x", val);
-		*dest.D = val;
+		*dest = val;
 	}
 	else
 	{
-		uint16_t	val;
+		uint16_t	val, *dest;
+		ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
+		if(ret)	return ret;
 		READ_INSTR16( val );
 		RME_Int_DebugPrint(State, " 0x%04x", val);
-		*dest.W = val;
+		*dest = val;
 	}
 	return 0;
 }
@@ -220,7 +220,7 @@ DEF_OPCODE_FCN(MOV, RS)
 {
 	 int	ret;
 	union {
-		uint32_t	*D;
+		//uint32_t	*D;
 		uint16_t	*W;
 	}	dest, src;
 	uint8_t	byte2;
@@ -230,7 +230,7 @@ DEF_OPCODE_FCN(MOV, RS)
 	
 	READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
 	
-	ret = RME_Int_ParseModRMX(State, NULL, &dest.W, 0);
+	ret = RME_Int_ParseModRMX16(State, NULL, &dest.W, 0);
 	if(ret)	return ret;
 	
 	src.W = Seg(State, (byte2>>3)&7);
@@ -244,7 +244,7 @@ DEF_OPCODE_FCN(MOV, SR )
 {
 	 int	ret;
 	union {
-		uint32_t	*D;
+		//uint32_t	*D;
 		uint16_t	*W;
 	}	dest, src;
 	uint8_t	byte2;
@@ -256,7 +256,7 @@ DEF_OPCODE_FCN(MOV, SR )
 	
 	dest.W = Seg(State, (byte2>>3)&7);
 	
-	ret = RME_Int_ParseModRMX(State, NULL, &src.W, 0);
+	ret = RME_Int_ParseModRMX16(State, NULL, &src.W, 0);
 	if(ret)	return ret;
 	
 	*dest.W = *src.W;
@@ -328,7 +328,7 @@ DEF_OPCODE_FCN(MOV,ZX)
 	if( ret )	return ret;
 	
 	dest = RegW(State, modrm.rrr);
-	ret = RME_Int_DecodeModMX(State, &src, &modrm);
+	ret = RME_Int_DecodeModMX(State, &src, &modrm, 0);
 	if( ret )	return ret;
 	
 	if( State->Decoder.bOverrideOperand )
@@ -355,14 +355,14 @@ DEF_OPCODE_FCN(XCHG, RMX)
 	if( State->Decoder.bOverrideOperand )
 	{
 		uint32_t	*dest, *src;
-		ret = RME_Int_ParseModRMX(State, (void*)&dest, (void*)&src, 0);
+		ret = RME_Int_ParseModRMX32(State, &dest, &src, 0);
 		if(ret)	return ret;
 		XCHG(*dest, *src);
 	}
 	else
 	{
 		uint16_t	*dest, *src;
-		ret = RME_Int_ParseModRMX(State, &dest, &src, 0);
+		ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
 		if(ret)	return ret;
 		XCHG(*dest, *src);
 	}

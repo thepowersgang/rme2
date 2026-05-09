@@ -7,7 +7,7 @@ RME_OBJ := $(addprefix obj/,$(RME_OBJ))
 RME_DEPS := $(RME_OBJ:%.o=%.dep)
 RME_DEPS := $(filter %.dep,$(RME_DEPS))
 
-CFLAGS = -Wall -O2 -Wextra -Wno-unused-parameter
+CFLAGS = -Wall -O2 -Wextra -Wno-unused-parameter -g
 CFLAGS += -Werror=implicit-function-declaration
 CPPFLAGS = -I .
 
