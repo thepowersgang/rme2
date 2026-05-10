@@ -37,7 +37,7 @@ struct ProgramSegmentPrefix
 	uint8_t	command_tail_len;
 	uint8_t command_tail[0x7F];
 } __attribute__((packed));
-static int ssert_size_ProgramSegmentPrefix[sizeof(struct ProgramSegmentPrefix) == 0x100 ? 1 : -1];
+static int assert_size_ProgramSegmentPrefix[sizeof(struct ProgramSegmentPrefix) == 0x100 ? 1 : -1];
 
 // === CODE ===
 t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
@@ -133,8 +133,9 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 
 	{
 		struct ProgramSegmentPrefix* psp = state->Memory[base];
+		memset(psp, 0, sizeof(psp));
 		psp->exit_op[0] = 0xCD; psp->exit_op[1] = 0x20;	// INT 0x20
-		psp->first_free_seg = DESTINATION_SEG + hdr.min_extra_paragraphs;
+		psp->first_free_seg = DESTINATION_SEG + hdr.blocks_in_file * 512 / 16 + hdr.min_extra_paragraphs;
 		//psp->program_bytes = 0;
 	}
 
