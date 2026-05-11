@@ -31,9 +31,6 @@
 #define COL_LGRAY	0x00CCCCCC
 #define COL_WHITE	0x00FFFFFF
 
-// === IMPORTS ===
-t_farptr	LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr);
-
 // === PROTOTYPES ===
 void	ParseArgs(int argc, char* argv[]);
 void	PrintUsage(const char* argv0, bool show_full_help);
@@ -178,13 +175,18 @@ int main(int argc, char *argv[])
 	if( gsDosExe )
 	{
 		printf("Loading DOS Exe \"%s\"\n", gsDosExe);
+		uint32_t size;
 		t_farptr stack;
-		t_farptr ep = LoadDosExe(emu, gsDosExe, &stack);
+		t_farptr ep = LoadDosExe(emu, gsDosExe, &stack, &size);
 		if( ep.Segment == 0 && ep.Offset == 0 ) {
 			// Load error
 			return -1;
 		}
 		
+		emu->AX.W = 0;	// Length of command-line (or zero)
+		emu->BX.W = size >> 16;
+		emu->CX.W = size & 0xFFFF;
+		emu->DX.W = 0;	// Zero
 		emu->CS = ep.Segment;
 		emu->IP = ep.Offset;
 		emu->SS = stack.Segment;

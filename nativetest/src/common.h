@@ -14,6 +14,10 @@ typedef struct {
 	uint16_t	Segment;
 } PACKED	t_farptr;
 
+struct sRME_State;
+
+// === IMPORTS ===
+t_farptr	LoadDosExe(struct sRME_State *state, const char *file, t_farptr *stackptr, uint32_t* size);
 
 #endif
 

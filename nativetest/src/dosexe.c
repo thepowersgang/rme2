@@ -40,7 +40,7 @@ struct ProgramSegmentPrefix
 static int assert_size_ProgramSegmentPrefix[sizeof(struct ProgramSegmentPrefix) == 0x100 ? 1 : -1];
 
 // === CODE ===
-t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
+t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr, uint32_t* out_size)
 {
 	tExeHeader	hdr;
 	t_farptr	ret = {0,0};
@@ -68,6 +68,7 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 	printf("LoadDosExe: hdr.cs = %x, hdr.ip = %x\n", hdr.cs, hdr.ip);
 	dataStart = hdr.header_paragraphs*16;
 	dataSize = hdr.blocks_in_file * 512 - (512 - hdr.bytes_in_last_block) % 512 - dataStart;
+	*out_size = dataSize;
 	relocStart = hdr.reloc_table_offset;
 	printf("LoadDosExe: dataStart = %x, dataSize = %x, relocStart = %x\n",
 		dataStart, dataSize, relocStart);
@@ -118,7 +119,7 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr)
 	for( ; i < (dataSize + RME_BLOCK_SIZE-1)/RME_BLOCK_SIZE; i ++ )
 	{
 		size_t	copysize = MIN(RME_BLOCK_SIZE, dataSize-i*RME_BLOCK_SIZE);
-		printf("- Full copy 0x%05x : 0x%zx\n", (base+i)*RME_BLOCK_SIZE, copysize);
+		printf("- Full copy 0x%05x : 0x%zx from 0x%lx\n", (base+i)*RME_BLOCK_SIZE, copysize, (readdata - (uint8_t*)data) + dataStart);
 		memcpy(state->Memory[base+i], readdata, copysize);
 		readdata += copysize;
 	}
