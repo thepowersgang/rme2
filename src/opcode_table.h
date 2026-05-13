@@ -37,10 +37,14 @@ static const char* casUnaryOps[] = {"INC", "DEC", "CALL (NI)", "CALL (FI)",  "JM
 
 typedef struct sOperation
 {
+	/// @brief Instruction name
 	const char	*Name;
+	/// @brief Instruction variant
 	const char	*Type;
 	tOpcodeFcn Function;
+	/// @brief Argument passed to `Function` in `Param`
 	 int	Arg;
+	/// @brief Operation names based on the `rrr` value in the ModRM byte. If non-null, the `Param` value to the function is `rrr`
 	const char	**ModRMNames;
 } tOperation;
 
