@@ -171,8 +171,13 @@ int RME_RunOne(tRME_State *State)
 	
 	if(State->CS == RME_HLE_CS && State->IP < 0x100) {
 		// HLE Call
-		if( State->HLECallbacks[State->IP] )
+		if( State->HLECallbacks[State->IP] ) {
 			State->HLECallbacks[State->IP](State, State->IP);
+		}
+		else {
+			ERROR_S("Calling into magic interrupt 0x%x, but no handler", State->IP);
+			return RME_ERR_BUG;
+		}
 		// IRET
 		caOperations[0xCF].Function(State, 0);
 		return 0;
@@ -215,6 +220,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 	State->Decoder.IPOffset = 0;
 	State->Decoder.DebugStringLen = 0;
 	State->Decoder.DebugString[0] = 0;
+	State->Scratch.Len = 0;
 	State->InstrNum ++;
 
 	if( State->DebugLevel > 0 ) {
@@ -307,6 +313,10 @@ int RME_Int_DoOpcode(tRME_State *State)
 			i ++;
 		}
 		printf("\n");
+	}
+
+	if( State->Scratch.Len > 0 ) {
+		RME_Int_WriteBytes(State, State->Scratch.Addr >> 4, State->Scratch.Addr & 15, State->Scratch.Buf, State->Scratch.Len);
 	}
 	return 0;
 }
@@ -463,6 +473,9 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			if(ret)	return ret;
 			PUSH( *dest );
 			break;
+		case 7:	// UNDEFINED!
+			ERROR_S(" - Unary MX (16) /7 not defined\n");
+			return RME_ERR_UNDEFOPCODE;
 			
 		default:
 			ERROR_S(" - Unary MX (16) /%i unimplemented\n", Param);
@@ -780,11 +793,18 @@ int RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* m
 		ret = RME_Int_GetPtr(State, segment, offset, len, &mr);
 		if(ret)	return ret;
 		if( mr.len_1 != len ) {
-			ERROR_S("%x:%x Word access across boundary (0x%x)",
-				State->CS, State->IP, segment * 0x10 + offset);
-			return RME_ERR_BADMEM;
+			// Use a bounce buffer, written back at the end of the instruction
+			assert(len <= sizeof(State->Scratch.Buf));
+			assert(State->Scratch.Len == 0);
+			State->Scratch.Len = len;
+			State->Scratch.Addr = (uint32_t)segment * 16 + offset;
+			memcpy(State->Scratch.Buf, mr.range1, mr.len_1);
+			memcpy(State->Scratch.Buf + mr.len_1, mr.range2, len - mr.len_1);
+			*mem = State->Scratch.Buf;
 		}
-		*mem = mr.range1;
+		else {
+			*mem = mr.range1;
+		}
 	}
 	return 0;
 }

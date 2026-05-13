@@ -203,6 +203,12 @@ typedef struct sRME_State
 		char	DebugString[64];	// Debug text
 	}	Decoder;
 
+	struct {
+		uint32_t	Addr;
+		uint16_t	Len;
+		uint8_t	Buf[4];
+	} Scratch;
+
 }	tRME_State;
 
 

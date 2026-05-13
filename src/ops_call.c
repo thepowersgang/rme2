@@ -173,6 +173,10 @@ static inline int _CallInterrupt(tRME_State *State, int Num)
 	{
 		if( State->HLECallbacks[Num] )
 			State->HLECallbacks[Num](State, Num);
+		else {
+			ERROR_S("Interrupt 0x%x marked as HLE, but no handler", Num);
+			return RME_ERR_BUG;
+		}
 		return 0;
 	}
 	
