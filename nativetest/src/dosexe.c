@@ -104,39 +104,41 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr, uin
 		*(uint16_t*)(data + reloc.segment*16 + reloc.offset) += DESTINATION_SEG;
 	}
 
-	 int	base = (DESTINATION_SEG*16) / RME_BLOCK_SIZE;
+	uint32_t dest_addr = DESTINATION_SEG*16 + 0x100;
+	 int block_idx = dest_addr / RME_BLOCK_SIZE;
 	uint8_t	*readdata = data;
-	int i = 0;
-	if( (DESTINATION_SEG*16) % RME_BLOCK_SIZE != 0 ) {
-		unsigned ofs = (DESTINATION_SEG*16) % RME_BLOCK_SIZE;
+	if( dest_addr % RME_BLOCK_SIZE != 0 ) {
+		unsigned ofs = dest_addr % RME_BLOCK_SIZE;
 		size_t	copysize = MIN(RME_BLOCK_SIZE - ofs, dataSize);
-		printf("- Partial copy 0x%x+0x%x 0x%zx", base*RME_BLOCK_SIZE, ofs, copysize);
-		memcpy(state->Memory[base] + ofs, readdata, copysize);
+		printf("- Partial copy 0x%x+0x%x 0x%zx\n", block_idx*RME_BLOCK_SIZE, ofs, copysize);
+		memcpy(state->Memory[block_idx] + ofs, readdata, copysize);
 		readdata += copysize;
 		dataSize -= copysize;
-		i ++;
+		block_idx ++;
 	}
-	for( ; i < (dataSize + RME_BLOCK_SIZE-1)/RME_BLOCK_SIZE; i ++ )
+	while(dataSize > 0)
 	{
-		size_t	copysize = MIN(RME_BLOCK_SIZE, dataSize-i*RME_BLOCK_SIZE);
-		printf("- Full copy 0x%05x : 0x%zx from 0x%lx\n", (base+i)*RME_BLOCK_SIZE, copysize, (readdata - (uint8_t*)data) + dataStart);
-		memcpy(state->Memory[base+i], readdata, copysize);
+		size_t	copysize = MIN(RME_BLOCK_SIZE, dataSize);
+		printf("- Full copy 0x%05x : 0x%zx from 0x%lx\n", block_idx*RME_BLOCK_SIZE, copysize, (readdata - (uint8_t*)data) + dataStart);
+		memcpy(state->Memory[block_idx], readdata, copysize);
 		readdata += copysize;
+		dataSize -= copysize;
+		block_idx ++;
 	}
 
 	free(data);
 	fclose(fp);
 
-	ret.Segment = DESTINATION_SEG + hdr.cs;
+	ret.Segment = DESTINATION_SEG + 0x10 + hdr.cs;
 	ret.Offset = hdr.ip;
-	stackptr->Segment = DESTINATION_SEG + hdr.ss;
+	stackptr->Segment = DESTINATION_SEG + 0x10 + hdr.ss;
 	stackptr->Offset = hdr.sp;
 
 	{
-		struct ProgramSegmentPrefix* psp = state->Memory[base];
+		struct ProgramSegmentPrefix* psp = state->Memory[(dest_addr - 0x100) / RME_BLOCK_SIZE];
 		memset(psp, 0, sizeof(psp));
 		psp->exit_op[0] = 0xCD; psp->exit_op[1] = 0x20;	// INT 0x20
-		psp->first_free_seg = DESTINATION_SEG + hdr.blocks_in_file * 512 / 16 + hdr.min_extra_paragraphs;
+		psp->first_free_seg = DESTINATION_SEG + 0x10 + hdr.blocks_in_file * 512 / 16 + hdr.min_extra_paragraphs;
 		//psp->program_bytes = 0;
 	}
 
