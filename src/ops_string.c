@@ -8,7 +8,7 @@
 #include "ops_alu.h"	// For ALU_OPCODE_CMP_CODE
 #include "ops_io.h"	// for inB/inW/...
 
-#define HEAD_REPDISI(sz)	STRING_HEAD(0, 1, 1, "", "", sz)
+#define HEAD_REP_DI_SI(sz)	STRING_HEAD(0, 1, 1, "", "", sz)
 
 #define STRING_HEAD(__check_zf, __use_di, __use_si, __before, __after, __step)	do{\
 	const int __using_di=__use_di,__using_si=__use_si; \
@@ -91,7 +91,7 @@
 DEF_OPCODE_FCN(MOV, SB)
 {
 	 int	ret;
-	HEAD_REPDISI(1);	// REP, using DI and SI
+	HEAD_REP_DI_SI(1);	// REP, using DI and SI
 	// ---
 	uint8_t	tmp;
 	ret = RME_Int_Read8(State, srcSeg, srcOfs, &tmp);
@@ -110,7 +110,7 @@ DEF_OPCODE_FCN(MOV, SW)
 	if( State->Decoder.bOverrideOperand )
 	{
 		uint32_t	tmp;
-		HEAD_REPDISI(4);	// step=4
+		HEAD_REP_DI_SI(4);	// step=4
 		ret = RME_Int_Read32(State, srcSeg, srcOfs, &tmp);
 		if(ret)	return ret;
 		ret = RME_Int_Write32(State, destSeg, destOfs, tmp);
@@ -120,7 +120,7 @@ DEF_OPCODE_FCN(MOV, SW)
 	else
 	{
 		uint16_t	tmp;
-		HEAD_REPDISI(2);	// step=2
+		HEAD_REP_DI_SI(2);	// step=2
 		ret = RME_Int_Read16(State, srcSeg, srcOfs, &tmp);
 		if(ret)	return ret;
 		ret = RME_Int_Write16(State, destSeg, destOfs, tmp);
