@@ -168,18 +168,6 @@ static inline int _CallInterrupt(tRME_State *State, int Num)
 		return RME_ERR_BADMEM;
 	}
 	
-	// High-Level Emulation Call (only if not overridden)
-	if( seg == RME_HLE_CS && ofs == Num )
-	{
-		if( State->HLECallbacks[Num] )
-			State->HLECallbacks[Num](State, Num);
-		else {
-			ERROR_S("Interrupt 0x%x marked as HLE, but no handler", Num);
-			return RME_ERR_BUG;
-		}
-		return 0;
-	}
-	
 	PUSH( State->Flags );
 	PUSH( State->CS );
 	PUSH( State->IP + State->Decoder.IPOffset );

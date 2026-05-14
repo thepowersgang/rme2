@@ -172,7 +172,10 @@ int RME_RunOne(tRME_State *State)
 	if(State->CS == RME_HLE_CS && State->IP < 0x100) {
 		// HLE Call
 		if( State->HLECallbacks[State->IP] ) {
-			State->HLECallbacks[State->IP](State, State->IP);
+			int rv = State->HLECallbacks[State->IP](State, State->IP);
+			if(rv) {
+				return rv;
+			}
 		}
 		else {
 			ERROR_S("Calling into magic interrupt 0x%x, but no handler", State->IP);
@@ -876,5 +879,18 @@ int RME_Int_ParseModRMX32(tRME_State *State, uint32_t **reg, uint32_t **mem, int
 		if(ret) return ret;
 	}
 	if( bReverse && reg) *reg = (void*)RegW( State, modrm.rrr );
+	return 0;
+}
+
+int RME_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, uint16_t Len, struct sRME_MemRef* Out)
+{
+	struct MemRef out1;
+	int rv = RME_Int_GetPtr(State, Seg, Ofs, Len, &out1);
+	if(rv) {
+		return rv;
+	}
+	Out->len_1 = out1.len_1;
+	Out->range_1 = out1.range1;
+	Out->range_2 = out1.range2;
 	return 0;
 }

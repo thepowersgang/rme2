@@ -167,9 +167,9 @@ typedef struct sRME_State
 	 * \note 0x110000 bytes is all that is accessable using the realmode
 	 *       segmentation scheme (true max is 0xFFFF0+0xFFFF = 0x10FFEF)
 	 */
-	void	*Memory[0x110000/RME_BLOCK_SIZE];	// 1Mib,64KiB in 256 4 KiB blocks
+	void	*Memory[0x110000/RME_BLOCK_SIZE];	// 1Mib+64KiB in 4 KiB blocks
 	/**
-	 * Flags indicating that a memory block has been touched (not nessesarily written)
+	 * Flags indicating that a memory block has been touched (not necessarily written)
 	 */
 	uint8_t	MemoryTouched[0x110000/RME_BLOCK_SIZE];
 
@@ -243,6 +243,24 @@ extern int	RME_Call(tRME_State *State);
  * \param State	State returned from ::RME_CreateState
  */
 extern void RME_DumpRegs(tRME_State *State);
+
+struct sRME_MemRef {
+	/// @brief Pointer to the first (and maybe only) memory range used
+	void* range_1;
+	/// @brief Number of bytes in the first range (behind `range_1`), any subsequent requested bytes are behind `range_2`
+	size_t len_1;
+	/// @brief Pointer to the optional second memory range
+	void* range_2;
+};
+/**
+ * \brief Convert a segment-offset pointer into a pointer into emulated memory
+ * \param State Emulator state (from ::RME_CreateState)
+ * \param Seg	Segment selector/number
+ * \param Ofs	Offset in segment
+ * \param Len	Length of the requested range (must be less than [RME_BLOCK_SIZE])
+ * \return Zero on success, non-zero on error  (see eRME_Errors)
+ */
+extern int RME_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, uint16_t Len, struct sRME_MemRef* Out);
 
 /*
  * Definitions specific to the internals of the emulator
