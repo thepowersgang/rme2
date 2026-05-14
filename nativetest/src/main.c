@@ -41,6 +41,7 @@ Uint32	Video_RedrawTimerCb(Uint32 interval, void *unused);
  int	HLECall10(tRME_State *State, int IntNum);
  int	HLECall12(tRME_State *State, int IntNum);
  int	HLECall13(tRME_State *State, int IntNum);
+ int	HLECall21(tRME_State *State, int IntNum);
  int	HLECall(tRME_State *State, int IntNum);
 void	PutChar(uint8_t ch, uint8_t attr);
 void	PutString(const char *String, uint8_t attr);
@@ -168,6 +169,7 @@ int main(int argc, char *argv[])
 	emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
 	emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
 	emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
+	emu->HLECallbacks[0x21] = HLECall21;	// 0x21 - DOS System Calls
 	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
 		emu->Memory[i/RME_BLOCK_SIZE] = &gaMemory[i];
 
@@ -1001,6 +1003,42 @@ int HLECall13(tRME_State *State, int IntNum)
 		RME_DumpRegs(State);
 		exit(1);
 	}
+}
+
+int HLECall21(tRME_State* State, int )
+{
+	switch(State->AX.B.H)
+	{
+	case 0x25:	// SET INTERRUPT VECTOR
+		*((uint16_t*)State->Memory[0] + State->AX.B.L * 2 + 1) = State->ES;
+		*((uint16_t*)State->Memory[0] + State->AX.B.L * 2) = State->BX.W;
+		break;
+	case 0x30:	// GET DOS VERSION
+		// Pretend to be 5.0
+		State->AX.B.H = 5;
+		State->AX.B.L = 0;
+		State->BX.B.H = 0;
+		break;
+	case 0x35:	// GET INTERRUPT VECTOR
+		State->ES = *((uint16_t*)State->Memory[0] + State->AX.B.L * 2 + 1);
+		State->BX.W = *((uint16_t*)State->Memory[0] + State->AX.B.L * 2);
+		break;
+	/*
+	case 0x40: {	// WRITE TO FILE OR DEVICE
+		uint16_t file_handle = State->BX.W;
+		uint16_t len = State->CX.W;
+		uint16_t src_seg = State->DS;
+		uint16_t src_ofs = State->DX.W;
+		assert(src_ofs >= 0xFFFF - len);
+		uint8_t* src = (uint8_t*)State->Memory[src_seg * 0x10 / RME_BLOCK_SIZE] + src_ofs;
+		exit(1);
+		}*/
+	default:
+		printf("HLE Call INT 0x21 AH=0x%02x unknown\n", State->AX.B.H);
+		RME_DumpRegs(State);
+		exit(1);
+	}
+	return 1;
 }
 
 /**
