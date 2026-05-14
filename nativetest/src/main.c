@@ -1007,6 +1007,7 @@ int HLECall13(tRME_State *State, int IntNum)
 
 int HLECall21(tRME_State* State, int )
 {
+	int rv;
 	switch(State->AX.B.H)
 	{
 	case 0x25:	// SET INTERRUPT VECTOR
@@ -1023,22 +1024,35 @@ int HLECall21(tRME_State* State, int )
 		State->ES = *((uint16_t*)State->Memory[0] + State->AX.B.L * 2 + 1);
 		State->BX.W = *((uint16_t*)State->Memory[0] + State->AX.B.L * 2);
 		break;
-	/*
 	case 0x40: {	// WRITE TO FILE OR DEVICE
 		uint16_t file_handle = State->BX.W;
 		uint16_t len = State->CX.W;
-		uint16_t src_seg = State->DS;
-		uint16_t src_ofs = State->DX.W;
-		assert(src_ofs >= 0xFFFF - len);
-		uint8_t* src = (uint8_t*)State->Memory[src_seg * 0x10 / RME_BLOCK_SIZE] + src_ofs;
+		struct sRME_MemRef	ptrs;
+		if(rv = RME_GetPtr(State, State->DS, State->DX.W, len, &ptrs)) {
+			return rv;
+		}
+		printf("DOS WRITE to %i: \"", file_handle);
+		for(size_t i = 0; i < ptrs.len_1; i++) {
+			uint8_t c = ((uint8_t*)ptrs.range_1)[i];
+			if(0x20 <= c && c < 0x7F) {
+				printf("%c", c);
+			}
+			else {
+				printf("\\x%02x", c);
+			}
+		}
+		for(size_t i = 0; i < len - ptrs.len_1; i++) {
+			printf("\\x%02x", ((uint8_t*)ptrs.range_2)[i]);
+		}
+		printf("\"\n");
 		exit(1);
-		}*/
+		}
 	default:
 		printf("HLE Call INT 0x21 AH=0x%02x unknown\n", State->AX.B.H);
 		RME_DumpRegs(State);
 		exit(1);
 	}
-	return 1;
+	return 0;
 }
 
 /**
