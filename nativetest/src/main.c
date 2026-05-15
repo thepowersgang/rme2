@@ -219,6 +219,9 @@ int main(int argc, char *argv[])
 
 		emu->CS = 0xF000;
 		emu->IP = 0xFFF0;
+		//emu->SS = 0xA000;
+		emu->SP.W = 0xFFFE;
+		*(uint16_t*)&gaMemory[0xA0000-2] = 0xFFFF;
 	}
 	else if( gaFDDs[0] )
 	{
@@ -238,6 +241,9 @@ int main(int argc, char *argv[])
 		emu->CS = 0x07C0;
 		emu->IP = 0x0000;
 		emu->DX.W = 0x0000;	// Disk
+		//emu->SS = 0xA000;
+		emu->SP.W = 0xFFFE;
+		*(uint16_t*)&gaMemory[0xA0000-2] = 0xFFFF;
 	}
 	else {
 		fprintf(stderr, "Booting with no media!\n");
@@ -258,10 +264,6 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Unknown CPU type '%s'\n", gsCPUType);
 		return 0;
 	}
-	
-//	emu->SS = 0xA000;
-	emu->SP.W = 0xFFFE;
-	*(uint16_t*)&gaMemory[0xA0000-2] = 0xFFFF;
 
 	memcpy(gaMemory_prev, gaMemory, sizeof(gaMemory));
 
