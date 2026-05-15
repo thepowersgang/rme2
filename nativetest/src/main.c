@@ -165,6 +165,7 @@ int main(int argc, char *argv[])
 	emu->DebugLevel = gDebugLevel;
 	emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
 	emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
+	emu->HLECallbacks[0x11] = HLECall  ;	// 0x11 - BIOS Equipment List
 	emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
 	emu->HLECallbacks[0x13] = HLECall13;	// 0x13 - Disk IO
 	emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
@@ -318,11 +319,13 @@ int main(int argc, char *argv[])
 		}
 
 #if ENABLE_GUI
-		// Check for SDL events
-		SDL_Event	ev;
-		while( SDL_PollEvent(&ev) )
-		{
-			HandleEvent(&ev, emu);
+		if( !gbDisableGUI ) {
+			// Check for SDL events
+			SDL_Event	ev;
+			while( SDL_PollEvent(&ev) )
+			{
+				HandleEvent(&ev, emu);
+			}
 		}
 #endif
 	}
@@ -531,6 +534,29 @@ Uint32 Video_RedrawTimerCb(Uint32 interval, void *unused)
 }
 #endif
 
+#define SCANCODE_ENTER	1
+#define SCANCODE_SHIFT	2
+void Input_PushKeysFromChar(char ch)
+{
+	switch(ch)
+	{
+	case '\n':
+		gKeyBuffer[gKeyBufferPos].Scancode = SCANCODE_ENTER;
+		break;
+	case 'A' ... 'Z':
+		gKeyBuffer[gKeyBufferPos].Scancode = SCANCODE_SHIFT;
+		gKeyBuffer[gKeyBufferPos].ASCII = 0;
+		gKeyBufferPos++;
+	case 'a' ... 'z':
+		gKeyBuffer[gKeyBufferPos].Scancode = ch;
+		break;
+	default:
+		exit(1);
+	}
+	gKeyBuffer[gKeyBufferPos].ASCII = ch;
+	gKeyBufferPos ++;
+}
+
 #if ENABLE_GUI
 #include "font.h"
 #endif
@@ -591,7 +617,9 @@ void Video_Redraw(void)
 		}
 	}
 	#if ENABLE_GUI
-	SDL_Flip(gScreen);
+	if( !gbDisableGUI ) {
+		SDL_Flip(gScreen);
+	}
 	#endif
 //	printf("Video redraw complete\n");
 }
@@ -991,6 +1019,7 @@ int HLECall13(tRME_State *State, int IntNum)
 		RME_DumpRegs(State);
 		exit(1);
 	}
+	return 0;
 }
 
 int HLECall21(tRME_State* State, int )
@@ -1067,6 +1096,7 @@ int HLECall(tRME_State *State, int IntNum)
 	case 0x03:
 		printf("\nDebug Exception, press any key to exit\n");
 		#if ENABLE_GUI
+		if( !gbDisableGUI )
 		{
 			SDL_Event	e;
 			SDL_WM_SetCaption("RME - Debug Exception, press any key to quit", "RME - Stopped");
@@ -1083,30 +1113,41 @@ int HLECall(tRME_State *State, int IntNum)
 		#endif
 		break;
 	
+	case 0x11:	// BIOS - GET EQUIPMENT LIST
+		State->AX.W = 0
+			| 1	// FDDs present
+			| (1 << 4)	// Video mode: 40x25 colour
+			| (1 << 6)	// 1 FDD installed
+			;
+		break;
 	// --- Keyboard Input ---
 	case 0x16:
 		switch(State->AX.B.H)
 		{
-		// KEYBOARD - GET KEYSTROKE
-		case 0x00:
+		case 0x00:	// KEYBOARD - GET KEYSTROKE
+		case 0x10:	// KEYBOARD - GET ENHANCED KEYSTROKE
 			while( gKeyBufferPos == 0 )
 			{
 				#if ENABLE_GUI
-				SDL_Event	e;
-				SDL_WaitEvent(&e);
-				HandleEvent(&e, State);
-				#else
-				int ch = getchar();
-				exit(0);
+				if( !gbDisableGUI ) {
+					SDL_Event	e;
+					SDL_WaitEvent(&e);
+					HandleEvent(&e, State);
+				} else
 				#endif
+				{
+					int ch = getchar();
+					assert(ch > 0);
+					Input_PushKeysFromChar(ch);
+				}
 			}
 			State->AX.B.H = gKeyBuffer[0].Scancode;
 			State->AX.B.L = gKeyBuffer[0].ASCII;
 			gKeyBufferPos --;
 			memmove(gKeyBuffer, gKeyBuffer+1, gKeyBufferPos*sizeof(gKeyBuffer[0]));
 			break;
-		// KEYBOARD - CHECK FOR KEYSTROKE
-		case 0x01:
+		case 0x01:	// KEYBOARD - CHECK FOR KEYSTROKE
+		case 0x11:	// KEYBOARD - CHECK FOR ENHANCED KEYSTROKE
 			// TODO: Keyboard queue
 			if( gKeyBufferPos > 0 )
 			{
@@ -1131,20 +1172,6 @@ int HLECall(tRME_State *State, int IntNum)
 			// 6: Caps Lock
 			// 7: Insert Lock
 			State->AX.B.L = 0;
-			break;
-		// KEYBOARD - CHECK FOR ENHANCED KEYSTROKE
-		case 0x11:
-			if( gKeyBufferPos > 0 )
-			{
-				// Ignore scancodes > 83? (Non 83/84 keycodes)
-				State->AX.B.H = gKeyBuffer[0].Scancode;
-				State->AX.B.L = gKeyBuffer[0].ASCII;
-				State->Flags &= ~FLAG_ZF;
-			}
-			else
-			{
-				State->Flags |= FLAG_ZF;
-			}
 			break;
 		default:
 			printf("HLE Call INT 0x16: AH=0x%02x unk\n", State->AX.B.H);
