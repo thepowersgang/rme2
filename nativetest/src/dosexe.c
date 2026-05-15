@@ -8,6 +8,7 @@
 #include "dosexe.h"
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include <sys/types.h>	// off_t
 
 // Segment for the PSP, code is loaded 256 bytes above
@@ -143,7 +144,10 @@ int LoadDosExe(tRME_State *state, const char *file)
 	state->ES = DESTINATION_SEG;
 
 	{
-		struct ProgramSegmentPrefix* psp = state->Memory[(dest_addr - 0x100) / RME_BLOCK_SIZE];
+		struct sRME_MemRef	mem;
+		RME_GetPtr(state, DESTINATION_SEG, 0, 256, &mem);
+		assert(mem.len_1 == 256);
+		struct ProgramSegmentPrefix* psp = mem.range_1;
 		memset(psp, 0, sizeof(psp));
 		psp->exit_op[0] = 0xCD; psp->exit_op[1] = 0x20;	// INT 0x20
 		psp->first_free_seg = DESTINATION_SEG + 0x10 + hdr.blocks_in_file * 512 / 16 + hdr.min_extra_paragraphs;
@@ -151,9 +155,9 @@ int LoadDosExe(tRME_State *state, const char *file)
 		//psp->program_bytes = 0;
 
 		// Create environment
-		struct sRME_MemRef	mem;
 		RME_GetPtr(state, SEG_ENVIRON, 0, 256, &mem);
-		strcpy(mem.range_1, "PATH=C:");
+		assert(mem.len_1 == 256);
+		memcpy(mem.range_1, "PATH=C:\0", 9);
 	}
 
 	return RME_ERR_OK;
