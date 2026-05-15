@@ -170,6 +170,7 @@ int main(int argc, char *argv[])
 	emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
 	emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
 	emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
+	emu->HLECallbacks[0x1a] = HLECall;	// 0x1a - Time
 	emu->HLECallbacks[0x21] = HLECall21;	// 0x21 - DOS System Calls
 	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
 		emu->Memory[i/RME_BLOCK_SIZE] = &gaMemory[i];
@@ -1037,6 +1038,16 @@ int HLECall21(tRME_State* State, int )
 		printf("\"\n");
 		exit(1);
 		}
+	case 0x4a:
+		printf("DOS RESIZE MEMORY BLOCK: Seg %04x to %04x paragraphs\n", State->ES, State->BX.W);
+		// 0x0FF0 is the loaded binary, indicate that it can grow to 0xA0000
+		if(State->ES == 0x0FF0) {
+			State->AX.W = 0;
+			State->BX.W = 0xA000 - 0x0FF0;
+			State->Flags &= ~FLAG_CF;
+			return 0;
+		}
+		exit(1);
 	default:
 		printf("HLE Call INT 0x21 AH=0x%02x unknown\n", State->AX.B.H);
 		RME_DumpRegs(State);
@@ -1163,9 +1174,27 @@ int HLECall(tRME_State *State, int IntNum)
 		#endif
 		break;
 	
+	case 0x1A:
+		switch(State->AX.B.H)
+		{
+		case 0x00: {
+			uint32_t ticks = 0;
+			State->AX.B.L = 0;
+			State->CX.W = ticks >> 16;
+			State->DX.W = ticks & 0xFFFF;
+			break;
+			}
+		default:
+			printf("HLE Call INT 0x%02x AH=%02x Unknown\n", IntNum, State->AX.B.H);
+			RME_DumpRegs(State);
+			return RME_ERR_BUG;
+		}
+		break;
+
 	default:
 		printf("HLE Call INT 0x%02x Unknown\n", IntNum);
 		RME_DumpRegs(State);
+		return RME_ERR_BUG;
 	}
 	return 0;	// Emulate
 }
