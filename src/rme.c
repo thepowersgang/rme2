@@ -171,6 +171,10 @@ int RME_RunOne(tRME_State *State)
 	
 	if(State->CS == RME_HLE_CS && State->IP < 0x100) {
 		// HLE Call
+		if( State->DebugLevel > 0 ) {
+			printf("(%8i) [0x%x] %04x:%04x", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
+			printf(" HLE call\n");
+		}
 		if( State->HLECallbacks[State->IP] ) {
 			int rv = State->HLECallbacks[State->IP](State, State->IP);
 			if(rv) {
