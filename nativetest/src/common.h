@@ -9,15 +9,15 @@ typedef int8_t	Sint8;
 
 #define PACKED	__attribute__((packed))
 
-typedef struct {
+struct sRME_State;
+struct FAR_PTR
+{
 	uint16_t	Offset;
 	uint16_t	Segment;
-} PACKED	t_farptr;
-
-struct sRME_State;
+};
 
 // === IMPORTS ===
-t_farptr	LoadDosExe(struct sRME_State *state, const char *file, t_farptr *stackptr, uint32_t* size);
+extern int LoadDosExe(struct sRME_State *state, const char *file);
 
 #endif
 

@@ -10,28 +10,31 @@
 #include <string.h>
 #include <sys/types.h>	// off_t
 
-#define DESTINATION_SEG	0x100
+// Segment for the PSP, code is loaded 256 bytes above
+#define DESTINATION_SEG	0x0FF0
+#define SEG_ENVIRON	0x0100
 
 inline unsigned int MIN(unsigned int a, unsigned int b) {return (a < b)?a:b;}
 
-struct FAR
-{
-	uint16_t	ip;
-	uint16_t	cs;
-};
 struct ProgramSegmentPrefix
 {
+	// 00
 	uint8_t	exit_op[2];
 	uint16_t	first_free_seg;
+	// 04
 	uint8_t	_reserved4;
-	uint8_t	os_entrypt_deprecated[5];
+	uint8_t	os_entry_pt_deprecated[5];
+	// 0A
 	//uint16_t	program_bytes;
-	struct FAR	int22_addr;
-	struct FAR	int23_addr;
-	struct FAR	int24_addr;
-
-	//uint16_t	pproc_seg;
-	char	_pad[0x80 - 0x16];
+	struct FAR_PTR	int22_addr;
+	struct FAR_PTR	int23_addr;
+	struct FAR_PTR	int24_addr;
+	// 0x10
+	uint16_t	parent_psp;
+	uint8_t	_jft[20];
+	// 0x2C
+	uint16_t	env_segment;
+	char	_pad[0x80 - 0x2E];
 
 	// 0x80
 	uint8_t	command_tail_len;
@@ -40,35 +43,32 @@ struct ProgramSegmentPrefix
 static int assert_size_ProgramSegmentPrefix[sizeof(struct ProgramSegmentPrefix) == 0x100 ? 1 : -1];
 
 // === CODE ===
-t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr, uint32_t* out_size)
+int LoadDosExe(tRME_State *state, const char *file)
 {
 	tExeHeader	hdr;
-	t_farptr	ret = {0,0};
 	FILE	*fp;
-	 int	dataStart, dataSize;
 	 int	relocStart;
 	void	*data;
 	
 	fp = fopen(file, "rb");
 	if(!fp) {
 		printf("File '%s' does not exist\n", file);
-		return ret;
+		return RME_ERR_INVAL;
 	}
 	if( fread(&hdr, sizeof(tExeHeader), 1, fp) != 1 ) {
 		perror("LoadDosExe - fread header");
-		exit(-1);
+		return RME_ERR_INVAL;
 	}
 	
 	// Sanity check signature
 	if(hdr.signature != 0x5A4D) {
 		printf("DOS EXE header is invalid (%04x)\n", hdr.signature);
-		return ret;
+		return RME_ERR_INVAL;
 	}
 	
 	printf("LoadDosExe: hdr.cs = %x, hdr.ip = %x\n", hdr.cs, hdr.ip);
-	dataStart = hdr.header_paragraphs*16;
-	dataSize = hdr.blocks_in_file * 512 - (512 - hdr.bytes_in_last_block) % 512 - dataStart;
-	*out_size = dataSize;
+	const int dataStart = hdr.header_paragraphs*16;
+	const int dataSize = hdr.blocks_in_file * 512 - (512 - hdr.bytes_in_last_block) % 512 - dataStart;
 	relocStart = hdr.reloc_table_offset;
 	printf("LoadDosExe: dataStart = %x, dataSize = %x, relocStart = %x\n",
 		dataStart, dataSize, relocStart);
@@ -107,44 +107,58 @@ t_farptr LoadDosExe(tRME_State *state, const char *file, t_farptr *stackptr, uin
 	uint32_t dest_addr = DESTINATION_SEG*16 + 0x100;
 	 int block_idx = dest_addr / RME_BLOCK_SIZE;
 	uint8_t	*readdata = data;
+	int remain_data = dataSize;
 	if( dest_addr % RME_BLOCK_SIZE != 0 ) {
 		unsigned ofs = dest_addr % RME_BLOCK_SIZE;
-		size_t	copysize = MIN(RME_BLOCK_SIZE - ofs, dataSize);
+		size_t	copysize = MIN(RME_BLOCK_SIZE - ofs, remain_data);
 		printf("- Partial copy 0x%x+0x%x 0x%zx\n", block_idx*RME_BLOCK_SIZE, ofs, copysize);
 		memcpy(state->Memory[block_idx] + ofs, readdata, copysize);
 		readdata += copysize;
-		dataSize -= copysize;
+		remain_data -= copysize;
 		block_idx ++;
 	}
-	while(dataSize > 0)
+	while(remain_data > 0)
 	{
-		size_t	copysize = MIN(RME_BLOCK_SIZE, dataSize);
+		size_t	copysize = MIN(RME_BLOCK_SIZE, remain_data);
 		printf("- Full copy 0x%05x : 0x%zx from 0x%lx\n", block_idx*RME_BLOCK_SIZE, copysize, (readdata - (uint8_t*)data) + dataStart);
 		memcpy(state->Memory[block_idx], readdata, copysize);
 		readdata += copysize;
-		dataSize -= copysize;
+		remain_data -= copysize;
 		block_idx ++;
 	}
 
 	free(data);
 	fclose(fp);
 
-	ret.Segment = DESTINATION_SEG + 0x10 + hdr.cs;
-	ret.Offset = hdr.ip;
-	stackptr->Segment = DESTINATION_SEG + 0x10 + hdr.ss;
-	stackptr->Offset = hdr.sp;
+	state->AX.W = 0;	// Length of command-line (or zero)
+	state->BX.W = dataSize >> 16;
+	state->CX.W = dataSize & 0xFFFF;
+	state->DX.W = 0;	// Zero
+	state->CS = DESTINATION_SEG + 0x10 + hdr.cs;
+	state->IP = hdr.ip;
+	state->SS   = DESTINATION_SEG + 0x10 + hdr.ss;
+	state->SP.W = hdr.sp;
+	// DS/ES are set to the load address
+	state->DS = DESTINATION_SEG;
+	state->ES = DESTINATION_SEG;
 
 	{
 		struct ProgramSegmentPrefix* psp = state->Memory[(dest_addr - 0x100) / RME_BLOCK_SIZE];
 		memset(psp, 0, sizeof(psp));
 		psp->exit_op[0] = 0xCD; psp->exit_op[1] = 0x20;	// INT 0x20
 		psp->first_free_seg = DESTINATION_SEG + 0x10 + hdr.blocks_in_file * 512 / 16 + hdr.min_extra_paragraphs;
+		psp->env_segment = SEG_ENVIRON;
 		//psp->program_bytes = 0;
+
+		// Create environment
+		struct sRME_MemRef	mem;
+		RME_GetPtr(state, SEG_ENVIRON, 0, 256, &mem);
+		strcpy(mem.range_1, "PATH=C:");
 	}
 
-	return ret;
+	return RME_ERR_OK;
 _error:
 	fclose(fp);
 	free(data);
-	return ret;
+	return RME_ERR_BUG;
 }

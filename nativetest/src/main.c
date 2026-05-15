@@ -115,13 +115,14 @@ int main(int argc, char *argv[])
 #endif
 
 	// Open FDD image
-	if( gasFDDs[0] && gasFDDs[0][0] != '\0' )
+	for(int i = 0; i < 4; i ++)
 	{
-		printf("Loading '%s'\n", gasFDDs[0]);
-		gaFDDs[0] = fopen(gasFDDs[0], "rb");
-		if( !gaFDDs[0] ) {
-			perror("Opening FDD image");
-			//return 1;
+		if( gasFDDs[i] && gasFDDs[i][0] != '\0' ) {
+			printf("Loading FD%i '%s'\n", i, gasFDDs[i]);
+			gaFDDs[i] = fopen(gasFDDs[i], "rb");
+			if( !gaFDDs[i] ) {
+				fprintf(stderr, "Failed to open FDD image #%i: '%s' - %s\n", i, gasFDDs[i], strerror(errno));
+			}
 		}
 	}
 
@@ -137,7 +138,7 @@ int main(int argc, char *argv[])
 		gaMemory[i*4+2] = RME_HLE_CS&0xFF;
 		gaMemory[i*4+3] = RME_HLE_CS>>8;
 	}
-	// - Disk Paramter Block
+	// - Disk Parameter Block
 	{
 		struct {
 			uint16_t	Length;
@@ -177,26 +178,10 @@ int main(int argc, char *argv[])
 	if( gsDosExe )
 	{
 		printf("Loading DOS Exe \"%s\"\n", gsDosExe);
-		uint32_t size;
-		t_farptr stack;
-		t_farptr ep = LoadDosExe(emu, gsDosExe, &stack, &size);
-		if( ep.Segment == 0 && ep.Offset == 0 ) {
-			// Load error
+		if( LoadDosExe(emu, gsDosExe) ) {
 			return -1;
 		}
-		
-		emu->AX.W = 0;	// Length of command-line (or zero)
-		emu->BX.W = size >> 16;
-		emu->CX.W = size & 0xFFFF;
-		emu->DX.W = 0;	// Zero
-		emu->CS = ep.Segment;
-		emu->IP = ep.Offset;
-		emu->SS = stack.Segment;
-		emu->SP.W = stack.Offset;
-		// DS/ES are set to the load address
-		emu->DS = 0x100;
-		emu->ES = 0x100;
-		printf("Entry %x:%x, Stack %x:%x\n", ep.Segment, ep.Offset, stack.Segment, stack.Offset);
+		printf("Entry %x:%x, Stack %x:%x\n", emu->CS, emu->IP, emu->SS, emu->SP.W);
 	}
 	// Raw binary blob, loaded as a BIOS image at the end of memory
 	else if( gsBinaryFile )
@@ -449,7 +434,7 @@ void ParseArgs(int argc, char* argv[])
 				PrintUsage(argv[0], true);
 				exit(0);
 			}
-			else if( strcmp(arg, "--nogui") == 0 ) {
+			else if( strcmp(arg, "--no-gui") == 0 ) {
 				gbDisableGUI = 1;
 			}
 			else if( strcmp(arg, "--cpu") == 0 ) {
@@ -489,7 +474,7 @@ void PrintUsage(const char* argv0, bool show_full_help)
 		"-b <bios>    | Load the provided flat binary to the end of memory, and boot from 0xF000:FFF0\n"
 		"<fddN>       | Open FDD images and boot from the first one (defaults to 'fdd.img' if none provided)\n"
 		"\n"
-		"--nogui      | Do not display a GUI\n"
+		"--no-gui     | Do not display a GUI\n"
 		"--cpu <name> | Modify the emulated CPU variant (i8086, 80286, 386)\n"
 		"-O <output>  | Dump memory contents after emulator stalls\n"
 		"-h, --help   | Print this message\n"
@@ -967,7 +952,7 @@ int HLECall13(tRME_State *State, int IntNum)
 				uint8_t	Size;
 				uint8_t	Rsvd;	// Zero
 				uint16_t	Count;
-				t_farptr	Buffer;
+				struct FAR_PTR	Buffer;
 				uint64_t	LBAStart;
 				uint64_t	BufferLong;
 			}	PACKED	*packet = (void*)&gaMemory[State->DS*16+State->SI.W];
@@ -1011,16 +996,19 @@ int HLECall21(tRME_State* State, int )
 	switch(State->AX.B.H)
 	{
 	case 0x25:	// SET INTERRUPT VECTOR
+		printf("DOS SET_INTERRUPT_VECTOR #%i = %04x:%04x\n", State->AX.B.L, State->ES, State->BX.W);
 		*((uint16_t*)State->Memory[0] + State->AX.B.L * 2 + 1) = State->ES;
 		*((uint16_t*)State->Memory[0] + State->AX.B.L * 2) = State->BX.W;
 		break;
 	case 0x30:	// GET DOS VERSION
+		printf("DOS GET_DOS_VERSION BL=%i\n", State->BX.B.L);
 		// Pretend to be 5.0
 		State->AX.B.H = 5;
 		State->AX.B.L = 0;
 		State->BX.B.H = 0;
 		break;
 	case 0x35:	// GET INTERRUPT VECTOR
+		printf("DOS GET_INTERRUPT_VECTOR #%i\n", State->AX.B.L);
 		State->ES = *((uint16_t*)State->Memory[0] + State->AX.B.L * 2 + 1);
 		State->BX.W = *((uint16_t*)State->Memory[0] + State->AX.B.L * 2);
 		break;
