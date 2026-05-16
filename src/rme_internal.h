@@ -188,31 +188,11 @@ enum opcodes {
 };
 
 // --- Debug Macro ---
-#if ERR_OUTPUT
-# define ERROR_S(v...)	printf(v)
-#else
-# define ERROR_S(...)
-#endif
+__attribute__((format(printf, 2, 3)))
+extern void RME_Int_ErrorPrint(tRME_State* State, const char* fmt, ...);
 
 __attribute__((format(printf, 2, 3)))
-static inline void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...)
-{
-	va_list	args;
-	va_start(args, fmt);
-
-	int space = sizeof(State->Decoder.DebugString) - State->Decoder.DebugStringLen;
-	int len = vsnprintf(State->Decoder.DebugString + State->Decoder.DebugStringLen, space, fmt, args);
-	if(len < space) {
-		State->Decoder.DebugStringLen += len;
-	}
-	else {
-		State->Decoder.DebugStringLen = sizeof(State->Decoder.DebugString);
-		State->Decoder.DebugString[ sizeof(State->Decoder.DebugString) - 2 ] = '$';
-		State->Decoder.DebugString[ sizeof(State->Decoder.DebugString) - 1 ] = '\0';
-	}
-
-	va_end(args);
-}
+extern void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...);
 
 // --- Operation helpers
 //#define PAIRITY8(v)	((((v)>>7)&1)^(((v)>>6)&1)^(((v)>>5)&1)^(((v)>>4)&1)^(((v)>>3)&1)^(((v)>>2)&1)^(((v)>>1)&1)^((v)&1))
@@ -249,7 +229,6 @@ static inline void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...)
  * \brief Read a word from the instruction stream
  * Reads 2 bytes as an unsigned integer from CS:IP and increases IP by 2.
  */
-//	printf(" CS:IP+%i ", State->Decoder.IPOffset);
 #define READ_INSTR16(dst)	do{int r;uint16_t __v;\
 	r=RME_Int_Read16(State,State->CS,State->IP+State->Decoder.IPOffset,&__v);\
 	if(r)	return r;\
@@ -305,9 +284,6 @@ static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg
 	Out->len_1 = space < Len ? space : Len;
 	uint16_t tail_len = Len - Out->len_1;
 	Out->range2 = (void*)( (uint8_t*)State->Memory[block_e] + ((addr+Len-1)%RME_BLOCK_SIZE) + 1 - tail_len );
-	//if( addr == 0x10002 ) {
-	//	printf("%%%%");
-	//}
 	State->MemoryTouched[block_s] = 1;
 	State->MemoryTouched[block_e] = 1;
 	return 0;
@@ -418,7 +394,7 @@ static inline uint16_t	*Seg(tRME_State *State, int code)
 	case SREG_FS:	return &State->FS;
 	case SREG_GS:	return &State->GS;
 	default:
-		ERROR_S("ERROR - Invalid value passed to Seg(). (%i is not a segment)", code);
+		RME_Int_ErrorPrint(State, "ERROR - Invalid value passed to Seg(). (%i is not a segment)", code);
 	}
 	return NULL;
 }

@@ -103,7 +103,7 @@ DEF_OPCODE_FCN(ENTER, z)
 		{
 			if( State->Decoder.bOverrideOperand )
 			{
-				ERROR_S("- ENTER Operand Override unimplimented");
+				RME_Int_ErrorPrint(State, "- ENTER Operand Override unimplemented");
 				return RME_ERR_UNDEFOPCODE;
 				//uint32_t val;
 				//State->BP.W -= 4;
@@ -164,7 +164,7 @@ static inline int _CallInterrupt(tRME_State *State, int Num)
 	if(ret)	return ret;
 	
 	if(ofs == 0 && seg == 0) {
-		ERROR_S(" Caught attempt to execute IVT pointing to 0000:0000");
+		RME_Int_ErrorPrint(State, " Caught attempt to execute IVT pointing to 0000:0000");
 		return RME_ERR_BADMEM;
 	}
 	

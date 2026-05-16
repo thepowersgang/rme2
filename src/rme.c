@@ -108,7 +108,7 @@ int RME_int_CallInt(tRME_State *State, int Num)
 	}
 
 	if(Num < 0 || Num > 0xFF) {
-		ERROR_S("WARNING: %i is not a valid interrupt number", Num);
+		RME_Int_ErrorPrint(State, "WARNING: %i is not a valid interrupt number", Num);
 		return RME_ERR_INVAL;
 	}
 
@@ -182,7 +182,7 @@ int RME_RunOne(tRME_State *State)
 			}
 		}
 		else {
-			ERROR_S("Calling into magic interrupt 0x%x, but no handler", State->IP);
+			RME_Int_ErrorPrint(State, "Calling into magic interrupt 0x%x, but no handler", State->IP);
 			return RME_ERR_BUG;
 		}
 		// IRET
@@ -239,13 +239,13 @@ int RME_Int_DoOpcode(tRME_State *State)
 		READ_INSTR8( opcode );
 		// HACK 0xF1 is blank in the x86 opcode map, so it's used as uninit padding
 		if( opcode == 0xF1 ) {
-			ERROR_S(" Executing unset memory (opcode 0xF1) %04x:%04x",
+			RME_Int_ErrorPrint(State, " Executing unset memory (opcode 0xF1) %04x:%04x",
 				State->CS, State->IP);
 			return 7;
 		}
 		if( caOperations[opcode].Function == NULL )
 		{
-			ERROR_S(" Unkown Opcode 0x%02x", opcode);
+			RME_Int_ErrorPrint(State, " Unkown Opcode 0x%02x", opcode);
 			return RME_ERR_UNDEFOPCODE;
 		}
 		
@@ -335,7 +335,7 @@ DEF_OPCODE_FCN(Ext,0F)
 	
 	if( caOperations0F[extra].Function == NULL )
 	{
-		ERROR_S(" Unkown Opcode 0x0F 0x%02x", extra);
+		RME_Int_ErrorPrint(State, " Unkown Opcode 0x0F 0x%02x", extra);
 		return RME_ERR_UNDEFOPCODE;
 	}
 	
@@ -362,7 +362,7 @@ DEF_OPCODE_FCN(Unary, M)	// INC/DEC r/m8
 		{ALU_OPCODE_DEC_CODE}
 		break;
 	default:
-		ERROR_S(" - Unary M /%i unimplemented\n", Param);
+		RME_Int_ErrorPrint(State, " - Unary M /%i unimplemented\n", Param);
 		return RME_ERR_UNDEFOPCODE;
 	}
 	
@@ -378,7 +378,7 @@ int RME_Int_ParseModRMX_FarPtr(tRME_State* State, uint16_t* cs, uint16_t* ip)
 	if(ret)	return ret;
 
 	if(modrm.mod == 3) {
-		ERROR_S(" - Reading a far pointer w/ mod=3");
+		RME_Int_ErrorPrint(State, " - Reading a far pointer w/ mod=3");
 		return RME_ERR_UNDEFOPCODE;
 	}
 
@@ -423,7 +423,7 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			PUSH( *dest );
 			break;
 		default:
-			ERROR_S(" - Unary MX (32) /%i unimplemented\n", Param);
+			RME_Int_ErrorPrint(State, " - Unary MX (32) /%i unimplemented\n", Param);
 			return RME_ERR_UNDEFOPCODE;
 		}
 	}
@@ -481,11 +481,11 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			PUSH( *dest );
 			break;
 		case 7:	// UNDEFINED!
-			ERROR_S(" - Unary MX (16) /7 not defined\n");
+			RME_Int_ErrorPrint(State, " - Unary MX (16) /7 not defined\n");
 			return RME_ERR_UNDEFOPCODE;
 			
 		default:
-			ERROR_S(" - Unary MX (16) /%i unimplemented\n", Param);
+			RME_Int_ErrorPrint(State, " - Unary MX (16) /%i unimplemented\n", Param);
 			return RME_ERR_UNDEFOPCODE;
 		}
 	}
@@ -565,7 +565,7 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, uint16_t *Segment, u
 		addr = State->BX.W;
 		break;
 	default:
-		ERROR_S("Unknown mmm value passed to DoFunc (%i)", mmm);
+		RME_Int_ErrorPrint(State, "Unknown mmm value passed to DoFunc (%i)", mmm);
 		return RME_ERR_BUG;
 	}
 	if( !(mmm & 8) ) {
@@ -686,7 +686,7 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 		addr = State->DI.D;
 		break;
 	default:
-		ERROR_S("Unknown mmm value passed to DoFunc32 (%i)", mmm);
+		RME_Int_ErrorPrint(State, "Unknown mmm value passed to DoFunc32 (%i)", mmm);
 		return RME_ERR_BUG;
 	}
 	if( !(mmm & 8) ) {
@@ -723,10 +723,10 @@ int RME_Int_GetMMM(tRME_State *State, const struct ModRM* modrm, uint16_t *Segme
 			if(ret)	return ret;
 			break;
 		case 3:
-			ERROR_S("mod=3 passed to RME_Int_GetMMM");
+			RME_Int_ErrorPrint(State, "mod=3 passed to RME_Int_GetMMM");
 			return RME_ERR_BUG;
 		default:
-			ERROR_S("Unknown mod value passed to RME_Int_GetMMM (%i)", modrm->mod);
+			RME_Int_ErrorPrint(State, "Unknown mod value passed to RME_Int_GetMMM (%i)", modrm->mod);
 			return RME_ERR_BUG;
 		}
 	}
@@ -749,10 +749,10 @@ int RME_Int_GetMMM(tRME_State *State, const struct ModRM* modrm, uint16_t *Segme
 			if(ret)	return ret;
 			break;
 		case 3:
-			ERROR_S("mod=3 passed to RME_Int_GetMMM");
+			RME_Int_ErrorPrint(State, "mod=3 passed to RME_Int_GetMMM");
 			return RME_ERR_BUG;
 		default:
-			ERROR_S("Unknown mod value passed to RME_Int_GetMMM (%i)", modrm->mod);
+			RME_Int_ErrorPrint(State, "Unknown mod value passed to RME_Int_GetMMM (%i)", modrm->mod);
 			return RME_ERR_BUG;
 		}
 	}
@@ -897,4 +897,32 @@ int RME_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, uint16_t Len, stru
 	Out->range_1 = out1.range1;
 	Out->range_2 = out1.range2;
 	return 0;
+}
+
+void RME_Int_ErrorPrint(tRME_State* State, const char* fmt, ...)
+{
+	#if ERR_OUTPUT
+	va_list	args;
+	va_start(args, fmt);
+	vprintf(fmt, args);
+	va_end(args);
+	#endif
+}
+void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...)
+{
+	va_list	args;
+	va_start(args, fmt);
+
+	int space = sizeof(State->Decoder.DebugString) - State->Decoder.DebugStringLen;
+	int len = vsnprintf(State->Decoder.DebugString + State->Decoder.DebugStringLen, space, fmt, args);
+	if(len < space) {
+		State->Decoder.DebugStringLen += len;
+	}
+	else {
+		State->Decoder.DebugStringLen = sizeof(State->Decoder.DebugString);
+		State->Decoder.DebugString[ sizeof(State->Decoder.DebugString) - 2 ] = '$';
+		State->Decoder.DebugString[ sizeof(State->Decoder.DebugString) - 1 ] = '\0';
+	}
+
+	va_end(args);
 }

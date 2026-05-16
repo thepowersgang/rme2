@@ -148,7 +148,7 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	case 5: do { ALU_OPCODE_SUB_CODE } while(0);	break; \
 	case 6: do { ALU_OPCODE_XOR_CODE } while(0);	break; \
 	case 7: do { ALU_OPCODE_CMP_CODE } while(0);	break; \
-	default: ERROR_S(" - ALU Undef %i\n", op_num); return RME_ERR_UNDEFOPCODE;\
+	default: RME_Int_ErrorPrint(State, " - ALU Undef %i\n", op_num); return RME_ERR_UNDEFOPCODE;\
 	} } while(0)
 #define SHIFT_SELECT_OPERATION()	do{ switch( op_num ) {\
 	case 0: { ALU_OPCODE_ROL_CODE }	break; \
@@ -159,13 +159,13 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	case 5:	{ ALU_OPCODE_SHR_CODE }	break; \
 	case 6:	{ ALU_OPCODE_SAL_CODE }	break; \
 	case 7:	{ ALU_OPCODE_SAR_CODE }	break; \
-	default: ERROR_S(" - Shift Undef %i\n", op_num); return RME_ERR_UNDEFOPCODE;\
+	default: RME_Int_ErrorPrint(State, " - Shift Undef %i\n", op_num); return RME_ERR_UNDEFOPCODE;\
 	} }while(0)
 #define _READIMM() do { switch(width) {\
 	case 8: 	READ_INSTR8(v); RME_Int_DebugPrint(State, " 0x%02x", v); break;\
 	case 16:	READ_INSTR16(v);RME_Int_DebugPrint(State, " 0x%04x", v); break;\
 	case 32:	READ_INSTR32(v);RME_Int_DebugPrint(State, " 0x%08x", v); break;\
-	default: ERROR_S(" - _READIMM size %i unk", width); return RME_ERR_UNDEFOPCODE;\
+	default: RME_Int_ErrorPrint(State, " - _READIMM size %i unk", width); return RME_ERR_UNDEFOPCODE;\
 } } while(0)
 #define MISC_SELECT_OPERATION() do { switch( op_num ) { \
 	case 0:	{dest=&v; _READIMM(); ALU_OPCODE_TEST_CODE SET_COMM_FLAGS(State, v, width);} break;\
@@ -176,7 +176,7 @@ CREATE_ALU_OPCODE_FCN_AIX(TEST, ALU_OPCODE_TEST_CODE)
 	case 5:	{ALU_OPCODE_IMUL_CODE} break; \
 	case 6:	{ALU_OPCODE_DIV_CODE} break; \
 	case 7:	{ALU_OPCODE_IDIV_CODE} break; \
-	default: ERROR_S(" - Misc %i error\n", op_num); return RME_ERR_UNDEFOPCODE; \
+	default: RME_Int_ErrorPrint(State, " - Misc %i error\n", op_num); return RME_ERR_UNDEFOPCODE; \
 } } while(0)
 
 DEF_OPCODE_FCN(Arith, MI)
@@ -363,7 +363,7 @@ DEF_OPCODE_FCN(IMUL,MI8X)	// 0x6B
 
 	if( State->Decoder.bOverrideOperand )
 	{
-		ERROR_S("IMUL (MIX) OvrSize Unimpl");
+		RME_Int_ErrorPrint(State, "IMUL (MIX) OvrSize Unimpl");
 		return RME_ERR_BUG;
 	}
 	ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
@@ -391,7 +391,7 @@ DEF_OPCODE_FCN(IMUL,MIX)	// 0x69
 
 	if( State->Decoder.bOverrideOperand )
 	{
-		ERROR_S("IMUL (MIX) OvrSize Unimpl");
+		RME_Int_ErrorPrint(State, "IMUL (MIX) OvrSize Unimpl");
 		return RME_ERR_BUG;
 	}
 	ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
@@ -418,7 +418,7 @@ DEF_OPCODE_FCN(IMUL,RMX)	// 0x0F 0xAF
 
 	if( State->Decoder.bOverrideOperand )
 	{
-		ERROR_S("IMUL (MIX) OvrSize Unimpl");
+		RME_Int_ErrorPrint(State, "IMUL (MIX) OvrSize Unimpl");
 		return RME_ERR_BUG;
 	}
 	ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
