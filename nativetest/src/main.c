@@ -46,6 +46,8 @@ Uint32	Video_RedrawTimerCb(Uint32 interval, void *unused);
 void	PutChar(uint8_t ch, uint8_t attr);
 void	PutString(const char *String, uint8_t attr);
 void	Video_Redraw(void);
+ int	IoCall_In(tRME_State* State, uint16_t Port, size_t Size, void* Dst);
+ int	IoCall_Out(tRME_State* State, uint16_t Port, size_t Size, uint32_t Val);
 
 // === GLOBALS ===
 #if ENABLE_GUI
@@ -163,6 +165,8 @@ int main(int argc, char *argv[])
 	// Create and initialise RME State
 	emu = RME_CreateState();
 	emu->DebugLevel = gDebugLevel;
+	emu->IoCallbacks.In = IoCall_In;
+	emu->IoCallbacks.Out = IoCall_Out;
 	// Exception handling
 	emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
 	// BIOS Calls
@@ -1365,28 +1369,19 @@ int HLECall(tRME_State *State, int IntNum)
 	return 0;	// Emulate
 }
 
-
-uint8_t inb(uint16_t port) {
-	printf("INB 0x%x\n", port);
-	return 0;
+int IoCall_In(tRME_State* State, uint16_t Port, size_t Size, void* Dst) {
+	switch(Port)
+	{
+	default:
+		printf("TODO: in%i 0x%x\n", (int)Size, Port);
+		return RME_ERR_BUG;
+	}
 }
-uint16_t inw(uint16_t port) {
-	printf("INW 0x%x\n", port);
-	return 0;
-}
-uint32_t inl(uint16_t port) {
-	printf("INL 0x%x\n", port);
-	return 0;
-}
-void outb(uint16_t port, uint8_t val) {
-	printf("OUTB 0x%x, 0x%x\n", port, val);
-	return ;
-}
-void outw(uint16_t port, uint16_t val) {
-	printf("OUTW 0x%x, 0x%x\n", port, val);
-	return ;
-}
-void outl(uint16_t port, uint32_t val) {
-	printf("OUTL 0x%x, 0x%x\n", port, val);
-	return ;
+int IoCall_Out(tRME_State* State, uint16_t Port, size_t Size, uint32_t Val) {
+	switch(Port)
+	{
+	default:
+		printf("TODO: out%i 0x%x, 0x%0*x\n", (int)Size, Port, 2*(int)Size, Val);
+		return RME_ERR_BUG;
+	}
 }

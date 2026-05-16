@@ -182,6 +182,27 @@ typedef struct sRME_State
 	 * Called on all in-emulator INT calls
 	 */
 	 int	(*HLECallbacks[256])(struct sRME_State *State, int IntNum);
+	/**
+	 * \brief IO Callbacks
+	 */
+	struct {
+		/**
+		 * \brief Handle an `IN[BWL]` opcode
+		 * \param State Emulation state
+		 * \param Addr	IO bus address
+		 * \param Size	Size of the operation, must be 1, 2, or 4
+		 * \param Dst	Destination buffer, will be have a size size and alignment of `Size`
+		 */
+		int	(*In)(struct sRME_State* State, uint16_t Addr, size_t Size, void* Dst);
+		/**
+		 * \brief Handle an `OUT[BWL]` opcode
+		 * \param State Emulation state
+		 * \param Addr	IO bus address
+		 * \param Size	Size of the operation, must be 1, 2, or 4
+		 * \param Value	Value to write to the bus
+		 */
+		int	(*Out)(struct sRME_State* State, uint16_t Addr, size_t Size, uint32_t Value);
+	} IoCallbacks;
 
 	 int	InstrNum;	//!< Total executed instructions
 
