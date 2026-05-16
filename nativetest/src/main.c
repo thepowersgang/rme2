@@ -163,7 +163,9 @@ int main(int argc, char *argv[])
 	// Create and initialise RME State
 	emu = RME_CreateState();
 	emu->DebugLevel = gDebugLevel;
+	// Exception handling
 	emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
+	// BIOS Calls
 	emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
 	emu->HLECallbacks[0x11] = HLECall  ;	// 0x11 - BIOS Equipment List
 	emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
@@ -172,7 +174,12 @@ int main(int argc, char *argv[])
 	emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
 	emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
 	emu->HLECallbacks[0x1a] = HLECall;	// 0x1a - Time
-	emu->HLECallbacks[0x21] = HLECall21;	// 0x21 - DOS System Calls
+	if(true)
+	{
+		// DOS etc calls
+		emu->HLECallbacks[0x21] = HLECall21;	// 0x21 - DOS System Calls
+		emu->HLECallbacks[0x2F] = HLECall21;	// 0x2F - Various, but EMS/HIMEM.SYS is why this is here
+	}
 	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
 		emu->Memory[i/RME_BLOCK_SIZE] = &gaMemory[i];
 
@@ -353,12 +360,15 @@ int main(int argc, char *argv[])
 		return 1;
 	case RME_ERR_UNDEFOPCODE:
 		printf("\n--- ERROR: Emulator hit an undefined opcode\n");
+		RME_DumpRegs(emu);
 		return 1;
 	case RME_ERR_DIVERR:
 		printf("\n--- ERROR: Division Fault\n");
+		RME_DumpRegs(emu);
 		return 1;
 	case RME_ERR_BREAKPOINT:
 		printf("\n--- STOP: Breakpoint\n");
+		RME_DumpRegs(emu);
 	case RME_ERR_HALT:
 		#if ENABLE_GUI
 		if(! gbDisableGUI )
@@ -380,6 +390,7 @@ int main(int argc, char *argv[])
 		break;
 	default:
 		printf("\n--- ERROR: Unknown error %i\n", ret);
+		RME_DumpRegs(emu);
 		return 1;
 	}
 
@@ -837,6 +848,9 @@ int HLECall10(tRME_State *State, int IntNum)
 	case 0x10:
 		switch(State->AX.W)
 		{
+		//  VIDEO - SET BORDER (OVERSCAN) COLOR (PCjr,Tandy,EGA,VGA)
+		case 0x1001:
+			break;
 		// VIDEO - TOGGLE INTENSITY/BLINKING BIT (Jr, PS, TANDY 1000, EGA, VGA)
 		case 0x1003:
 			// TODO: Attributes
@@ -852,6 +866,7 @@ int HLECall10(tRME_State *State, int IntNum)
 	case 0x12:
 		State->BX.B.H = 0;
 		break;
+	
 	default:
 		printf("HLE Call INT 0x10 AX=%04x Unk\n", State->AX.W);
 		RME_DumpRegs(State);
@@ -1022,9 +1037,52 @@ int HLECall13(tRME_State *State, int IntNum)
 	return 0;
 }
 
-int HLECall21(tRME_State* State, int )
+static int get_ascii_z(tRME_State* State, uint16_t Seg, uint16_t Ofs, const char** out_ptr)
 {
-	int rv;
+	int ret;
+	struct sRME_MemRef mem;
+	uint16_t cur_ofs = Ofs;
+	do {
+		ret = RME_GetPtr(State, Seg, cur_ofs, 1, &mem);
+		if(ret) return ret;
+		if( *(char*)mem.range_1 == 0 ) {
+			// Found the NUL
+			uint16_t len = 1 + (cur_ofs - Ofs);
+			ret = RME_GetPtr(State, Seg, Ofs, len, &mem);
+			if(ret) return ret;
+			if( mem.len_1 != len ) {
+				printf("TODO: Handle cross-region strings\n");
+				exit(1);
+			}
+			else {
+				*out_ptr = mem.range_1;
+			}
+			return 0;
+		}
+		cur_ofs += 1;
+	} while(cur_ofs != 0);
+	printf("Failed to find NUL in %04x:%04x\n", Seg, Ofs);
+	return RME_ERR_INVAL;
+}
+static int free_ascii_z(tRME_State* State, const char* str_ptr)
+{
+	// If `get_ascii_z` had to allocate a buffer, free it here
+	return 0;
+}
+
+int HLECall21(tRME_State* State, int IntNum)
+{
+	if( IntNum != 0x21 ) {
+		// EXTENDED MEMORY SPECIFICATION (XMS) v2+ - INSTALLATION CHECK
+		if( IntNum == 0x2F && State->AX.W == 0x4300 ) {
+			// Pretend that it doesn't exist
+			return 0;
+		}
+		printf("Unhandled DOS TSR driver call: INT 0x%02x\n", IntNum);
+		return RME_ERR_BUG;
+	}
+	static FILE* sDosFileTable[256];
+	int ret;
 	switch(State->AX.B.H)
 	{
 	case 0x25:	// SET INTERRUPT VECTOR
@@ -1044,13 +1102,53 @@ int HLECall21(tRME_State* State, int )
 		State->ES = *((uint16_t*)State->Memory[0] + State->AX.B.L * 2 + 1);
 		State->BX.W = *((uint16_t*)State->Memory[0] + State->AX.B.L * 2);
 		break;
+	case 0x3D: {	// OPEN - OPEN EXISTING FILE
+		const char* path;
+		int ret = get_ascii_z(State, State->DS, State->DX.W, &path);
+		if(ret) return ret;
+		printf("DOS OPEN EXISTING FILE: '%s' w/ mode=0x%x\n", path, State->AX.B.L);
+		if( State->AX.B.L != 0 ) {
+			printf("TODO: Handle non-read modes");
+			exit(1);
+		}
+		// Skip first three, they're special
+		for(int i = 3; i < sizeof(sDosFileTable)/sizeof(sDosFileTable[0]); i++) {
+			if(!sDosFileTable[i]) {
+				sDosFileTable[i] = fopen(path, "rb");
+				if(!sDosFileTable[i]) {
+					State->Flags |= FLAG_CF;
+					State->AX.W = 2;	// File not found
+					return 0;
+				}
+				else {
+					State->Flags &= ~FLAG_CF;
+					State->AX.W = i;
+					return 0;
+				}
+			}
+		}
+		State->Flags |= FLAG_CF;
+		State->AX.W = 4;	// Too many files
+		return 0;
+		} break;
+	case 0x3e:
+		printf("DOS CLOSE FILE: %i\n", State->BX.W);
+		if( State->BX.W < sizeof(sDosFileTable)/sizeof(sDosFileTable[0]) && sDosFileTable[State->BX.W] ) {
+			fclose(sDosFileTable[State->BX.W]);
+			sDosFileTable[State->BX.W] = NULL;
+			State->Flags &= ~FLAG_CF;
+			State->AX.W = 0;
+		}
+		else {
+			State->Flags |= FLAG_CF;
+			State->AX.W = 2;	// File not found
+		}
+		return 0;
 	case 0x40: {	// WRITE TO FILE OR DEVICE
 		uint16_t file_handle = State->BX.W;
 		uint16_t len = State->CX.W;
 		struct sRME_MemRef	ptrs;
-		if(rv = RME_GetPtr(State, State->DS, State->DX.W, len, &ptrs)) {
-			return rv;
-		}
+		if(ret = RME_GetPtr(State, State->DS, State->DX.W, len, &ptrs))	return ret;
 		printf("DOS WRITE to %i: \"", file_handle);
 		for(size_t i = 0; i < ptrs.len_1; i++) {
 			uint8_t c = ((uint8_t*)ptrs.range_1)[i];
@@ -1077,6 +1175,47 @@ int HLECall21(tRME_State* State, int )
 			return 0;
 		}
 		exit(1);
+	case 0x44:
+		switch(State->AX.W)
+		{
+		case 0x4400:
+			printf("DOS IOCTL - GET DEVICE INFORMATION: Handle %i\n", State->BX.W);
+			if(State->BX.W == 0) {
+				State->AX.W = 0;
+				State->DX.W = 0x81;	// character device, stdin
+				State->Flags &= ~FLAG_CF;
+				return 0;
+			}
+			if(State->BX.W == 1) {
+				State->AX.W = 0;
+				State->DX.W = 0x82;	// character device, stdout
+				State->Flags &= ~FLAG_CF;
+				return 0;
+			}
+			if(State->BX.W < sizeof(sDosFileTable)/sizeof(sDosFileTable[0])) {
+				if( sDosFileTable[State->BX.W] ) {
+					State->AX.W = 0;
+					State->DX.W = 0;
+					State->Flags &= ~FLAG_CF;
+					return 0;
+				}
+			}
+			printf("TODO 0x21 AX=0x%04x w/ Handle %i\n", State->AX.W, State->BX.W);
+			exit(1);
+			break;
+		default:
+			printf("HLE Call INT 0x21 AX=0x%04x unknown\n", State->AX.W);
+			RME_DumpRegs(State);
+			exit(1);
+		}
+	case 0x56: {
+		const char* src;
+		if(ret = get_ascii_z(State, State->DS, State->DX.W, &src)) return ret;
+		const char* dst;
+		if(ret = get_ascii_z(State, State->ES, State->DI.W, &dst)) return ret;
+		printf("DOS RENAME FILE: '%s' -> '%s'\n", src, dst);
+		exit(1);
+		} break;
 	default:
 		printf("HLE Call INT 0x21 AH=0x%02x unknown\n", State->AX.B.H);
 		RME_DumpRegs(State);
