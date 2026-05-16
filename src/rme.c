@@ -74,16 +74,26 @@ void RME_DumpRegs(tRME_State *State)
 {
 	printf("\n");
 	#if USE_SIZE_OVERRIDES == 1
-	printf("EAX %08x  ECX %08x  EDX %08x  EBX %08x\n",
-		State->AX.D, State->CX.D, State->DX.D, State->BX.D);
-	printf("ESP %08x  EBP %08x  ESI %08x  EDI %08x\n",
-		State->SP.D, State->BP.D, State->SI.D, State->DI.D);
-	#else
-	printf("AX %04x  CX %04x  DX %04x  BX %04x\n",
-		State->AX.W, State->CX.W, State->DX.W, State->BX.W);
-	printf("SP %04x  BP %04x  SI %04x  DI %04x\n",
-		State->SP.W, State->BP.W, State->SI.W, State->DI.W);
+	// Only print 32-bit versions if any upper bits are non-zero
+	if( State->AX.D != State->AX.W || State->CX.D != State->CX.W
+	 || State->DX.D != State->DX.W || State->BX.D != State->BX.W
+	 || State->SP.D != State->SP.W || State->BP.D != State->BP.W
+	 || State->SI.D != State->SI.W || State->DI.D != State->DI.W
+	)
+	{
+		printf("EAX %08x  ECX %08x  EDX %08x  EBX %08x\n",
+			State->AX.D, State->CX.D, State->DX.D, State->BX.D);
+		printf("ESP %08x  EBP %08x  ESI %08x  EDI %08x\n",
+			State->SP.D, State->BP.D, State->SI.D, State->DI.D);
+	}
+	else
 	#endif
+	{
+		printf("AX %04x  CX %04x  DX %04x  BX %04x\n",
+			State->AX.W, State->CX.W, State->DX.W, State->BX.W);
+		printf("SP %04x  BP %04x  SI %04x  DI %04x\n",
+			State->SP.W, State->BP.W, State->SI.W, State->DI.W);
+	}
 	printf("SS %04x  DS %04x  ES %04x\n",
 		State->SS, State->DS, State->ES);
 	printf("CS:IP = 0x%04x:%04x\n", State->CS, State->IP);
@@ -171,22 +181,25 @@ int RME_RunOne(tRME_State *State)
 	
 	if(State->CS == RME_HLE_CS && State->IP < 0x100) {
 		// HLE Call
+		int ret;
 		if( State->DebugLevel > 0 ) {
 			printf("(%8i) [0x%x] %04x:%04x", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
 			printf(" HLE call\n");
 		}
-		if( State->HLECallbacks[State->IP] ) {
-			int rv = State->HLECallbacks[State->IP](State, State->IP);
-			if(rv) {
-				return rv;
-			}
+		uint16_t int_num = State->IP;
+		// IRet before calling the HLE op, so the op can directly manipulate register state
+		POP( State->IP );
+		POP( State->CS );
+		POP( State->Flags );
+		if( State->HLECallbacks[int_num] ) {
+			ret = State->HLECallbacks[int_num](State, int_num);
+			if(ret) return ret;
 		}
 		else {
-			RME_Int_ErrorPrint(State, "Calling into magic interrupt 0x%x, but no handler", State->IP);
+			RME_Int_ErrorPrint(State, "Calling into magic interrupt 0x%x, but no handler", int_num);
 			return RME_ERR_BUG;
 		}
-		// IRET
-		caOperations[0xCF].Function(State, 0);
+		State->Decoder.bDontChangeIP = 1;
 		return 0;
 	}
 	
@@ -323,7 +336,8 @@ int RME_Int_DoOpcode(tRME_State *State)
 	}
 
 	if( State->Scratch.Len > 0 ) {
-		RME_Int_WriteBytes(State, State->Scratch.Addr >> 4, State->Scratch.Addr & 15, State->Scratch.Buf, State->Scratch.Len);
+		ret = RME_Int_WriteBytes(State, State->Scratch.Addr >> 4, State->Scratch.Addr & 15, State->Scratch.Buf, State->Scratch.Len);
+		if(ret) return ret;
 	}
 	return 0;
 }
@@ -807,7 +821,7 @@ int RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* m
 			State->Scratch.Addr = (uint32_t)segment * 16 + offset;
 			memcpy(State->Scratch.Buf, mr.range1, mr.len_1);
 			memcpy(State->Scratch.Buf + mr.len_1, mr.range2, len - mr.len_1);
-			*mem = State->Scratch.Buf;
+			*mem = (void*)State->Scratch.Buf;
 		}
 		else {
 			*mem = mr.range1;
