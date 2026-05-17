@@ -38,8 +38,10 @@ void	PrintUsage(const char* argv0, bool show_full_help);
 void	HandleEvent(SDL_Event *Event, tRME_State *EmuState);
 Uint32	Video_RedrawTimerCb(Uint32 interval, void *unused);
 #endif
- int	HLECall3(struct sRME_State *State, int IntNum);
 void	Video_Redraw(void);
+void	PrintDebug(struct sRME_State *State, const char* Fmt, va_list args);
+void	PrintError(struct sRME_State *State, const char* Fmt, va_list args);
+ int	HLECall3(struct sRME_State *State, int IntNum);
  int	IoCall_In(tRME_State* State, uint16_t Port, size_t Size, void* Dst);
  int	IoCall_Out(tRME_State* State, uint16_t Port, size_t Size, uint32_t Val);
 
@@ -85,6 +87,7 @@ struct sKeyBufEnt gKeyBuffer[16];
 // === CODE ===
 int main(int argc, char *argv[])
 {
+	tRME_Callbacks	callbacks = {0};
 	tRME_State	*emu;
 	void	*data;
 	FILE	*fp;
@@ -155,33 +158,37 @@ int main(int argc, char *argv[])
 		DiskInfo[0].BytesPerSector = 512;
 	}
 
-	// Create and initialise RME State
-	emu = RME_CreateState();
-	emu->DebugLevel = gDebugLevel;
-	emu->IoCallbacks.In = IoCall_In;
-	emu->IoCallbacks.Out = IoCall_Out;
+	callbacks.PrintDebug = PrintDebug;
+	callbacks.PrintError = PrintError;
+	callbacks.In = IoCall_In;
+	callbacks.Out = IoCall_Out;
 	// Exception handling
-	emu->HLECallbacks[0x03] = HLECall3;	// 0x03 - Debug
+	callbacks.HLECallbacks[0x03] = HLECall3;	// 0x03 - Debug
 	// BIOS Calls
 	if(true)
 	{
-		emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
-		emu->HLECallbacks[0x11] = HLECall  ;	// 0x11 - BIOS Equipment List
-		emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
-		emu->HLECallbacks[0x13] = HLECall13;	// 0x13 - Disk IO
-		emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
-		emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
-		emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
-		emu->HLECallbacks[0x1a] = HLECall;	// 0x1a - Time
+		callbacks.HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
+		callbacks.HLECallbacks[0x11] = HLECall  ;	// 0x11 - BIOS Equipment List
+		callbacks.HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
+		callbacks.HLECallbacks[0x13] = HLECall13;	// 0x13 - Disk IO
+		callbacks.HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
+		callbacks.HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
+		callbacks.HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
+		callbacks.HLECallbacks[0x1a] = HLECall;	// 0x1a - Time
 	}
 	if(true)
 	{
 		// DOS etc calls
-		emu->HLECallbacks[0x21] = HLECall21;	// 0x21 - DOS System Calls
-		emu->HLECallbacks[0x2F] = HLECall21;	// 0x2F - Various, but EMS/HIMEM.SYS is why this is here
+		callbacks.HLECallbacks[0x21] = HLECall21;	// 0x21 - DOS System Calls
+		callbacks.HLECallbacks[0x2F] = HLECall21;	// 0x2F - Various, but EMS/HIMEM.SYS is why this is here
 	}
-	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE )
+
+	// Create and initialise RME State
+	emu = RME_CreateState(&callbacks, NULL);
+	emu->DebugLevel = gDebugLevel;
+	for( i = 0; i < 0x110000; i += RME_BLOCK_SIZE ) {
 		emu->Memory[i/RME_BLOCK_SIZE] = &gaMemory[i];
+	}
 
 	// DOS .exe file
 	if( gsDosExe )
@@ -652,6 +659,14 @@ void Video_Redraw(void)
 //	printf("Video redraw complete\n");
 }
 
+void PrintDebug(struct sRME_State *State, const char* Fmt, va_list args)
+{
+	vprintf(Fmt, args);
+}
+void PrintError(struct sRME_State *State, const char* Fmt, va_list args)
+{
+	vprintf(Fmt, args);
+}
 int	HLECall3(struct sRME_State *State, int IntNum)
 {
 	printf("\nDebug Exception, press any key to exit\n");

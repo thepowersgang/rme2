@@ -14,6 +14,8 @@
 #include <rme_config.h>
 
 #include <stdint.h>
+#include <stdbool.h>
+#include <stdarg.h>
 
 #ifndef NULL
 # define NULL ((void*)0)
@@ -88,7 +90,7 @@ enum eRME_Errors
  * \{
  */
 #define FLAG_CF	0x001	//!< Carry Flag
-#define FLAG_PF	0x004	//!< Pairity Flag
+#define FLAG_PF	0x004	//!< Parity Flag
 #define FLAG_AF	0x010	//!< Adjust Flag
 #define FLAG_ZF	0x040	//!< Zero Flag
 #define FLAG_SF	0x080	//!< Sign Flag
@@ -119,11 +121,56 @@ enum eRME_CPUType
 	RME_CPU_386
 };
 
+struct sRME_State;
+
+typedef struct sRME_Callbacks
+{
+	/**
+	 * \brief Print debug/logging text
+	 */
+	void (*PrintDebug)(struct sRME_State* State, const char* fmt, va_list args);
+	/**
+	 * \brief Print an error message
+	 */
+	void (*PrintError)(struct sRME_State* State, const char* fmt, va_list args);
+	/**
+	 * \brief High-Level Emulation Callbacks, one per interrupt
+	 * \param State	Emulation state at the interrupt
+	 * \param IntNum	Interrupt number
+	 * \return Error code (see `eRME_Errors`)
+	 * 
+	 * Called when execution reaches 0xB800:00xx (i.e. executing the VGA text buffer)
+	 */
+	 int	(*HLECallbacks[256])(struct sRME_State *State, int IntNum);
+	
+	/**
+	 * \brief Handle an `IN[BWL]` opcode
+	 * \param State Emulation state
+	 * \param Addr	IO bus address
+	 * \param Size	Size of the operation, must be 1, 2, or 4
+	 * \param Dst	Destination buffer, will be have a size size and alignment of `Size`
+	 */
+	int	(*In)(struct sRME_State* State, uint16_t Addr, size_t Size, void* Dst);
+	/**
+	 * \brief Handle an `OUT[BWL]` opcode
+	 * \param State Emulation state
+	 * \param Addr	IO bus address
+	 * \param Size	Size of the operation, must be 1, 2, or 4
+	 * \param Value	Value to write to the bus
+	 */
+	int	(*Out)(struct sRME_State* State, uint16_t Addr, size_t Size, uint32_t Value);
+} tRME_Callbacks;
+
 /**
  * \brief Emulator state structure
  */
 typedef struct sRME_State
 {
+	/// @brief Arbitrary context pointer for use by callbacks
+	void*	Context;
+	/// @brief Callbacks out of the emulator
+	const tRME_Callbacks*	Callbacks;
+
 	//! \brief General Purpose Registers
 	//! \{
 	union {
@@ -164,7 +211,7 @@ typedef struct sRME_State
 	 * of memory.
 	 * NOTE: There is no write protection on these blocks
 	 * \note A value of NULL in a block indicates that the block is invalid
-	 * \note 0x110000 bytes is all that is accessable using the realmode
+	 * \note 0x110000 bytes is all that is accessible using the realmode
 	 *       segmentation scheme (true max is 0xFFFF0+0xFFFF = 0x10FFEF)
 	 */
 	void	*Memory[0x110000/RME_BLOCK_SIZE];	// 1Mib+64KiB in 4 KiB blocks
@@ -173,40 +220,10 @@ typedef struct sRME_State
 	 */
 	uint8_t	MemoryTouched[0x110000/RME_BLOCK_SIZE];
 
-	/**
-	 * \brief High-Level Emulation Callback
-	 * \param State	Emulation state at the interrupt
-	 * \param IntNum	Interrupt number
-	 * \return 1 if the call was handled, 0 if it should be emulated
-	 * 
-	 * Called on all in-emulator INT calls
-	 */
-	 int	(*HLECallbacks[256])(struct sRME_State *State, int IntNum);
-	/**
-	 * \brief IO Callbacks
-	 */
-	struct {
-		/**
-		 * \brief Handle an `IN[BWL]` opcode
-		 * \param State Emulation state
-		 * \param Addr	IO bus address
-		 * \param Size	Size of the operation, must be 1, 2, or 4
-		 * \param Dst	Destination buffer, will be have a size size and alignment of `Size`
-		 */
-		int	(*In)(struct sRME_State* State, uint16_t Addr, size_t Size, void* Dst);
-		/**
-		 * \brief Handle an `OUT[BWL]` opcode
-		 * \param State Emulation state
-		 * \param Addr	IO bus address
-		 * \param Size	Size of the operation, must be 1, 2, or 4
-		 * \param Value	Value to write to the bus
-		 */
-		int	(*Out)(struct sRME_State* State, uint16_t Addr, size_t Size, uint32_t Value);
-	} IoCallbacks;
-
 	 int	InstrNum;	//!< Total executed instructions
 
 	// --- Decoder State ---
+	/// Was the last instruction `00 00`, used to spot execution of zeroed memory
 	 int	bWasLastOperationNull;
 	/**
 	 * \brief Decoder State
@@ -216,14 +233,17 @@ typedef struct sRME_State
 		 int	OverrideSegment;	// -1: Unset
 		 int	RepeatType;
 		 int	bOverrideOperand;	// Operand size override provided
-		 int	bOverrideAddress;	// Address size override provided
-		 int	bDontChangeIP;	// Don't change IP after the instruction is executed
+		bool	bOverrideAddress;	// Address size override provided
+		bool	bDontChangeIP;	// Don't change IP after the instruction is executed
 		 int	IPOffset;
 
 		 int	DebugStringLen;
 		char	DebugString[64];	// Debug text
 	}	Decoder;
 
+	/**
+	 * \brief Memory scratch buffer, used for unaligned cross-region reads/writes
+	 */
 	struct {
 		uint32_t	Addr;
 		uint16_t	Len;
@@ -236,7 +256,11 @@ typedef struct sRME_State
 /**
  * \brief Creates a blank RME instance
  */
-extern tRME_State	*RME_CreateState(void);
+extern tRME_State *RME_CreateState(tRME_Callbacks* Callbacks, void* Context);
+/**
+ * \brief Initialise a pre-allocated RME instance
+ */
+extern void RME_InitState(tRME_State *State, tRME_Callbacks* Callbacks, void* Context);
 
 /**
  * \brief Run one instruction

@@ -37,34 +37,36 @@ typedef int8_t	Sint8;
 typedef int (*tOpcodeFcn)(tRME_State *State, int Param);
 
 // === PROTOTYPES ===
-tRME_State	*RME_CreateState(void);
 void	RME_DumpRegs(tRME_State *State);
  int	RME_CallInt(tRME_State *State, int Num);
  int	RME_Call(tRME_State *State);
 static int	RME_Int_DoOpcode(tRME_State *State);
+static void RME_Int_DebugOut(tRME_State* State, const char* fmt, ...);
 
 // === GLOBALS ===
 #include "opcode_table.h"
 
 // === CODE ===
-/**
- * \brief Creates a blank RME State
- */
-tRME_State *RME_CreateState(void)
+
+tRME_State *RME_CreateState(tRME_Callbacks* Callbacks, void* Context)
 {
 	tRME_State	*state = calloc(sizeof(tRME_State), 1);
-
 	if(state == NULL)	return NULL;
+	RME_InitState(state, Callbacks, Context);
+	return state;
+}
 
-	state->DebugLevel = DEBUG;
+void RME_InitState(tRME_State *State, tRME_Callbacks* Callbacks, void* Context)
+{
+	State->Callbacks = Callbacks;
+	State->Context = Context;
+	State->DebugLevel = DEBUG;
 	// Initial Stack
-	state->Flags = FLAG_DEFAULT;
+	State->Flags = FLAG_DEFAULT;
 
 	// Stub CS/IP
-	state->CS = 0xF000;
-	state->IP = 0xFFF0;
-
-	return state;
+	State->CS = 0xF000;
+	State->IP = 0xFFF0;
 }
 
 /**
@@ -72,7 +74,11 @@ tRME_State *RME_CreateState(void)
  */
 void RME_DumpRegs(tRME_State *State)
 {
-	printf("\n");
+	void (*cb)(tRME_State*, const char*, ...) = true
+		? RME_Int_DebugOut
+		: RME_Int_ErrorPrint
+		;
+	cb(State, "\n");
 	#if USE_SIZE_OVERRIDES == 1
 	// Only print 32-bit versions if any upper bits are non-zero
 	if( State->AX.D != State->AX.W || State->CX.D != State->CX.W
@@ -81,40 +87,40 @@ void RME_DumpRegs(tRME_State *State)
 	 || State->SI.D != State->SI.W || State->DI.D != State->DI.W
 	)
 	{
-		printf("EAX %08x  ECX %08x  EDX %08x  EBX %08x\n",
+		cb(State, "EAX %08x  ECX %08x  EDX %08x  EBX %08x\n",
 			State->AX.D, State->CX.D, State->DX.D, State->BX.D);
-		printf("ESP %08x  EBP %08x  ESI %08x  EDI %08x\n",
+		cb(State, "ESP %08x  EBP %08x  ESI %08x  EDI %08x\n",
 			State->SP.D, State->BP.D, State->SI.D, State->DI.D);
 	}
 	else
 	#endif
 	{
-		printf("AX %04x  CX %04x  DX %04x  BX %04x\n",
+		cb(State, "AX %04x  CX %04x  DX %04x  BX %04x\n",
 			State->AX.W, State->CX.W, State->DX.W, State->BX.W);
-		printf("SP %04x  BP %04x  SI %04x  DI %04x\n",
+		cb(State, "SP %04x  BP %04x  SI %04x  DI %04x\n",
 			State->SP.W, State->BP.W, State->SI.W, State->DI.W);
 	}
-	printf("SS %04x  DS %04x  ES %04x\n",
+	cb(State, "SS %04x  DS %04x  ES %04x\n",
 		State->SS, State->DS, State->ES);
-	printf("CS:IP = 0x%04x:%04x\n", State->CS, State->IP);
-	printf("Flags = %04x", State->Flags);
-	if(State->Flags & FLAG_OF)	printf(" OF");
-	if(State->Flags & FLAG_DF)	printf(" DF");
-	if(State->Flags & FLAG_IF)	printf(" IF");
-	if(State->Flags & FLAG_TF)	printf(" TF");
-	if(State->Flags & FLAG_SF)	printf(" SF");
-	if(State->Flags & FLAG_ZF)	printf(" ZF");
-	if(State->Flags & FLAG_AF)	printf(" AF");
-	if(State->Flags & FLAG_PF)	printf(" PF");
-	if(State->Flags & FLAG_CF)	printf(" CF");
-	printf("\n");
+	cb(State, "CS:IP = 0x%04x:%04x\n", State->CS, State->IP);
+	cb(State, "Flags = %04x", State->Flags);
+	if(State->Flags & FLAG_OF)	cb(State, " OF");
+	if(State->Flags & FLAG_DF)	cb(State, " DF");
+	if(State->Flags & FLAG_IF)	cb(State, " IF");
+	if(State->Flags & FLAG_TF)	cb(State, " TF");
+	if(State->Flags & FLAG_SF)	cb(State, " SF");
+	if(State->Flags & FLAG_ZF)	cb(State, " ZF");
+	if(State->Flags & FLAG_AF)	cb(State, " AF");
+	if(State->Flags & FLAG_PF)	cb(State, " PF");
+	if(State->Flags & FLAG_CF)	cb(State, " CF");
+	cb(State, "\n");
 }
 
 int RME_int_CallInt(tRME_State *State, int Num)
 {
 	 int	ret;
 	if(State->DebugLevel > 0) {
-		printf("RM_Int: Calling Int 0x%x\n", Num);
+		RME_Int_DebugOut(State, "RM_Int: Calling Int 0x%x\n", Num);
 	}
 
 	if(Num < 0 || Num > 0xFF) {
@@ -183,16 +189,15 @@ int RME_RunOne(tRME_State *State)
 		// HLE Call
 		int ret;
 		if( State->DebugLevel > 0 ) {
-			printf("(%8i) [0x%x] %04x:%04x", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
-			printf(" HLE call\n");
+			RME_Int_DebugOut(State, "(%8i) [0x%x] %04x:%04x HLE Call", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
 		}
 		uint16_t int_num = State->IP;
 		// IRet before calling the HLE op, so the op can directly manipulate register state
 		POP( State->IP );
 		POP( State->CS );
 		POP( State->Flags );
-		if( State->HLECallbacks[int_num] ) {
-			ret = State->HLECallbacks[int_num](State, int_num);
+		if( State->Callbacks && State->Callbacks->HLECallbacks[int_num] ) {
+			ret = State->Callbacks->HLECallbacks[int_num](State, int_num);
 			if(ret) return ret;
 		}
 		else {
@@ -244,7 +249,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 	State->InstrNum ++;
 
 	if( State->DebugLevel > 0 ) {
-		printf("(%8i) [0x%x] %04x:%04x", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
+		RME_Int_DebugOut(State, "(%8i) [0x%x] %04x:%04x", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
 	}
 
 	do
@@ -285,7 +290,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 	if(State->Decoder.RepeatType)
 	{
 		if( State->DebugLevel > 0 ) {
-			printf(" Prefix 0x%02x used with wrong opcode 0x%02x", State->Decoder.RepeatType, opcode);
+			RME_Int_DebugOut(State, " Prefix 0x%02x used with wrong opcode 0x%02x", State->Decoder.RepeatType, opcode);
 		}
 		// - Legal, but definitely not intentional
 		//return RME_ERR_UNDEFOPCODE;
@@ -306,7 +311,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 		if( byte1 == 0 && byte2 == 0 )
 		{
 			if( State->bWasLastOperationNull ) {
-				printf(" Detected execution of null bytes\n");
+				RME_Int_DebugOut(State, " Detected execution of null bytes\n");
 				return RME_ERR_BREAKPOINT;
 			}
 			State->bWasLastOperationNull = 1;
@@ -324,15 +329,15 @@ int RME_Int_DoOpcode(tRME_State *State)
 		uint8_t	byte;
 		 int	j = State->Decoder.IPOffset;
 
-		printf(" %s", State->Decoder.DebugString);
-		printf("\t;");
+		RME_Int_DebugOut(State, " %s", State->Decoder.DebugString);
+		RME_Int_DebugOut(State, "\t;");
 		while(j--) {
 			ret = RME_Int_Read8(State, startCS, i, &byte);
 			if(ret)	return ret;
-			printf(" %02x", byte);
+			RME_Int_DebugOut(State, " %02x", byte);
 			i ++;
 		}
-		printf("\n");
+		RME_Int_DebugOut(State, "\n");
 	}
 
 	if( State->Scratch.Len > 0 ) {
@@ -900,6 +905,13 @@ int RME_Int_ParseModRMX32(tRME_State *State, uint32_t **reg, uint32_t **mem, int
 	return 0;
 }
 
+/// @brief Convert an emulated segment:offset pointer into a memory pointer
+/// @param State Emulator state
+/// @param Seg Segment number
+/// @param Ofs Offset in segment
+/// @param Len Length of desired buffer
+/// @param Out Output memory reference
+/// @return Error code (non-zero indicates an error)
 int RME_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, uint16_t Len, struct sRME_MemRef* Out)
 {
 	struct MemRef out1;
@@ -912,13 +924,31 @@ int RME_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, uint16_t Len, stru
 	Out->range_2 = out1.range2;
 	return 0;
 }
-
+/// @brief Directly print a debug message
+/// @param State 
+/// @param fmt 
+/// @param  
+void RME_Int_DebugOut(tRME_State* State, const char* fmt, ...)
+{
+	va_list	args;
+	va_start(args, fmt);
+	if( State->Callbacks && State->Callbacks->PrintDebug ) {
+		State->Callbacks->PrintDebug(State, fmt, args);
+	}
+	va_end(args);
+}
+/// @brief Directly print an error message
+/// @param State 
+/// @param fmt 
+/// @param  
 void RME_Int_ErrorPrint(tRME_State* State, const char* fmt, ...)
 {
 	#if ERR_OUTPUT
 	va_list	args;
 	va_start(args, fmt);
-	vprintf(fmt, args);
+	if( State->Callbacks && State->Callbacks->PrintError ) {
+		State->Callbacks->PrintError(State, fmt, args);
+	}
 	va_end(args);
 	#endif
 }

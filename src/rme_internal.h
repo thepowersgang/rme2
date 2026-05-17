@@ -191,6 +191,10 @@ enum opcodes {
 __attribute__((format(printf, 2, 3)))
 extern void RME_Int_ErrorPrint(tRME_State* State, const char* fmt, ...);
 
+/// @brief Print into the debug buffer
+/// @param State Emulator state
+/// @param fmt printf-style format string
+/// @param  Arguments
 __attribute__((format(printf, 2, 3)))
 extern void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...);
 
@@ -366,7 +370,7 @@ extern WARN_UNUSED_RET int	RME_Int_DecodeModM (tRME_State *State, uint8_t  **mem
 extern WARN_UNUSED_RET int	RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* modrm, int WriteSize);
 extern WARN_UNUSED_RET int	RME_Int_GetMMM(tRME_State *State, const struct ModRM* modrm, uint16_t *Segment, uint32_t *Address);
 
-// --- Stack Primiatives ---
+// --- Stack Primitives ---
 // TODO: Possible support for non 16-bit stack segment
 #define PUSH(v)	do{\
 	State->SP.W -= 2; \
