@@ -1,10 +1,10 @@
 
-RMEDIR = ../src/
+RME_DIR = ../src/
 
 ENABLE_GUI ?=
 OBJDIR_SUF := 
 
-CPPFLAGS := -I . -I $(RMEDIR)
+CPPFLAGS := -I . -I $(RME_DIR)
 CFLAGS	:= $(CPPFLAGS) -O3 -g -std=gnu99
 LDFLAGS	:= -g
 ifneq ($(ENABLE_GUI),)
@@ -16,22 +16,22 @@ OBJDIR_SUF = -gui
 #LDFLAGS += /usr/lib/x86_64-linux-gnu/libSDL2-2.0.so.0
 endif
 
-RME_LIB = $(RMEDIR)rme.a
+RME_LIB = $(RME_DIR)rme.a
 
 OBJ := main.o hle_dos.o hle_bios.o
-#OBJ += $(RMEDIR)rme_composite.o
+#OBJ += $(RME_DIR)rme_composite.o
 OBJ := $(OBJ:%=.obj$(OBJDIR_SUF)/%)
 BIN := bin/tester
 
-DEPFILES := $(OBJ:%.o=%.dep)
-DEPFILES := $(filter %.dep,$(DEPFILES))
+DEP_FILES := $(OBJ:%.o=%.dep)
+DEP_FILES := $(filter %.dep,$(DEP_FILES))
 
 .PHONY: all clean
 
 all:	$(BIN)
 
 clean:
-	$(RM) $(BIN) $(OBJ) $(DEPFILES)
+	$(RM) $(BIN) $(OBJ) $(DEP_FILES)
 
 $(BIN): $(OBJ) $(RME_LIB)
 	@mkdir -p $(dir $@)
@@ -41,7 +41,7 @@ $(BIN): $(OBJ) $(RME_LIB)
 	@mkdir -p $(dir $@)
 	$(CC) -o $@ -c $< $(CFLAGS) -MP -MD -MT $@ -MF .obj/$*.dep
 
-$(RME_LIB): $(wildcard $(RMEDIR)*.c $(RMEDIR)*.h)
-	$(MAKE) -C $(RMEDIR)
+$(RME_LIB): $(wildcard $(RME_DIR)*.c $(RME_DIR)*.h)
+	$(MAKE) -C $(RME_DIR)
 
--include $(DEPFILES)
+-include $(DEP_FILES)
