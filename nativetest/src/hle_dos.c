@@ -181,7 +181,7 @@ static int get_ascii_z(tRME_State* State, uint16_t Seg, uint16_t Ofs, const char
 			ret = RME_GetPtr(State, Seg, Ofs, len, &mem);
 			if(ret) return ret;
 			if( mem.len_1 != len ) {
-				printf("TODO: Handle cross-region strings\n");
+				FatalErrorF(State, "TODO: Handle cross-region strings\n");
 				exit(1);
 			}
 			else {
@@ -191,7 +191,7 @@ static int get_ascii_z(tRME_State* State, uint16_t Seg, uint16_t Ofs, const char
 		}
 		cur_ofs += 1;
 	} while(cur_ofs != 0);
-	printf("Failed to find NUL in %04x:%04x\n", Seg, Ofs);
+	PrintDebugF(State, "Failed to find NUL in %04x:%04x\n", Seg, Ofs);
 	return RME_ERR_INVAL;
 }
 static int free_ascii_z(tRME_State* State, const char* str_ptr)
@@ -208,27 +208,26 @@ int HLECall21(tRME_State* State, int IntNum)
 			// Pretend that it doesn't exist
 			return 0;
 		}
-		printf("Unhandled DOS TSR driver call: INT 0x%02x\n", IntNum);
-		return RME_ERR_BUG;
+		FatalErrorF(State, "Unhandled DOS TSR driver call: INT 0x%02x\n", IntNum);
 	}
 	static FILE* sDosFileTable[256];
 	int ret;
 	switch(State->AX.B.H)
 	{
 	case 0x25:	// SET INTERRUPT VECTOR
-		printf("DOS SET_INTERRUPT_VECTOR #%i = %04x:%04x\n", State->AX.B.L, State->ES, State->BX.W);
+		PrintDebugF(State, "DOS SET_INTERRUPT_VECTOR #%i = %04x:%04x\n", State->AX.B.L, State->ES, State->BX.W);
 		*((uint16_t*)State->Memory[0] + State->AX.B.L * 2 + 1) = State->ES;
 		*((uint16_t*)State->Memory[0] + State->AX.B.L * 2) = State->BX.W;
 		break;
 	case 0x30:	// GET DOS VERSION
-		printf("DOS GET_DOS_VERSION BL=%i\n", State->BX.B.L);
+		PrintDebugF(State, "DOS GET_DOS_VERSION BL=%i\n", State->BX.B.L);
 		// Pretend to be 5.0
 		State->AX.B.H = 5;
 		State->AX.B.L = 0;
 		State->BX.B.H = 0;
 		break;
 	case 0x35:	// GET INTERRUPT VECTOR
-		printf("DOS GET_INTERRUPT_VECTOR #%i\n", State->AX.B.L);
+		PrintDebugF(State, "DOS GET_INTERRUPT_VECTOR #%i\n", State->AX.B.L);
 		State->ES = *((uint16_t*)State->Memory[0] + State->AX.B.L * 2 + 1);
 		State->BX.W = *((uint16_t*)State->Memory[0] + State->AX.B.L * 2);
 		break;
@@ -236,10 +235,9 @@ int HLECall21(tRME_State* State, int IntNum)
 		const char* path;
 		int ret = get_ascii_z(State, State->DS, State->DX.W, &path);
 		if(ret) return ret;
-		printf("DOS OPEN EXISTING FILE: '%s' w/ mode=0x%x\n", path, State->AX.B.L);
+		PrintDebugF(State, "DOS OPEN EXISTING FILE: '%s' w/ mode=0x%x\n", path, State->AX.B.L);
 		if( State->AX.B.L != 0 ) {
-			printf("TODO: Handle non-read modes");
-			exit(1);
+			FatalErrorF(State, "TODO: Handle non-read open modes");
 		}
 		// Skip first three, they're special
 		for(int i = 3; i < sizeof(sDosFileTable)/sizeof(sDosFileTable[0]); i++) {
@@ -262,7 +260,7 @@ int HLECall21(tRME_State* State, int IntNum)
 		return 0;
 		} break;
 	case 0x3e:
-		printf("DOS CLOSE FILE: %i\n", State->BX.W);
+		PrintDebugF(State, "DOS CLOSE FILE: %i\n", State->BX.W);
 		if( State->BX.W < sizeof(sDosFileTable)/sizeof(sDosFileTable[0]) && sDosFileTable[State->BX.W] ) {
 			fclose(sDosFileTable[State->BX.W]);
 			sDosFileTable[State->BX.W] = NULL;
@@ -279,24 +277,23 @@ int HLECall21(tRME_State* State, int IntNum)
 		uint16_t len = State->CX.W;
 		struct sRME_MemRef	ptrs;
 		if(ret = RME_GetPtr(State, State->DS, State->DX.W, len, &ptrs))	return ret;
-		printf("DOS WRITE to %i: \"", file_handle);
-		for(size_t i = 0; i < ptrs.len_1; i++) {
-			uint8_t c = ((uint8_t*)ptrs.range_1)[i];
+		PrintDebugF(State, "DOS WRITE to %i: \"", file_handle);
+		for(size_t i = 0; i < len; i++) {
+			uint8_t c = i < ptrs.len_1
+				? ((uint8_t*)ptrs.range_1)[i]
+				: ((uint8_t*)ptrs.range_2)[i - ptrs.len_1];
 			if(0x20 <= c && c < 0x7F) {
-				printf("%c", c);
+				PrintDebugF(State, "%c", c);
 			}
 			else {
-				printf("\\x%02x", c);
+				PrintDebugF(State, "\\x%02x", c);
 			}
 		}
-		for(size_t i = 0; i < len - ptrs.len_1; i++) {
-			printf("\\x%02x", ((uint8_t*)ptrs.range_2)[i]);
-		}
-		printf("\"\n");
+		PrintDebugF(State, "\"\n");
 		exit(1);
 		}
 	case 0x4a:
-		printf("DOS RESIZE MEMORY BLOCK: Seg %04x to %04x paragraphs\n", State->ES, State->BX.W);
+		PrintDebugF(State, "DOS RESIZE MEMORY BLOCK: Seg %04x to %04x paragraphs\n", State->ES, State->BX.W);
 		// 0x0FF0 is the loaded binary, indicate that it can grow to 0xA0000
 		if(State->ES == DESTINATION_SEG) {
 			State->AX.W = 0;
@@ -309,7 +306,7 @@ int HLECall21(tRME_State* State, int IntNum)
 		switch(State->AX.W)
 		{
 		case 0x4400:
-			printf("DOS IOCTL - GET DEVICE INFORMATION: Handle %i\n", State->BX.W);
+			PrintDebugF(State, "DOS IOCTL - GET DEVICE INFORMATION: Handle %i\n", State->BX.W);
 			if(State->BX.W == 0) {
 				State->AX.W = 0;
 				State->DX.W = 0x81;	// character device, stdin
@@ -330,11 +327,10 @@ int HLECall21(tRME_State* State, int IntNum)
 					return 0;
 				}
 			}
-			printf("TODO 0x21 AX=0x%04x w/ Handle %i\n", State->AX.W, State->BX.W);
-			exit(1);
+			FatalErrorF(State, "TODO 0x21 AX=0x%04x w/ Handle %i\n", State->AX.W, State->BX.W);
 			break;
 		default:
-			printf("HLE Call INT 0x21 AX=0x%04x unknown\n", State->AX.W);
+			PrintDebugF(State, "HLE Call INT 0x21 AX=0x%04x unknown\n", State->AX.W);
 			RME_DumpRegs(State);
 			exit(1);
 		}
@@ -343,11 +339,11 @@ int HLECall21(tRME_State* State, int IntNum)
 		if(ret = get_ascii_z(State, State->DS, State->DX.W, &src)) return ret;
 		const char* dst;
 		if(ret = get_ascii_z(State, State->ES, State->DI.W, &dst)) return ret;
-		printf("DOS RENAME FILE: '%s' -> '%s'\n", src, dst);
+		PrintDebugF(State, "DOS RENAME FILE: '%s' -> '%s'\n", src, dst);
 		exit(1);
 		} break;
 	default:
-		printf("HLE Call INT 0x21 AH=0x%02x unknown\n", State->AX.B.H);
+		PrintDebugF(State, "HLE Call INT 0x21 AH=0x%02x unknown\n", State->AX.B.H);
 		RME_DumpRegs(State);
 		exit(1);
 	}

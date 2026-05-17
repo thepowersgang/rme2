@@ -50,12 +50,15 @@ void	PrintError(struct sRME_State *State, const char* Fmt, va_list args);
 SDL_Surface	*gScreen;
 #endif
 char	*gasFDDs[4] = {"fdd.img", NULL, NULL, NULL};
-FILE	*gaFDDs[4];
 const char	*gsBinaryFile;
 const char	*gsDosExe;
+const char	*gsLogFile;
 const char	*gsMemoryDumpFile;
 const char	*gsCPUType = "80286";
  int	gbDisableGUI = 0;
+
+FILE	*gaFDDs[4];
+FILE*	gLogFile;
 /// @brief CONFIG - Enable difference calculation in memory 
 bool	gbDiff_Memory;
 /// @brief Current working copy of the memory
@@ -96,6 +99,14 @@ int main(int argc, char *argv[])
 
 	// TODO: Better parameter interpretation
 	ParseArgs(argc, argv);
+
+	if( gsLogFile ) {
+		gLogFile = fopen(gsLogFile, "w");
+		if(!gLogFile) {
+			perror("Opening log file");
+			return 1;
+		}
+	}
 
 	signal(SIGINT, exit);
 	
@@ -303,7 +314,7 @@ int main(int argc, char *argv[])
 		if(emu->DebugLevel >= 1)
 		{
 			bool printed = false;
-			#define PRINT(...) do { if(!printed) { printed = true; printf(">"); } printf(__VA_ARGS__); } while(0)
+			#define PRINT(...) do { if(!printed) { printed = true; PrintDebugF(emu, ">"); } PrintDebugF(emu, __VA_ARGS__); } while(0)
 			#define CHECK_REG(name, prev, cur)	do { if(prev != cur) { PRINT(" %s:%04x=>%04x", name, prev, cur); prev = cur; } } while(0)
 			CHECK_REG("AX", gPrevRegisters.gprs[0], emu->AX.D);
 			CHECK_REG("CX", gPrevRegisters.gprs[1], emu->CX.D);
@@ -340,7 +351,7 @@ int main(int argc, char *argv[])
 					}
 				}
 			}
-			if(printed) printf("\n");
+			if(printed) PrintDebugF(emu, "\n");
 			#undef PRINT
 			#undef CHECK_REG
 		}
@@ -458,6 +469,9 @@ void ParseArgs(int argc, char* argv[])
 			case 'd':
 				gsDosExe = argv[++i];
 				break;
+			case 'l':
+				gsLogFile = argv[++i];
+				break;
 			default:
 				fprintf(stderr, "Unknown short option '-%c'\n", arg[1]);
 				PrintUsage(argv[0], false);
@@ -481,6 +495,10 @@ void ParseArgs(int argc, char* argv[])
 			else if( strcmp(arg, "--cpu") == 0 ) {
 				assert(i + 1 != argc);
 				gsCPUType = argv[++i];
+			}
+			else if( strcmp(arg, "--log-file") == 0 ) {
+				assert(i + 1 != argc);
+				gsLogFile = argv[++i];
 			}
 			else if( strcmp(arg, "--debug-level") == 0 ) {
 				assert(i + 1 != argc);
@@ -659,13 +677,33 @@ void Video_Redraw(void)
 //	printf("Video redraw complete\n");
 }
 
+void FatalErrorF(struct sRME_State *State, const char* Fmt, ...)
+{
+	va_list	args;
+	va_start(args, Fmt);
+	vfprintf(stderr, Fmt, args);
+	va_end(args);
+	exit(1);
+}
+void PrintDebugF(struct sRME_State *State, const char* Fmt, ...)
+{
+	va_list	args;
+	va_start(args, Fmt);
+	PrintDebug(State, Fmt, args);
+	va_end(args);
+}
 void PrintDebug(struct sRME_State *State, const char* Fmt, va_list args)
 {
-	vprintf(Fmt, args);
+	if( gLogFile ) {
+		vfprintf(gLogFile, Fmt, args);
+	}
+	else {
+		vprintf(Fmt, args);
+	}
 }
 void PrintError(struct sRME_State *State, const char* Fmt, va_list args)
 {
-	vprintf(Fmt, args);
+	PrintDebug(State, Fmt, args);
 }
 int	HLECall3(struct sRME_State *State, int IntNum)
 {
@@ -692,15 +730,13 @@ int IoCall_In(tRME_State* State, uint16_t Port, size_t Size, void* Dst) {
 	switch(Port)
 	{
 	default:
-		printf("TODO: in%i 0x%x\n", (int)Size, Port);
-		return RME_ERR_BUG;
+		FatalErrorF(State, "TODO: in%i 0x%x\n", (int)Size, Port);
 	}
 }
 int IoCall_Out(tRME_State* State, uint16_t Port, size_t Size, uint32_t Val) {
 	switch(Port)
 	{
 	default:
-		printf("TODO: out%i 0x%x, 0x%0*x\n", (int)Size, Port, 2*(int)Size, Val);
-		return RME_ERR_BUG;
+		FatalErrorF(State, "TODO: out%i 0x%x, 0x%0*x\n", (int)Size, Port, 2*(int)Size, Val);
 	}
 }

@@ -18,6 +18,9 @@ struct FAR_PTR
 };
 
 // === IMPORTS ===
+__attribute__((noreturn))
+extern void FatalErrorF(struct sRME_State *State, const char* Fmt, ...);
+extern void PrintDebugF(struct sRME_State *State, const char* Fmt, ...);
 
 extern int LoadDosExe(struct sRME_State *state, const char *file);
 extern int HLECall21(struct sRME_State *State, int IntNum);

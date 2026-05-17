@@ -151,11 +151,10 @@ int HLECall10(tRME_State *State, int IntNum)
 			State->AX.B.L = 0x30;
 			return 0;
 		}
-		printf("HLE Call INT 0x10/AH=0x00: VIDEO - SET VIDEO MODE AL=0x%x\n", State->AX.B.L);
-		exit(1);
+		FatalErrorF(State, "HLE Call INT 0x10/AH=0x00: VIDEO - SET VIDEO MODE AL=0x%x\n", State->AX.B.L);
 	// VIDEO - SET TEXT-MODE CURSOR SHAPE
 	case 0x01:
-		printf("INT10/AH=01 - TODO: Set cursor shape CH=%02x, CL=%02x", State->CX.B.H, State->CX.B.L);
+		PrintDebugF(State, "INT10/AH=01 - TODO: Set cursor shape CH=%02x, CL=%02x", State->CX.B.H, State->CX.B.L);
 		break;
 	// VIDEO - SET CURSOR POSITION
 	case 0x02:
@@ -235,7 +234,7 @@ int HLECall10(tRME_State *State, int IntNum)
 			gCurAttributes ^= 0x80;
 			break;
 		default:
-			printf("HLE Call INT 0x10 AX=0x%04x Unk\n", State->AX.W);
+			PrintDebugF(State, "HLE Call INT 0x10 AX=0x%04x Unk\n", State->AX.W);
 			RME_DumpRegs(State);
 			exit(1);
 		}
@@ -246,7 +245,7 @@ int HLECall10(tRME_State *State, int IntNum)
 		break;
 	
 	default:
-		printf("HLE Call INT 0x10 AX=%04x Unk\n", State->AX.W);
+		PrintDebugF(State, "HLE Call INT 0x10 AX=%04x Unk\n", State->AX.W);
 		RME_DumpRegs(State);
 		exit(1);
 	}
@@ -273,7 +272,7 @@ int HLECall13(tRME_State *State, int IntNum)
 	{
 	// DISK - RESET DISK SYSTEM
 	case 0x00:
-		printf("HLE 0x13:0x00 - Reset disk subsystem\n");
+		PrintDebugF(State, "HLE 0x13:0x00 - Reset disk subsystem\n");
 		State->Flags &= ~FLAG_CF;
 		State->AX.B.H = 0;
 		// Does anything need to be done here?
@@ -290,7 +289,7 @@ int HLECall13(tRME_State *State, int IntNum)
 		
 		// Zero count?
 		if( (State->AX.B.L & 0x3F) == 0 ) {
-			printf(" 0x13:0x02 Zero sectors\n");
+			PrintDebugF(State, " 0x13:0x02 Zero sectors\n");
 			State->Flags |= 1;
 			break;
 		}
@@ -303,18 +302,18 @@ int HLECall13(tRME_State *State, int IntNum)
 		ret = ReadDiskCHS( disk, cyl, head, sect, count, &gaMemory[ State->ES*16 + State->BX.W ] );
 		// Error check
 		if( ret < 0 ) {
-			printf(" 0x13:0x02 ReadDiskCHS Ret -0x%x\n", -ret);
+			PrintDebugF(State, " 0x13:0x02 ReadDiskCHS Ret -0x%x\n", -ret);
 			State->AX.B.H = -ret;
 			State->Flags |= 1;
 			break;
 		}
 		if( ret != State->AX.B.L ) {
-			printf(" 0x13:0x02 Incomplete read: %i/%i\n", ret, State->AX.B.L);
+			PrintDebugF(State, " 0x13:0x02 Incomplete read: %i/%i\n", ret, State->AX.B.L);
 			State->AX.B.L = ret;
-			State->Flags |= 1;
+			State->Flags |= FLAG_CF;
 			break;
 		}
-		printf("HLE 0x13:0x02 - Read sectors (D%02x,%i,%i,%i)+%i to %x:%x\n",
+		PrintDebugF(State, "HLE 0x13:0x02 - Read sectors (D%02x,%i,%i,%i)+%i to %x:%x\n",
 			disk, cyl, head, sect, count, State->ES, State->BX.W 
 			);
 		State->AX.B.H = 0;
@@ -322,7 +321,7 @@ int HLECall13(tRME_State *State, int IntNum)
 		break; }
 	
 	case 0x08: {	// Get Drive Parameters
-		printf("HLE 0x13:0x08 - Get Drive Parameters (D%02x)\n", State->DX.B.L);
+		PrintDebugF(State, "HLE 0x13:0x08 - Get Drive Parameters (D%02x)\n", State->DX.B.L);
 		State->Flags &= ~(FLAG_CF);
 		 int	cyl, heads, sec;
 		 int	type;
@@ -348,7 +347,7 @@ int HLECall13(tRME_State *State, int IntNum)
 		break; }
 
 	case 0x15:	// Get Disk Type
-		printf("HLE 0x13:0x15 - Get Disk Type 0x%02x\n", State->DX.B.L);
+		PrintDebugF(State, "HLE 0x13:0x15 - Get Disk Type 0x%02x\n", State->DX.B.L);
 		{
 			 int	cyl, heads, sec;
 			State->Flags &= ~FLAG_CF;
@@ -360,7 +359,7 @@ int HLECall13(tRME_State *State, int IntNum)
 				State->DX.W = 0;
 				break;
 			default:
-				printf(" - Disk type unknown\n");
+				PrintDebugF(State, " - Disk type unknown\n");
 				State->AX.B.H = 0;
 				State->Flags |= FLAG_CF;
 				break;
@@ -384,7 +383,7 @@ int HLECall13(tRME_State *State, int IntNum)
 			laddr = packet->Buffer.Segment*16 + packet->Buffer.Offset;
 			
 			
-			//printf(" packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,"
+			//PrintDebugF(State, " packet = %p{Size:%i,Count=%i,Buffer=%04x:%04x,"
 			//	"LBAStart=0x%"PRIx64",BufferLong=0x%"PRIx64"}\n",
 			//	packet,
 			//	packet->Size, packet->Count,
@@ -394,7 +393,7 @@ int HLECall13(tRME_State *State, int IntNum)
 			if(laddr + packet->Count*512 > 0x110000) {
 				State->Flags |= 1;
 				State->AX.B.H = 0xBB;
-				printf("Read past end of memory! (0x%x)\n",
+				PrintDebugF(State, "Read past end of memory! (0x%x)\n",
 					laddr + packet->Count*512);
 				break;
 			}
@@ -408,7 +407,7 @@ int HLECall13(tRME_State *State, int IntNum)
 		break;
 	
 	default:
-		printf("HLE Call INT 0x13 AH=0x%02x unknown\n", State->AX.B.H);
+		PrintDebugF(State, "HLE Call INT 0x13 AH=0x%02x unknown\n", State->AX.B.H);
 		RME_DumpRegs(State);
 		exit(1);
 	}
@@ -485,7 +484,7 @@ int HLECall(tRME_State *State, int IntNum)
 			State->AX.B.L = 0;
 			break;
 		default:
-			printf("HLE Call INT 0x16: AH=0x%02x unk\n", State->AX.B.H);
+			PrintDebugF(State, "HLE Call INT 0x16: AH=0x%02x unk\n", State->AX.B.H);
 			RME_DumpRegs(State);
 			exit(1);
 		}
@@ -523,14 +522,14 @@ int HLECall(tRME_State *State, int IntNum)
 			break;
 			}
 		default:
-			printf("HLE Call INT 0x%02x AH=%02x Unknown\n", IntNum, State->AX.B.H);
+			PrintDebugF(State, "HLE Call INT 0x%02x AH=%02x Unknown\n", IntNum, State->AX.B.H);
 			RME_DumpRegs(State);
 			return RME_ERR_BUG;
 		}
 		break;
 
 	default:
-		printf("HLE Call INT 0x%02x Unknown\n", IntNum);
+		PrintDebugF(State, "HLE Call INT 0x%02x Unknown\n", IntNum);
 		RME_DumpRegs(State);
 		return RME_ERR_BUG;
 	}
