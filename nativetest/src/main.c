@@ -38,12 +38,7 @@ void	PrintUsage(const char* argv0, bool show_full_help);
 void	HandleEvent(SDL_Event *Event, tRME_State *EmuState);
 Uint32	Video_RedrawTimerCb(Uint32 interval, void *unused);
 #endif
- int	HLECall10(tRME_State *State, int IntNum);
- int	HLECall12(tRME_State *State, int IntNum);
- int	HLECall13(tRME_State *State, int IntNum);
- int	HLECall(tRME_State *State, int IntNum);
-void	PutChar(uint8_t ch, uint8_t attr);
-void	PutString(const char *String, uint8_t attr);
+ int	HLECall3(struct sRME_State *State, int IntNum);
 void	Video_Redraw(void);
  int	IoCall_In(tRME_State* State, uint16_t Port, size_t Size, void* Dst);
  int	IoCall_Out(tRME_State* State, uint16_t Port, size_t Size, uint32_t Val);
@@ -59,9 +54,13 @@ const char	*gsDosExe;
 const char	*gsMemoryDumpFile;
 const char	*gsCPUType = "80286";
  int	gbDisableGUI = 0;
+/// @brief CONFIG - Enable difference calculation in memory 
 bool	gbDiff_Memory;
+/// @brief Current working copy of the memory
 uint8_t	gaMemory[0x110000];
+/// @brief Saved copy of memory state, used to detect changes 
 uint8_t	gaMemory_prev[0x110000];
+/// @brief Saved copy of register state
 struct PrevRegisters {
 	uint32_t	gprs[8];
 
@@ -162,16 +161,19 @@ int main(int argc, char *argv[])
 	emu->IoCallbacks.In = IoCall_In;
 	emu->IoCallbacks.Out = IoCall_Out;
 	// Exception handling
-	emu->HLECallbacks[0x03] = HLECall;	// 0x03 - Debug
+	emu->HLECallbacks[0x03] = HLECall3;	// 0x03 - Debug
 	// BIOS Calls
-	emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
-	emu->HLECallbacks[0x11] = HLECall  ;	// 0x11 - BIOS Equipment List
-	emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
-	emu->HLECallbacks[0x13] = HLECall13;	// 0x13 - Disk IO
-	emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
-	emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
-	emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
-	emu->HLECallbacks[0x1a] = HLECall;	// 0x1a - Time
+	if(true)
+	{
+		emu->HLECallbacks[0x10] = HLECall10;	// 0x10 - VGA BIOS
+		emu->HLECallbacks[0x11] = HLECall  ;	// 0x11 - BIOS Equipment List
+		emu->HLECallbacks[0x12] = HLECall12;	// 0x12 - Get Memory Size
+		emu->HLECallbacks[0x13] = HLECall13;	// 0x13 - Disk IO
+		emu->HLECallbacks[0x16] = HLECall;	// 0x16 - Keyboard Input
+		emu->HLECallbacks[0x18] = HLECall;	// 0x18 - Diskless Boot Hook
+		emu->HLECallbacks[0x19] = HLECall;	// 0x19 - System Bootstrap Loader
+		emu->HLECallbacks[0x1a] = HLECall;	// 0x1a - Time
+	}
 	if(true)
 	{
 		// DOS etc calls
@@ -194,61 +196,74 @@ int main(int argc, char *argv[])
 	else if( gsBinaryFile )
 	{
 		FILE	*fp = fopen(gsBinaryFile, "rb");
+		if(!fp) {
+			perror("Opening BIOS ROM file");
+			return 1;
+		}
 		off_t	len;
 
-		memset(gaMemory, 0, 0x400);	// clear IVT		
+		memset(gaMemory, 0, 0x400);	// clear IVT	
 
 		fseek(fp, 0, SEEK_END);
 		len = ftell(fp);
 		fseek(fp, 0, SEEK_SET);
 
+		// Assert that the file is an enum number of paragraphs (segment steps)
 		if( len & 15 ) {
+			fprintf(stderr, "BIOS file size is not an even multiple of 16 bytes (0x%lx)\n", len);
 			return -1;
-		}		
+		}
+		// Must be at least 16 bytes long, in order for the entrypoint to be populated
+		if( len >= 16 ) {
+			fprintf(stderr, "BIOS file size is not an even multiple of 16 bytes (0x%lx)\n", len);
+			return -1;
+		}
+		// Max size of 64KiB to fit between 0xF_0000 and 0x10_0000
+		if( len > 0x10000 ) {
+			fprintf(stderr, "BIOS file '%s' is too large (0x%lx > 0x10000), not loading\n", gsBinaryFile, len);
+			return -1;
+		}
 
 		size_t	base = 0x100000 - len;
 		printf("Booting '%s' at 0x%x\n", gsBinaryFile, (unsigned int)base);
-		
-		if(len > 0x10000)
-		{
-			fprintf(stderr, "Binary file '%s' is too large, not loading\n", gsBinaryFile);
-		}
-		else
-		{
-			size_t rv = fread( &gaMemory[base], 1, len, fp );
-			if(rv != len) {
-				fprintf(stderr, "Error reading binary '%s'. %zi != %zi\n%s\n",
-					gsBinaryFile, rv, len, strerror(errno));
-				exit(2);
-			}
+		size_t rv = fread( &gaMemory[base], 1, len, fp );
+		if(rv != len) {
+			fprintf(stderr, "Error reading binary '%s'. %zi != %zi\n%s\n",
+				gsBinaryFile, rv, len, strerror(errno));
+			return -1;
 		}
 		fclose(fp);
 
 		emu->CS = 0xF000;
 		emu->IP = 0xFFF0;
-		//emu->SS = 0xA000;
+		emu->SS = 0xA000;
 		emu->SP.W = 0xFFFE;
+		// set the return address to -1
 		*(uint16_t*)&gaMemory[0xA0000-2] = 0xFFFF;
 	}
 	else if( gaFDDs[0] )
 	{
-		printf("Booting Disk #0\n");
+		printf("Booting FDD #0 with BIOS emulation\n");
+
 		// Read boot sector
-		if( gaFDDs[0] && fread( &gaMemory[0x7C00], 512, 1, gaFDDs[0] ) != 1 )
+		const size_t load_addr = 0x7C00;
+		if( fread( &gaMemory[load_addr], 512, 1, gaFDDs[0] ) != 1 )
 		{
-			fprintf(stderr, "Disk image < 512 bytes\n");
+			fprintf(stderr, "Failed to read boot sector from disk image (%s)\n", strerror(errno));
 			return 0;
 		}
-		if( *(uint16_t*)&gaMemory[0x7DFE] != 0xAA55 )
+		uint16_t sig = *(uint16_t*)&gaMemory[load_addr+0x1FE];
+		if( sig != 0xAA55 )
 		{
-			fprintf(stderr, "Invalid boot signature on boot sector\n");
+			fprintf(stderr, "Invalid boot signature on boot sector: 0x%04x != exp 0x%04x\n", sig, 0xAA55);
 			return 0;
 		}
 
-		emu->CS = 0x07C0;
+		emu->CS = load_addr >> 4;
 		emu->IP = 0x0000;
-		emu->DX.W = 0x0000;	// Disk
-		//emu->SS = 0xA000;
+		emu->DX.W = 0x0000;	// Disk number = 0
+		// Initialise the stack, and set a return address to 0xFFFF
+		emu->SS = 0xA000;
 		emu->SP.W = 0xFFFE;
 		*(uint16_t*)&gaMemory[0xA0000-2] = 0xFFFF;
 	}
@@ -362,6 +377,10 @@ int main(int argc, char *argv[])
 		return 1;
 	case RME_ERR_DIVERR:
 		printf("\n--- ERROR: Division Fault\n");
+		RME_DumpRegs(emu);
+		return 1;
+	case RME_ERR_BUG:
+		printf("\n--- ERROR: Emulator bug\n");
 		RME_DumpRegs(emu);
 		return 1;
 	case RME_ERR_BREAKPOINT:
@@ -631,6 +650,27 @@ void Video_Redraw(void)
 	}
 	#endif
 //	printf("Video redraw complete\n");
+}
+
+int	HLECall3(struct sRME_State *State, int IntNum)
+{
+	printf("\nDebug Exception, press any key to exit\n");
+	#if ENABLE_GUI
+	if( !gbDisableGUI )
+	{
+		SDL_Event	e;
+		SDL_WM_SetCaption("RME - Debug Exception, press any key to quit", "RME - Stopped");
+		gKeyBufferPos = 0;
+		while( SDL_WaitEvent(&e) )
+		{
+			HandleEvent(&e, State);
+			if( gKeyBufferPos )
+				exit(0);
+		}
+	}
+	#else
+	exit(0);
+	#endif
 }
 
 int IoCall_In(tRME_State* State, uint16_t Port, size_t Size, void* Dst) {

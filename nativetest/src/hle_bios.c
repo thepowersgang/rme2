@@ -7,6 +7,9 @@
 #define VIDEO_COLS	80
 #define VIDEO_ROWS	25
 
+void	PutChar(uint8_t ch, uint8_t attr);
+void	PutString(const char *String, uint8_t attr);
+
  int	giCursorX, giCursorY;
 uint8_t	gCurAttributes = 0x0F;
 
@@ -421,26 +424,6 @@ int HLECall(tRME_State *State, int IntNum)
 	 int	ret;
 	switch( IntNum )
 	{
-	case 0x03:
-		printf("\nDebug Exception, press any key to exit\n");
-		#if ENABLE_GUI
-		if( !gbDisableGUI )
-		{
-			SDL_Event	e;
-			SDL_WM_SetCaption("RME - Debug Exception, press any key to quit", "RME - Stopped");
-			gKeyBufferPos = 0;
-			while( SDL_WaitEvent(&e) )
-			{
-				HandleEvent(&e, State);
-				if( gKeyBufferPos )
-					exit(0);
-			}
-		}
-		#else
-		exit(0);
-		#endif
-		break;
-	
 	case 0x11:	// BIOS - GET EQUIPMENT LIST
 		State->AX.W = 0
 			| 1	// FDDs present
