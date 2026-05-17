@@ -18,7 +18,7 @@ endif
 
 RME_LIB = $(RMEDIR)rme.a
 
-OBJ := main.o dosexe.o
+OBJ := main.o hle_dos.o hle_bios.o
 #OBJ += $(RMEDIR)rme_composite.o
 OBJ := $(OBJ:%=.obj$(OBJDIR_SUF)/%)
 BIN := bin/tester

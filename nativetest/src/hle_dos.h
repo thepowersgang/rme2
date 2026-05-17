@@ -1,8 +1,9 @@
 /*
- * 
+ * Helpers for the DOS HighLevelEmulation 
  */
-#ifndef _DOSEXE_H_
-#define _DOSEXE_H_
+#ifndef _HLE_DOS_H_
+#define _HLE_DOS_H_
+#include <stdint.h>
 
 /*
  * FORMAT:
@@ -33,5 +34,6 @@ typedef struct sExeReloc {
 	uint16_t	offset;
 	uint16_t	segment;
 }	tExeReloc;
+
 
 #endif
