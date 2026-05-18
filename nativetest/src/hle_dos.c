@@ -67,11 +67,11 @@ int LoadDosExe(tRME_State *state, const char *file)
 		return RME_ERR_INVAL;
 	}
 	
-	printf("LoadDosExe: hdr.cs = %x, hdr.ip = %x\n", hdr.cs, hdr.ip);
+	PrintDebugF(state, "LoadDosExe: hdr.cs = %x, hdr.ip = %x\n", hdr.cs, hdr.ip);
 	const int dataStart = hdr.header_paragraphs*16;
 	const int dataSize = hdr.blocks_in_file * 512 - (512 - hdr.bytes_in_last_block) % 512 - dataStart;
 	relocStart = hdr.reloc_table_offset;
-	printf("LoadDosExe: dataStart = %x, dataSize = %x, relocStart = %x\n",
+	PrintDebugF(state, "LoadDosExe: dataStart = %x, dataSize = %x, relocStart = %x\n",
 		dataStart, dataSize, relocStart);
 	
 	fseek(fp, dataStart, SEEK_SET);
@@ -98,7 +98,7 @@ int LoadDosExe(tRME_State *state, const char *file)
 			perror("LoadDosExe - fread reloc");
 			goto _error;
 		}
-		printf("- Reloc %x:%x (%x) += %x\n", reloc.segment, reloc.offset,
+		PrintDebugF(state, "- Reloc %x:%x (%x) += %x\n", reloc.segment, reloc.offset,
 			*(uint16_t*)(data + reloc.segment*16 + reloc.offset),
 			DESTINATION_SEG
 			);
@@ -112,7 +112,7 @@ int LoadDosExe(tRME_State *state, const char *file)
 	if( dest_addr % RME_BLOCK_SIZE != 0 ) {
 		unsigned ofs = dest_addr % RME_BLOCK_SIZE;
 		size_t	copysize = MIN(RME_BLOCK_SIZE - ofs, remain_data);
-		printf("- Partial copy 0x%x+0x%x 0x%zx\n", block_idx*RME_BLOCK_SIZE, ofs, copysize);
+		PrintDebugF(state, "- Partial copy 0x%x+0x%x 0x%zx\n", block_idx*RME_BLOCK_SIZE, ofs, copysize);
 		memcpy(state->Memory[block_idx] + ofs, readdata, copysize);
 		readdata += copysize;
 		remain_data -= copysize;
@@ -121,7 +121,7 @@ int LoadDosExe(tRME_State *state, const char *file)
 	while(remain_data > 0)
 	{
 		size_t	copysize = MIN(RME_BLOCK_SIZE, remain_data);
-		printf("- Full copy 0x%05x : 0x%zx from 0x%lx\n", block_idx*RME_BLOCK_SIZE, copysize, (readdata - (uint8_t*)data) + dataStart);
+		PrintDebugF(state, "- Full copy 0x%05x : 0x%zx from 0x%lx\n", block_idx*RME_BLOCK_SIZE, copysize, (readdata - (uint8_t*)data) + dataStart);
 		memcpy(state->Memory[block_idx], readdata, copysize);
 		readdata += copysize;
 		remain_data -= copysize;

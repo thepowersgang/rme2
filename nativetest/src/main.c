@@ -127,7 +127,7 @@ int main(int argc, char *argv[])
 	for(int i = 0; i < 4; i ++)
 	{
 		if( gasFDDs[i] && gasFDDs[i][0] != '\0' ) {
-			printf("Loading FD%i '%s'\n", i, gasFDDs[i]);
+			PrintDebugF(emu, "Opening FD%i '%s'\n", i, gasFDDs[i]);
 			gaFDDs[i] = fopen(gasFDDs[i], "rb");
 			if( !gaFDDs[i] ) {
 				fprintf(stderr, "Failed to open FDD image #%i: '%s' - %s\n", i, gasFDDs[i], strerror(errno));
@@ -204,11 +204,11 @@ int main(int argc, char *argv[])
 	// DOS .exe file
 	if( gsDosExe )
 	{
-		printf("Loading DOS Exe \"%s\"\n", gsDosExe);
+		PrintDebugF(emu, "Loading DOS Exe \"%s\"\n", gsDosExe);
 		if( LoadDosExe(emu, gsDosExe) ) {
 			return -1;
 		}
-		printf("Entry %x:%x, Stack %x:%x\n", emu->CS, emu->IP, emu->SS, emu->SP.W);
+		PrintDebugF(emu, "Entry %x:%x, Stack %x:%x\n", emu->CS, emu->IP, emu->SS, emu->SP.W);
 	}
 	// Raw binary blob, loaded as a BIOS image at the end of memory
 	else if( gsBinaryFile )
