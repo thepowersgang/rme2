@@ -37,9 +37,6 @@ void UiTty_Init(void)
     printf("\x1b[?1049h");
     // Clear
     printf("\x1b[0m\x1b[2J");
-    for(int i = 0; i < 25; i++) {
-        printf("\n");
-    }
     printf("\x1b[H");
     fflush(stdout);
     atexit(UiTty_Deinit);
@@ -92,7 +89,7 @@ void UiTty_int_SetChar(int row, int col, uint8_t ch, uint8_t attr)
             printf("\n");
         }
         else {
-            printf("\x1b[%i;%if", row, col);
+            printf("\x1b[%i;%if", 1+row, 1+col);
         }
     }
     giUiTty_OutCursorY = row;
