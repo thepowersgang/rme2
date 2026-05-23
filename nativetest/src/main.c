@@ -1,10 +1,8 @@
 /*
  * Realmode Emulator - Native Tester
  */
-#ifndef ENABLE_GUI
-# define ENABLE_GUI	0
-#endif
 #include "common.h"
+#include "ui_common.h"
 //#include "dev_vga.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -29,6 +27,14 @@ void	PrintError(struct sRME_State *State, const char* Fmt, va_list args);
  int	IoCall_Out(tRME_State* State, uint16_t Port, size_t Size, uint32_t Val);
 
 // === GLOBALS ===
+const struct sUiBindings* gaUiOptions[] = {
+	#ifdef ENABLE_SDL
+	&cUiBindings_Sdl,
+	#endif
+	&cUiBindings_Tty,
+	NULL
+};
+const struct sUiBindings*	gpUiBinding = NULL;
 char	*gasFDDs[4] = {"fdd.img", NULL, NULL, NULL};
 const char	*gsBinaryFile;
 const char	*gsDosExe;
@@ -59,7 +65,7 @@ struct PrevRegisters {
 	uint16_t	ip;	//!< Instruction Pointer
 	uint16_t	flags;	//!< State Flags
 } gPrevRegisters;
-int gDebugLevel = DEBUG;
+int gDebugLevel = 0;
 // - GUI Key Queue
 const int	cKeyBufferSize = 16;
  int	gKeyBufferPos = 0;
@@ -92,12 +98,12 @@ int main(int argc, char *argv[])
 	memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
 	memset(gaMemory+0xB8000, 0x00, VIDEO_ROWS*VIDEO_COLS*2);
 
-	#if ENABLE_GUI
-	if( !gbDisableGUI ) {
-		UiSdl_Init();
-    	PutString("RME NativeTest\r\n", 0x0F);
+	if(gpUiBinding) {
+		if(gpUiBinding->init) {
+			gpUiBinding->init();
+		}
+    	Bios_PutString("RME NativeTest\r\n", 0x0F);
 	}
-	#endif
 
 	// Open FDD image
 	for(int i = 0; i < 4; i ++)
@@ -219,7 +225,7 @@ int main(int argc, char *argv[])
 		}
 
 		size_t	base = 0x100000 - len;
-		printf("Booting '%s' at 0x%x\n", gsBinaryFile, (unsigned int)base);
+		PrintDebugF(emu, "Booting '%s' at 0x%x\n", gsBinaryFile, (unsigned int)base);
 		size_t rv = fread( &gaMemory[base], 1, len, fp );
 		if(rv != len) {
 			fprintf(stderr, "Error reading binary '%s'. %zi != %zi\n%s\n",
@@ -237,7 +243,7 @@ int main(int argc, char *argv[])
 	}
 	else if( gaFDDs[0] )
 	{
-		printf("Booting FDD #0 with BIOS emulation\n");
+		PrintDebugF(emu, "Booting FDD #0 with BIOS emulation\n");
 
 		// Read boot sector
 		const size_t load_addr = 0x7C00;
@@ -337,11 +343,9 @@ int main(int argc, char *argv[])
 			emu->MemoryTouched[ofs / RME_BLOCK_SIZE] = 0;
 		}
 
-#if ENABLE_GUI
-		if( !gbDisableGUI ) {
-			UiSdl_PollEvents(emu);
+		if(gpUiBinding && gpUiBinding->poll_events) {
+			gpUiBinding->poll_events(emu);
 		}
-#endif
 	}
 
 	// Write out memory
@@ -350,60 +354,52 @@ int main(int argc, char *argv[])
 		FILE *fp = fopen(gsMemoryDumpFile, "wb");
 		fwrite(gaMemory, 1024*1024, 1, fp);
 		fclose(fp);
-		printf("\n--- Memory written to '%s'", gsMemoryDumpFile);
+		PrintDebugF(emu, "\n--- Memory written to '%s'", gsMemoryDumpFile);
 	}
 
+
+	const char* exit_message = "Unknown exit";
+	switch(ret)
+	{
+	case RME_ERR_OK:	exit_message = "Emulator exited successfully";	break;
+	case RME_ERR_HALT	:	exit_message = "HLT instruction";	break;
+	case RME_ERR_FCNRET	:	exit_message = "Magic return";	break;
+
+	case RME_ERR_INVAL	:	exit_message = "BUG: Bad parameter passed into emulator";	break;
+	case RME_ERR_BUG	:	exit_message = "BUG: Internal emulator bugcheck";	break;
+	case RME_ERR_BADMEM		:	exit_message = "ERROR: Memory access violation";	break;
+	case RME_ERR_UNDEFOPCODE:	exit_message = "ERROR: Uncaught undefined opcode";	break;
+	case RME_ERR_DIVERR		:	exit_message = "ERROR: Uncaught division error";	break;
+	case RME_ERR_BREAKPOINT	:	exit_message = "ERROR: Uncaught breakpoint";	break;
+	}
+	if( gpUiBinding && gpUiBinding->halted ) {
+		gpUiBinding->halted(exit_message);
+	}
+	if( gpUiBinding && gpUiBinding->deinit ) {
+		gpUiBinding->deinit();
+	}
+
+	printf("\n--- %s\n", exit_message);
+	int exit_status = 1;
 	switch( ret )
 	{
 	case RME_ERR_OK:
-		printf("\n--- Emulator exited successfully!\n");
 		printf("emu->AX = 0x%04x\n", emu->AX.W);
-		break;
-	case RME_ERR_INVAL:
-		printf("\n--- ERROR: Invalid parameters\n");
-		return 1;
-	case RME_ERR_BADMEM:
-		printf("\n--- ERROR: Emulator accessed bad memory\n");
-		return 1;
-	case RME_ERR_UNDEFOPCODE:
-		printf("\n--- ERROR: Emulator hit an undefined opcode\n");
-		RME_DumpRegs(emu);
-		return 1;
-	case RME_ERR_DIVERR:
-		printf("\n--- ERROR: Division Fault\n");
-		RME_DumpRegs(emu);
-		return 1;
-	case RME_ERR_BUG:
-		printf("\n--- ERROR: Emulator bug\n");
-		RME_DumpRegs(emu);
-		return 1;
-	case RME_ERR_BREAKPOINT:
-		printf("\n--- STOP: Breakpoint\n");
-		RME_DumpRegs(emu);
-	case RME_ERR_HALT:
-		#if ENABLE_GUI
-		if(! gbDisableGUI )
-		{
-			UiSdl_Halted();
-		}
-		printf("\n--- STOP: CPU Halted\n");
-		#endif
-		printf("\n");
-		return 0;
+		exit_status = 0;
 		break;
 	default:
-		printf("\n--- ERROR: Unknown error %i\n", ret);
 		RME_DumpRegs(emu);
-		return 1;
+		exit_status = 1;
+		break;
 	}
-
-	return 0;
+	return exit_status;
 }
 
 void ParseArgs(int argc, char* argv[])
 {
 	 int	nFDDs = 0;
 	bool all_free = false;
+	const char* ui_name = NULL;
 	for( int i = 1; i < argc; i ++ )
 	{
 		const char* arg = argv[i];
@@ -482,12 +478,29 @@ void ParseArgs(int argc, char* argv[])
 			}
 		}
 	}
-	#if ENABLE_GUI
-	#else
-	if( !gbDisableGUI ) {
-		fprintf(stderr, "NOTE: GUI disabled at compile-time\n");
+	if( gbDisableGUI ) {
+		gpUiBinding = NULL;
 	}
-	#endif
+	else if( ui_name ) {
+		for(size_t i = 0; i < sizeof(gaUiOptions)/sizeof(gaUiOptions[0]); i++) {
+			if( gaUiOptions[i] && gaUiOptions[i]->name ) {
+				if( strcmp(gaUiOptions[i]->name, ui_name) == 0 ) {
+					gpUiBinding = gaUiOptions[i];
+					break;
+				}
+			}
+		}
+		if( !gpUiBinding ) {
+			fprintf(stderr, "Unable to find UI binding `%s`\n", ui_name);
+			exit(1);
+		}
+	}
+	else {
+		gpUiBinding = gaUiOptions[0];
+		if( !gpUiBinding ) {
+			fprintf(stderr, "NOTE: No UI bindings compiled-in\n");
+		}
+	}
 }
 void PrintUsage(const char* argv0, bool show_full_help)
 {
@@ -546,6 +559,12 @@ void Input_PushKey(int scancode, int ch)
 
 void FatalErrorF(struct sRME_State *State, const char* Fmt, ...)
 {
+	if(gpUiBinding && gpUiBinding->halted) {
+		gpUiBinding->halted("Fatal error");
+	}
+	if(gpUiBinding && gpUiBinding->deinit) {
+		gpUiBinding->deinit();
+	}
 	va_list	args;
 	va_start(args, Fmt);
 	vfprintf(stderr, Fmt, args);
@@ -575,12 +594,9 @@ void PrintError(struct sRME_State *State, const char* Fmt, va_list args)
 int	HLECall3(struct sRME_State *State, int IntNum)
 {
 	printf("\nDebug Exception, press any key to exit\n");
-	#if ENABLE_GUI
-	if( !gbDisableGUI )
-	{
-		UiSdl_Halted("Debug Exception");
+	if(gpUiBinding && gpUiBinding->halted) {
+		gpUiBinding->halted("Debug Exception");
 	}
-	#endif
 	exit(0);
 }
 

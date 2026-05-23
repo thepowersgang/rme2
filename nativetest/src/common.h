@@ -31,7 +31,7 @@ extern int	HLECall13(tRME_State *State, int IntNum);
 extern int	HLECall(tRME_State *State, int IntNum);
 extern void Input_PushKeysFromChar(char ch);
 extern void Video_ScrollUp(int Page, uint8_t Attr, int nLines, int Top, int Left, int Bottom, int Right);
-extern void Video_Redraw(void);
+extern void Bios_PutString(const char *String, uint8_t attr);
 
 extern FILE	*gaFDDs[4];
 extern uint8_t	gaMemory[0x110000];

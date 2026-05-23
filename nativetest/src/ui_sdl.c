@@ -1,13 +1,21 @@
 
-#include <SDL/SDL.h>
-#include "rme.h"
 #include "common.h"
+#include "ui_common.h"
+#include <SDL/SDL.h>
+//#include "rme.h"
 #define VIDEO_COLS	80
 #define VIDEO_ROWS	25
 
 SDL_Surface	*gScreen;
 // Has a redraw been requested already (inhibits the timer)
  int	gbIsRedrawing;
+
+const struct sUiBindings cUiBindings_Sdl = {
+    .name = "sdl",
+    .init = UiSdl_Init,
+    .halted = UiSdl_Halted,
+    .poll_events = UiSdl_PollEvents,
+};
 
 Uint32 UiSdl_int_RedrawTimerCb(Uint32 interval, void *unused);
 void UiSdl_int_HandleEvent(SDL_Event *Event, tRME_State *EmuState);

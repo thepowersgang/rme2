@@ -8,7 +8,7 @@
 #define VIDEO_ROWS	25
 
 void	PutChar(uint8_t ch, uint8_t attr);
-void	PutString(const char *String, uint8_t attr);
+void	Bios_PutString(const char *String, uint8_t attr);
 
  int	giCursorX, giCursorY;
 uint8_t	gCurAttributes = 0x0F;
@@ -54,7 +54,7 @@ void Video_ScrollUp(int Page, uint8_t Attr, int nLines, int Top, int Left, int B
 	// TODO
 }
 
-void PutString(const char *String, uint8_t attr)
+void Bios_PutString(const char *String, uint8_t attr)
 {
 	while(*String) {
 		PutChar(*String++, attr);
@@ -494,7 +494,7 @@ int HLECall(tRME_State *State, int IntNum)
 	case 0x18:
 	// --- System Bootstrap Loader (called by MSDOS to reboot) ---
 	case 0x19:
-		PutString("\r\n[BIOS] Boot Error. Press any key to terminate emulator", 0x04);
+		Bios_PutString("\r\n[BIOS] Boot Error. Press any key to terminate emulator", 0x04);
 		#if ENABLE_GUI
 		{
 			SDL_Event	e;
