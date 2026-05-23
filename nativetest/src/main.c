@@ -5,16 +5,12 @@
 # define ENABLE_GUI	0
 #endif
 #include "common.h"
+//#include "dev_vga.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
 #include <rme.h>
-#if ENABLE_GUI
-# include <SDL/SDL.h>
-#else
-//typedef uint32_t Uint32;
-#endif
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -22,23 +18,10 @@
 
 #define VIDEO_COLS	80
 #define VIDEO_ROWS	25
-//#define COL_WHITE	0x80808080
-#define COL_BLACK	0x00000000
-#define COL_GRAY	0x00444444
-#define COL_RED 	0x00FF0000
-#define COL_GREEN	0x0000FF00
-#define COL_BLUE	0x000000FF
-#define COL_LGRAY	0x00CCCCCC
-#define COL_WHITE	0x00FFFFFF
 
 // === PROTOTYPES ===
 void	ParseArgs(int argc, char* argv[]);
 void	PrintUsage(const char* argv0, bool show_full_help);
-#if ENABLE_GUI
-void	HandleEvent(SDL_Event *Event, tRME_State *EmuState);
-Uint32	Video_RedrawTimerCb(Uint32 interval, void *unused);
-#endif
-void	Video_Redraw(void);
 void	PrintDebug(struct sRME_State *State, const char* Fmt, va_list args);
 void	PrintError(struct sRME_State *State, const char* Fmt, va_list args);
  int	HLECall3(struct sRME_State *State, int IntNum);
@@ -46,9 +29,6 @@ void	PrintError(struct sRME_State *State, const char* Fmt, va_list args);
  int	IoCall_Out(tRME_State* State, uint16_t Port, size_t Size, uint32_t Val);
 
 // === GLOBALS ===
-#if ENABLE_GUI
-SDL_Surface	*gScreen;
-#endif
 char	*gasFDDs[4] = {"fdd.img", NULL, NULL, NULL};
 const char	*gsBinaryFile;
 const char	*gsDosExe;
@@ -84,8 +64,6 @@ int gDebugLevel = DEBUG;
 const int	cKeyBufferSize = 16;
  int	gKeyBufferPos = 0;
 struct sKeyBufEnt gKeyBuffer[16];
-// - Video output
- int	gbIsRedrawing;
 
 // === CODE ===
 int main(int argc, char *argv[])
@@ -114,14 +92,12 @@ int main(int argc, char *argv[])
 	memset(gaMemory, 0xF1, sizeof(gaMemory));	// 0xF1 = ICEBP/INT 1/#UD
 	memset(gaMemory+0xB8000, 0x00, VIDEO_ROWS*VIDEO_COLS*2);
 
-#if ENABLE_GUI
+	#if ENABLE_GUI
 	if( !gbDisableGUI ) {
-		SDL_Init(SDL_INIT_TIMER);
-		gScreen = SDL_SetVideoMode(VIDEO_COLS*8, VIDEO_ROWS*16, 32, SDL_HWSURFACE);
-		SDL_AddTimer(100, Video_RedrawTimerCb, NULL);
-		PutString("RME NativeTest\r\n", 0x0F);
+		UiSdl_Init();
+    	PutString("RME NativeTest\r\n", 0x0F);
 	}
-#endif
+	#endif
 
 	// Open FDD image
 	for(int i = 0; i < 4; i ++)
@@ -356,14 +332,14 @@ int main(int argc, char *argv[])
 			#undef CHECK_REG
 		}
 
+		for(size_t ofs = 0; ofs < sizeof(gaMemory); ofs += RME_BLOCK_SIZE)
+		{
+			emu->MemoryTouched[ofs / RME_BLOCK_SIZE] = 0;
+		}
+
 #if ENABLE_GUI
 		if( !gbDisableGUI ) {
-			// Check for SDL events
-			SDL_Event	ev;
-			while( SDL_PollEvent(&ev) )
-			{
-				HandleEvent(&ev, emu);
-			}
+			UiSdl_PollEvents(emu);
 		}
 #endif
 	}
@@ -408,17 +384,9 @@ int main(int argc, char *argv[])
 		#if ENABLE_GUI
 		if(! gbDisableGUI )
 		{
-			SDL_Event	e;
-			SDL_WM_SetCaption("RME - CPU Halted, press any key to quit", "RME - Halted");
-			while( SDL_WaitEvent(&e) )
-			{
-				if(e.type == SDL_QUIT)
-					exit(0);
-				else if(e.type == SDL_KEYDOWN)
-					exit(0);
-			}
-			printf("\n--- STOP: CPU Halted\n");
+			UiSdl_Halted();
 		}
+		printf("\n--- STOP: CPU Halted\n");
 		#endif
 		printf("\n");
 		return 0;
@@ -540,53 +508,6 @@ void PrintUsage(const char* argv0, bool show_full_help)
 		);
 }
 
-#if ENABLE_GUI
-void HandleEvent(SDL_Event *Event, tRME_State *EmuState)
-{
-	switch(Event->type)
-	{
-	case SDL_QUIT:
-		RME_DumpRegs(EmuState);
-		fprintf(stderr, "Window closed, quitting\n");
-		exit(0);
-	case SDL_KEYDOWN:
-		if( Event->key.keysym.sym == SDLK_BACKSPACE ) {
-			RME_DumpRegs(EmuState);
-		}
-		if( gKeyBufferPos == cKeyBufferSize )
-		{
-			// BEEP!
-		}
-		else
-		{
-			gKeyBuffer[gKeyBufferPos].Scancode = Event->key.keysym.sym;
-//			gKeyBuffer[gKeyBufferPos].ASCII = Event->key.keysym.unicode;
-			gKeyBuffer[gKeyBufferPos].ASCII = Event->key.keysym.sym;
-			printf("%i: %x %x\n",
-				gKeyBufferPos, gKeyBuffer[gKeyBufferPos].Scancode, gKeyBuffer[gKeyBufferPos].ASCII);
-			gKeyBufferPos ++;
-		}
-		break;
-	case SDL_USEREVENT:
-		Video_Redraw();
-		gbIsRedrawing = 0;
-		break;
-	}
-}
-
-Uint32 Video_RedrawTimerCb(Uint32 interval, void *unused)
-{
-	if( !gbIsRedrawing )
-	{
-		gbIsRedrawing = 1;
-		SDL_UserEvent	ue = {.type=SDL_USEREVENT,.code=0};
-		SDL_Event	e = {.type=SDL_USEREVENT, .user = ue};
-		SDL_PushEvent(&e);
-	}
-	return interval;
-}
-#endif
-
 #define SCANCODE_ENTER	1
 #define SCANCODE_SHIFT	2
 void Input_PushKeysFromChar(char ch)
@@ -601,7 +522,7 @@ void Input_PushKeysFromChar(char ch)
 		gKeyBuffer[gKeyBufferPos].ASCII = 0;
 		gKeyBufferPos++;
 	case 'a' ... 'z':
-		gKeyBuffer[gKeyBufferPos].Scancode = ch;
+		gKeyBuffer[gKeyBufferPos].Scancode = ch & ~0x20;
 		break;
 	default:
 		exit(1);
@@ -609,73 +530,19 @@ void Input_PushKeysFromChar(char ch)
 	gKeyBuffer[gKeyBufferPos].ASCII = ch;
 	gKeyBufferPos ++;
 }
-
-#if ENABLE_GUI
-#include "font.h"
-#endif
-
-void DrawChar(int X, int Y, uint8_t ch, uint32_t BGC, uint32_t FGC)
+void Input_PushKey(int scancode, int ch)
 {
-	if( gbDisableGUI )
-		return ;
-
-#if ENABLE_GUI
-	Uint8	*font;
-	Uint32	*buf;
-
-	SDL_Rect	rc = {0,0,1,1};
-	
-	font = &VTermFont[ch*FONT_HEIGHT];
-	
-	rc.w = 1; rc.h = 1;
-	rc.x = X*FONT_WIDTH;
-	rc.y = Y*FONT_HEIGHT;
-	
-	for(int y = 0; y < FONT_HEIGHT; y ++, rc.y ++)
-	{
-		for(int x = 0; x < FONT_WIDTH; x ++, rc.x++)
-		{
-			if(*font & (1 << (FONT_WIDTH-x-1)))
-				SDL_FillRect(gScreen, &rc, FGC);
-			else
-				SDL_FillRect(gScreen, &rc, BGC);
-		}
-		rc.x -= FONT_WIDTH;
-		buf = (void*)( (intptr_t)buf + gScreen->pitch );
-		font ++;
+	if( gKeyBufferPos == cKeyBufferSize ) {
 	}
-#endif
+	else {
+		gKeyBuffer[gKeyBufferPos].Scancode = scancode;
+		gKeyBuffer[gKeyBufferPos].ASCII = ch;
+		printf("%i: %x %x\n",
+			gKeyBufferPos, gKeyBuffer[gKeyBufferPos].Scancode, gKeyBuffer[gKeyBufferPos].ASCII);
+		gKeyBufferPos ++;
+	}
 }
 
-void Video_ScrollUp(int Page, uint8_t Attr, int nLines, int Top, int Left, int Bottom, int Right)
-{
-	// TODO
-}
-
-void Video_Redraw(void)
-{
-	uint32_t	colours[] = {
-		0x000000, 0x0000FF, 0x00FF00, 0xFFFF00, 0xFF0000, 0xFF00FF, 0x884400, 0xCCCCCC,
-		0x444444, 0x4444FF, 0x44FF44, 0xFFFF44, 0xFF4444, 0xFF44FF, 0xFF8800, 0xFFFFFF,
-	};
-	// TODO: Other modes?
-	uint8_t	*vidmem = &gaMemory[0xB8000];
-	for( int row = 0; row < VIDEO_ROWS; row ++ )
-	{
-		for( int col = 0; col < VIDEO_COLS; col ++ )
-		{
-			uint8_t	ch = vidmem[(row*VIDEO_COLS+col)*2+0];
-			uint8_t	at = vidmem[(row*VIDEO_COLS+col)*2+1];
-			DrawChar(col, row, ch, colours[at>>4], colours[at&15]);
-		}
-	}
-	#if ENABLE_GUI
-	if( !gbDisableGUI ) {
-		SDL_Flip(gScreen);
-	}
-	#endif
-//	printf("Video redraw complete\n");
-}
 
 void FatalErrorF(struct sRME_State *State, const char* Fmt, ...)
 {
@@ -711,24 +578,18 @@ int	HLECall3(struct sRME_State *State, int IntNum)
 	#if ENABLE_GUI
 	if( !gbDisableGUI )
 	{
-		SDL_Event	e;
-		SDL_WM_SetCaption("RME - Debug Exception, press any key to quit", "RME - Stopped");
-		gKeyBufferPos = 0;
-		while( SDL_WaitEvent(&e) )
-		{
-			HandleEvent(&e, State);
-			if( gKeyBufferPos )
-				exit(0);
-		}
+		UiSdl_Halted("Debug Exception");
 	}
-	#else
-	exit(0);
 	#endif
+	exit(0);
 }
 
 int IoCall_In(tRME_State* State, uint16_t Port, size_t Size, void* Dst) {
 	switch(Port)
 	{
+	//case 0x3ce:
+	//case 0x3cf:
+	//	return VGA_IoPort_In(State, Port, Size, Dst);
 	default:
 		FatalErrorF(State, "TODO: in%i 0x%x\n", (int)Size, Port);
 	}
@@ -736,6 +597,9 @@ int IoCall_In(tRME_State* State, uint16_t Port, size_t Size, void* Dst) {
 int IoCall_Out(tRME_State* State, uint16_t Port, size_t Size, uint32_t Val) {
 	switch(Port)
 	{
+	//case 0x3ce:
+	//case 0x3cf:
+	//	return VGA_IoPort_Out(State, Port, Size, Val);
 	default:
 		FatalErrorF(State, "TODO: out%i 0x%x, 0x%0*x\n", (int)Size, Port, 2*(int)Size, Val);
 	}

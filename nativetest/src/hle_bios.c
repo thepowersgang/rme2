@@ -49,11 +49,16 @@ void PutChar(uint8_t ch, uint8_t attrib)
 	}
 }
 
+void Video_ScrollUp(int Page, uint8_t Attr, int nLines, int Top, int Left, int Bottom, int Right)
+{
+	// TODO
+}
+
 void PutString(const char *String, uint8_t attr)
 {
-	while(*String)
+	while(*String) {
 		PutChar(*String++, attr);
-	Video_Redraw();
+	}
 }
 
 /**
