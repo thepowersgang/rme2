@@ -525,37 +525,35 @@ void PrintUsage(const char* argv0, bool show_full_help)
 #define SCANCODE_SHIFT	2
 void Input_PushKeysFromChar(char ch)
 {
-	PrintDebugF(NULL, "Input_PushKeysFromChar(%02x)\n", ch);
 	switch(ch)
 	{
+	case '\r':
+		//Input_PushKey(SCANCODE_ENTER, 0);
+		break;
 	case '\n':
-		gKeyBuffer[gKeyBufferPos].Scancode = SCANCODE_ENTER;
+		Input_PushKey(SCANCODE_ENTER, ch);
 		break;
 	case 'A' ... 'Z':
-		gKeyBuffer[gKeyBufferPos].Scancode = SCANCODE_SHIFT;
-		gKeyBuffer[gKeyBufferPos].ASCII = 0;
-		gKeyBufferPos++;
+		//Input_PushKey(SCANCODE_SHIFT, 0);
 	case 'a' ... 'z':
-		gKeyBuffer[gKeyBufferPos].Scancode = ch & ~0x20;
+		Input_PushKey(ch & ~0x20, ch);
 		break;
 	case '0' ... '9':
-		gKeyBuffer[gKeyBufferPos].Scancode = ch;
+		Input_PushKey(ch, ch);
 		break;
 	default:
-		exit(1);
+		FatalErrorF(NULL, "Input_PushKeysFromChar: Unhandled character: 0x%02x\n", ch);
 	}
-	gKeyBuffer[gKeyBufferPos].ASCII = ch;
-	gKeyBufferPos ++;
 }
 void Input_PushKey(int scancode, int ch)
 {
 	if( gKeyBufferPos == cKeyBufferSize ) {
+		PrintDebugF(NULL, "Input_PushKey(%02x, ch=%02x): BUFFER FULL\n", scancode, ch);
 	}
 	else {
+		PrintDebugF(NULL, "Input_PushKey(%02x, ch=%02x): %i entries\n", scancode, ch, gKeyBufferPos+1);
 		gKeyBuffer[gKeyBufferPos].Scancode = scancode;
 		gKeyBuffer[gKeyBufferPos].ASCII = ch;
-		printf("%i: %x %x\n",
-			gKeyBufferPos, gKeyBuffer[gKeyBufferPos].Scancode, gKeyBuffer[gKeyBufferPos].ASCII);
 		gKeyBufferPos ++;
 	}
 }
@@ -566,11 +564,13 @@ int Input_WaitForKey(tRME_State* State)
 		return 0;
 	}
 	else {
+		FatalErrorF(State, "WaitForKey with no `wait_event` in UI");
 		return RME_ERR_BUG;
 	}
 }
 bool Input_Peek(struct sKeyBufEnt* out)
 {
+	assert(gKeyBufferPos >= 0);
 	if( gKeyBufferPos == 0 ) {
 		return false;
 	}
@@ -581,11 +581,12 @@ bool Input_Peek(struct sKeyBufEnt* out)
 }
 bool Input_Pop(struct sKeyBufEnt* out)
 {
-	if( gKeyBufferPos == 0 ) {
+	if( gKeyBufferPos <= 0 ) {
 		return false;
 	}
 	else {
 		gKeyBufferPos --;
+		assert(gKeyBufferPos >= 0);
 		*out = gKeyBuffer[gKeyBufferPos];
 		memmove(gKeyBuffer, gKeyBuffer+1, gKeyBufferPos*sizeof(gKeyBuffer[0]));
 		return true;

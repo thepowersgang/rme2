@@ -66,11 +66,18 @@ void UiTty_Init(void)
 void UiTty_Deinit(void)
 {
     if( gbUiTty_IsInit ) {
+        // HACK: Wait for input before clearing
+        // - Note the cursor movement being to stdout while the print is on stderr: That handles redirected stdout debugging
+        printf("\x1b[28;1H");
+        fflush(stdout);
+        fprintf(stderr, "Press any key to exit\n");
         fgetc(stdin);
+
         // Switch back to normal buffer
         // Reset attributes
         printf("\x1b[?1049l\x1b[0m");
         fflush(stdout);
+        // Restore the terminal state
         tcsetattr(0, TCSANOW, &gUiTty_OrigTermios);
         gbUiTty_IsInit = false;
     }
@@ -119,14 +126,18 @@ void UiTty_WaitEvent(struct sRME_State* State)
 
 void UiTty_int_SetChar(int row, int col, uint8_t ch, uint8_t attr)
 {
+    PrintDebugF(NULL, "UiTty_int_SetChar: %i,%i ch=0x%02x '%c' attr=%02x\n", col, row, ch, (0x20 <= ch && ch <= 0x7E) ? ch : '.', attr);
     // Move the cursor
     if( row != giUiTty_OutCursorY && col != giUiTty_OutCursorX ) {
         if( row == 0 && col == 0 ) {
+            printf("\n");   // HACK: Put a newline, so debug writing to a file is easier to read
             printf("\x1b[H");
         }
+        // Special-case backspace
         else if( row == giUiTty_OutCursorY && col == giUiTty_OutCursorX-1 ) {
             printf("\b");
         }
+        // Special case 1-3 newlines
         else if( row == giUiTty_OutCursorY+1 && col == 0) {
             printf("\n");
         }
@@ -136,8 +147,10 @@ void UiTty_int_SetChar(int row, int col, uint8_t ch, uint8_t attr)
         else if( row == giUiTty_OutCursorY+3 && col == 0) {
             printf("\n\n\n");
         }
+        // Fallback: Absolutely position cursor
         else {
-            printf("\x1b[%i;%if", 1+row, 1+col);
+            printf("\n");   // HACK: Put a newline, so debug writing to a file is easier to read
+            printf("\x1b[%i;%iH", 1+row, 1+col);
         }
     }
     giUiTty_OutCursorY = row;

@@ -189,7 +189,7 @@ int RME_RunOne(tRME_State *State)
 		// HLE Call
 		int ret;
 		if( State->DebugLevel > 0 ) {
-			RME_Int_DebugOut(State, "(%8i) [0x%x] %04x:%04x HLE Call", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
+			RME_Int_DebugOut(State, "(%8i) [0x%x] %04x:%04x HLE Call\n", State->InstrNum, State->CS*16+State->IP, State->CS, State->IP);
 		}
 		uint16_t int_num = State->IP;
 		// IRet before calling the HLE op, so the op can directly manipulate register state

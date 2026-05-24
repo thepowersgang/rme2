@@ -9,6 +9,7 @@
 #define VIDEO_ROWS	25
 
 void	PutChar(uint8_t ch, uint8_t attr);
+void	Video_ScrollUp(int Page, uint8_t Attr, int nLines, int Top, int Left, int Bottom, int Right);
 void	Bios_PutString(const char *String, uint8_t attr);
 
  int	giCursorX, giCursorY;
@@ -155,12 +156,21 @@ int HLECall10(tRME_State *State, int IntNum)
 		FatalErrorF(State, "HLE Call INT 0x10/AH=0x00: VIDEO - SET VIDEO MODE AL=0x%x\n", State->AX.B.L);
 	// VIDEO - SET TEXT-MODE CURSOR SHAPE
 	case 0x01:
-		PrintDebugF(State, "INT10/AH=01 - TODO: Set cursor shape CH=%02x, CL=%02x", State->CX.B.H, State->CX.B.L);
+		PrintDebugF(State, "HLE 0x10 AH=01: Set cursor shape CH=%02x, CL=%02x\n", State->CX.B.H, State->CX.B.L);
 		break;
 	// VIDEO - SET CURSOR POSITION
 	case 0x02:
+		PrintDebugF(State, "HLE 0x10 AH=02: Cursor to %i,%i\n", State->DX.B.L, State->DX.B.H);
 		giCursorX = State->DX.B.L;
 		giCursorY = State->DX.B.H;
+		break;
+	// VIDEO - GET CURSOR POSITION AND SIZE
+	case 0x03:
+		State->AX.W = 0;
+		State->CX.B.H = (giCursorY * 16) + 14;
+		State->CX.B.L = State->CX.B.H + 2;
+		State->DX.B.L = giCursorX;
+		State->DX.B.H = giCursorY;
 		break;
 	// VIDEO - SET ACTIVE DISPLAY PAGE
 	case 0x05: {
@@ -312,7 +322,7 @@ int HLECall13(tRME_State *State, int IntNum)
 			State->Flags |= FLAG_CF;
 			break;
 		}
-		PrintDebugF(State, "HLE 0x13:0x02 - Read sectors (D%02x,%i,%i,%i)+%i to %x:%x\n",
+		PrintDebugF(State, "HLE 0x13:0x02 - Read sectors (D%02x,c%2i,h%i,s%2i)+%i to %04x:%04x\n",
 			disk, cyl, head, sect, count, State->ES, State->BX.W 
 			);
 		State->AX.B.H = 0;
@@ -450,6 +460,7 @@ int HLECall(tRME_State *State, int IntNum)
 		case 0x00:	// KEYBOARD - GET KEYSTROKE
 		case 0x10:{	// KEYBOARD - GET ENHANCED KEYSTROKE
 			struct sKeyBufEnt ent;
+			// NOTE: This waits until a keystroke is available
 			while( !Input_Pop(&ent) ) 
 			{
 				PrintDebugF(State, "HLE 0x16 0x%02x: WAIT\n", State->AX.B.H);
@@ -462,7 +473,6 @@ int HLECall(tRME_State *State, int IntNum)
 			break; }
 		case 0x01:	// KEYBOARD - CHECK FOR KEYSTROKE
 		case 0x11:{	// KEYBOARD - CHECK FOR ENHANCED KEYSTROKE
-			//PrintDebugF(State, "HLE 0x16 0x%02x\n", State->AX.B.H);
 			struct sKeyBufEnt ent;
 			if( Input_Peek(&ent) ) {
 				PrintDebugF(State, "HLE 0x16 AH=%02x: %02x %02x\n", State->AX.B.H, ent.Scancode, ent.ASCII);
@@ -472,6 +482,7 @@ int HLECall(tRME_State *State, int IntNum)
 				State->Flags &= ~FLAG_ZF;
 			}
 			else {
+				//PrintDebugF(State, "HLE 0x16 0x%02x: No keys\n", State->AX.B.H);
 				State->Flags |= FLAG_ZF;
 			}
 			break; }
