@@ -525,6 +525,7 @@ void PrintUsage(const char* argv0, bool show_full_help)
 #define SCANCODE_SHIFT	2
 void Input_PushKeysFromChar(char ch)
 {
+	PrintDebugF(NULL, "Input_PushKeysFromChar(%02x)\n", ch);
 	switch(ch)
 	{
 	case '\n':
@@ -536,6 +537,9 @@ void Input_PushKeysFromChar(char ch)
 		gKeyBufferPos++;
 	case 'a' ... 'z':
 		gKeyBuffer[gKeyBufferPos].Scancode = ch & ~0x20;
+		break;
+	case '0' ... '9':
+		gKeyBuffer[gKeyBufferPos].Scancode = ch;
 		break;
 	default:
 		exit(1);
@@ -553,6 +557,38 @@ void Input_PushKey(int scancode, int ch)
 		printf("%i: %x %x\n",
 			gKeyBufferPos, gKeyBuffer[gKeyBufferPos].Scancode, gKeyBuffer[gKeyBufferPos].ASCII);
 		gKeyBufferPos ++;
+	}
+}
+int Input_WaitForKey(tRME_State* State)
+{
+	if( gpUiBinding && gpUiBinding->wait_event ) {
+		gpUiBinding->wait_event(State);
+		return 0;
+	}
+	else {
+		return RME_ERR_BUG;
+	}
+}
+bool Input_Peek(struct sKeyBufEnt* out)
+{
+	if( gKeyBufferPos == 0 ) {
+		return false;
+	}
+	else {
+		*out = gKeyBuffer[gKeyBufferPos-1];
+		return true;
+	}
+}
+bool Input_Pop(struct sKeyBufEnt* out)
+{
+	if( gKeyBufferPos == 0 ) {
+		return false;
+	}
+	else {
+		gKeyBufferPos --;
+		*out = gKeyBuffer[gKeyBufferPos];
+		memmove(gKeyBuffer, gKeyBuffer+1, gKeyBufferPos*sizeof(gKeyBuffer[0]));
+		return true;
 	}
 }
 

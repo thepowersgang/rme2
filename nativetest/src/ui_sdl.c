@@ -10,11 +10,17 @@ SDL_Surface	*gScreen;
 // Has a redraw been requested already (inhibits the timer)
  int	gbIsRedrawing;
 
+void UiSdl_Init();
+void UiSdl_Halted(const char* msg);
+void UiSdl_PollEvents(tRME_State* emu);
+void UiSdl_WaitEvent(tRME_State* emu);
+
 const struct sUiBindings cUiBindings_Sdl = {
     .name = "sdl",
     .init = UiSdl_Init,
     .halted = UiSdl_Halted,
     .poll_events = UiSdl_PollEvents,
+    .wait_event = UiSdl_WaitEvent,
 };
 
 Uint32 UiSdl_int_RedrawTimerCb(Uint32 interval, void *unused);
@@ -45,6 +51,15 @@ void UiSdl_PollEvents(tRME_State* emu)
     // Check for SDL events
     SDL_Event	ev;
     while( SDL_PollEvent(&ev) )
+    {
+        UiSdl_int_HandleEvent(&ev, emu);
+    }
+}
+void UiSdl_WaitEvent(tRME_State* emu)
+{
+    // Check for SDL events
+    SDL_Event	ev;
+    if( SDL_WaitEvent(&ev) )
     {
         UiSdl_int_HandleEvent(&ev, emu);
     }

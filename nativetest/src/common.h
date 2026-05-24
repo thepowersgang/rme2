@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 typedef uint16_t	Uint16;
 typedef int16_t	Sint16;
@@ -11,6 +12,7 @@ typedef int8_t	Sint8;
 #define PACKED	__attribute__((packed))
 
 typedef struct sRME_State tRME_State;
+struct sKeyBufEnt;
 struct FAR_PTR
 {
 	uint16_t	Offset;
@@ -29,7 +31,10 @@ extern int	HLECall10(tRME_State *State, int IntNum);
 extern int	HLECall12(tRME_State *State, int IntNum);
 extern int	HLECall13(tRME_State *State, int IntNum);
 extern int	HLECall(tRME_State *State, int IntNum);
+extern int	Input_WaitForKey(tRME_State* State);
 extern void Input_PushKeysFromChar(char ch);
+extern bool Input_Peek(struct sKeyBufEnt* out);
+extern bool Input_Pop(struct sKeyBufEnt* out);
 extern void Video_ScrollUp(int Page, uint8_t Attr, int nLines, int Top, int Left, int Bottom, int Right);
 extern void Bios_PutString(const char *String, uint8_t attr);
 

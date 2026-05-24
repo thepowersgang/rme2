@@ -12,6 +12,8 @@ struct sUiBindings {
     void (*halted)(const char* message);
     /// @brief Poll for new input events, updating the keyboard (or redrawing the screen)
     void (*poll_events)(struct sRME_State* State);
+    /// @brief Wait for an event, blocking emulation (used for BIOS HLE)
+    void (*wait_event)(struct sRME_State* State);
 };
 
 #ifdef ENABLE_SDL

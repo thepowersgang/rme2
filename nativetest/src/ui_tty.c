@@ -8,10 +8,16 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+//#include <unistd.h>
+#include <sys/select.h> // select and friends
+#include <termios.h>
+#include <unistd.h>
+
 void UiTty_Init(void);
 void UiTty_Deinit(void);
 void UiTty_Halted(const char* msg);
 void UiTty_PollEvents(struct sRME_State* State);
+void UiTty_WaitEvent(struct sRME_State* State);
 void UiTty_int_SetChar(int row, int col, uint8_t ch, uint8_t attr);
 
 const struct sUiBindings cUiBindings_Tty = {
@@ -20,8 +26,10 @@ const struct sUiBindings cUiBindings_Tty = {
     .deinit = UiTty_Deinit,
     .halted = UiTty_Halted,
     .poll_events = UiTty_PollEvents,
+    .wait_event = UiTty_WaitEvent,
 };
 
+struct termios  gUiTty_OrigTermios;
 bool gbUiTty_IsInit;
 // Previous state of VGA memory
 uint8_t gUiTty_PrevState[80*25*2];
@@ -37,8 +45,21 @@ void UiTty_Init(void)
     printf("\x1b[?1049h");
     // Clear
     printf("\x1b[0m\x1b[2J");
+    // Draw a line at the bottom of the display area
+    printf("\x1b[26H");
+    for(int i = 0; i < 80; i ++) {
+        printf("-");
+    }
     printf("\x1b[H");
     fflush(stdout);
+    {
+        struct termios  term;
+        tcgetattr(0, &gUiTty_OrigTermios);
+        tcgetattr(0, &term);
+        term.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+        term.c_iflag = ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+        tcsetattr(0, TCSANOW, &term);
+    }
     atexit(UiTty_Deinit);
     gbUiTty_IsInit = true;
 }
@@ -50,11 +71,15 @@ void UiTty_Deinit(void)
         // Reset attributes
         printf("\x1b[?1049l\x1b[0m");
         fflush(stdout);
+        tcsetattr(0, TCSANOW, &gUiTty_OrigTermios);
         gbUiTty_IsInit = false;
     }
 }
 void UiTty_Halted(const char* msg)
 {
+    printf("\x1b[27;1H");
+    printf("--- HALTED: %s", msg);
+    fflush(stdout);
 }
 void UiTty_PollEvents(struct sRME_State* State)
 {
@@ -75,6 +100,20 @@ void UiTty_PollEvents(struct sRME_State* State)
         }
     }
     fflush(stdout);
+
+    fd_set  fds;
+    FD_ZERO(&fds);
+    FD_SET(0, &fds);
+    struct timeval tv = { 0 };
+    if( select(1, &fds, NULL, NULL, &tv) ) {
+        int ch = getc(stdin);
+        Input_PushKeysFromChar(ch);
+    }
+}
+void UiTty_WaitEvent(struct sRME_State* State)
+{
+    int ch = getc(stdin);
+    Input_PushKeysFromChar(ch);
 }
 
 
@@ -85,8 +124,17 @@ void UiTty_int_SetChar(int row, int col, uint8_t ch, uint8_t attr)
         if( row == 0 && col == 0 ) {
             printf("\x1b[H");
         }
+        else if( row == giUiTty_OutCursorY && col == giUiTty_OutCursorX-1 ) {
+            printf("\b");
+        }
         else if( row == giUiTty_OutCursorY+1 && col == 0) {
             printf("\n");
+        }
+        else if( row == giUiTty_OutCursorY+2 && col == 0) {
+            printf("\n\n");
+        }
+        else if( row == giUiTty_OutCursorY+3 && col == 0) {
+            printf("\n\n\n");
         }
         else {
             printf("\x1b[%i;%if", 1+row, 1+col);

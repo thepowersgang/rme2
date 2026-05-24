@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <assert.h>
+#include <time.h>	// localtime and time_t
 #include "common.h"
 #include "rme.h"
 
@@ -235,8 +236,7 @@ int HLECall10(tRME_State *State, int IntNum)
 			break;
 		default:
 			PrintDebugF(State, "HLE Call INT 0x10 AX=0x%04x Unk\n", State->AX.W);
-			RME_DumpRegs(State);
-			exit(1);
+			return RME_ERR_BUG;
 		}
 		break;
 	// VIDEO - GET BLANKING ATTRIBUTE
@@ -246,8 +246,7 @@ int HLECall10(tRME_State *State, int IntNum)
 	
 	default:
 		PrintDebugF(State, "HLE Call INT 0x10 AX=%04x Unk\n", State->AX.W);
-		RME_DumpRegs(State);
-		exit(1);
+		return RME_ERR_BUG;
 	}
 	return 0;	// Silently ignore VGA BIOS calls
 }
@@ -353,8 +352,14 @@ int HLECall13(tRME_State *State, int IntNum)
 			State->Flags &= ~FLAG_CF;
 			switch(GetDiskParams(State->DX.B.L, &cyl, &heads, &sec))
 			{
+			case 0:
+				// No media
+				State->AX.B.H = 0;
+				State->CX.W = 0;
+				State->DX.W = 0;
+				break;
 			case 4:
-				State->AX.B.H = 2;
+				State->AX.B.H = 2;	// Floppy with change line support
 				State->CX.W = sec * heads * cyl;
 				State->DX.W = 0;
 				break;
@@ -365,7 +370,12 @@ int HLECall13(tRME_State *State, int IntNum)
 				break;
 			}
 		}
-		break;		
+		break;
+	// FLOPPY DISK - DETECT DISK CHANGE (XT 1986/1/10 or later,XT286,AT,PS)
+	case 0x16:
+		State->Flags &= ~FLAG_CF;
+		State->AX.B.H = 0;
+		break;
 
 	// Extended Read
 	case 0x42:
@@ -408,12 +418,15 @@ int HLECall13(tRME_State *State, int IntNum)
 	
 	default:
 		PrintDebugF(State, "HLE Call INT 0x13 AH=0x%02x unknown\n", State->AX.B.H);
-		RME_DumpRegs(State);
-		exit(1);
+		return RME_ERR_BUG;
 	}
 	return 0;
 }
 
+static uint8_t bcd_byte(uint8_t v) {
+	assert(v < 100);
+	return v % 10 | (((v / 10) % 10) << 4);
+}
 
 /**
  * \brief Do a HLE call
@@ -435,42 +448,33 @@ int HLECall(tRME_State *State, int IntNum)
 		switch(State->AX.B.H)
 		{
 		case 0x00:	// KEYBOARD - GET KEYSTROKE
-		case 0x10:	// KEYBOARD - GET ENHANCED KEYSTROKE
-			while( gKeyBufferPos == 0 )
+		case 0x10:{	// KEYBOARD - GET ENHANCED KEYSTROKE
+			struct sKeyBufEnt ent;
+			while( !Input_Pop(&ent) ) 
 			{
-				#if ENABLE_GUI
-				if( !gbDisableGUI ) {
-					SDL_Event	e;
-					SDL_WaitEvent(&e);
-					HandleEvent(&e, State);
-				} else
-				#endif
-				{
-					int ch = getchar();
-					assert(ch > 0);
-					Input_PushKeysFromChar(ch);
-				}
+				PrintDebugF(State, "HLE 0x16 0x%02x: WAIT\n", State->AX.B.H);
+				int ret = Input_WaitForKey(State);
+				if(ret)	return ret;
 			}
-			State->AX.B.H = gKeyBuffer[0].Scancode;
-			State->AX.B.L = gKeyBuffer[0].ASCII;
-			gKeyBufferPos --;
-			memmove(gKeyBuffer, gKeyBuffer+1, gKeyBufferPos*sizeof(gKeyBuffer[0]));
-			break;
+			PrintDebugF(State, "HLE 0x16 AH=%02x: %02x %02x\n", State->AX.B.H, ent.Scancode, ent.ASCII);
+			State->AX.B.H = ent.Scancode;
+			State->AX.B.L = ent.ASCII;
+			break; }
 		case 0x01:	// KEYBOARD - CHECK FOR KEYSTROKE
-		case 0x11:	// KEYBOARD - CHECK FOR ENHANCED KEYSTROKE
-			// TODO: Keyboard queue
-			if( gKeyBufferPos > 0 )
-			{
+		case 0x11:{	// KEYBOARD - CHECK FOR ENHANCED KEYSTROKE
+			//PrintDebugF(State, "HLE 0x16 0x%02x\n", State->AX.B.H);
+			struct sKeyBufEnt ent;
+			if( Input_Peek(&ent) ) {
+				PrintDebugF(State, "HLE 0x16 AH=%02x: %02x %02x\n", State->AX.B.H, ent.Scancode, ent.ASCII);
 				// Ignore scancodes > 83? (Non 83/84 keycodes)
-				State->AX.B.H = gKeyBuffer[0].Scancode;
-				State->AX.B.L = gKeyBuffer[0].ASCII;
+				State->AX.B.H = ent.Scancode;
+				State->AX.B.L = ent.ASCII;
 				State->Flags &= ~FLAG_ZF;
 			}
-			else
-			{
+			else {
 				State->Flags |= FLAG_ZF;
 			}
-			break;
+			break; }
 		// KEYBOARD - GET SHIFT FLAGS
 		case 0x02:
 			// 0: Right Shift
@@ -485,8 +489,7 @@ int HLECall(tRME_State *State, int IntNum)
 			break;
 		default:
 			PrintDebugF(State, "HLE Call INT 0x16: AH=0x%02x unk\n", State->AX.B.H);
-			RME_DumpRegs(State);
-			exit(1);
+			return RME_ERR_BUG;
 		}
 		break;
 	
@@ -495,42 +498,65 @@ int HLECall(tRME_State *State, int IntNum)
 	// --- System Bootstrap Loader (called by MSDOS to reboot) ---
 	case 0x19:
 		Bios_PutString("\r\n[BIOS] Boot Error. Press any key to terminate emulator", 0x04);
-		#if ENABLE_GUI
-		{
-			SDL_Event	e;
-			while( SDL_WaitEvent(&e) )
-			{
-				if(e.type == SDL_QUIT)
-					exit(0);
-				else if(e.type == SDL_KEYDOWN)
-					exit(0);
-			}
-		}
-		#else
-		exit(0);
-		#endif
-		break;
+		return RME_ERR_HALT;
 	
+	// 0x1A: Time
 	case 0x1A:
 		switch(State->AX.B.H)
 		{
 		case 0x00: {
-			uint32_t ticks = 0;
+			// Get time of day, and return properly
+			time_t t = time(NULL);
+			struct tm* tm = localtime(&t);
+			uint32_t seconds = tm->tm_hour * 3600 + tm->tm_min * 60 + tm->tm_sec;
+			uint32_t ticks = seconds * 182 / 10;
 			State->AX.B.L = 0;
 			State->CX.W = ticks >> 16;
 			State->DX.W = ticks & 0xFFFF;
 			break;
 			}
+		// TIME - SET SYSTEM TIME
+		case 0x01:
+			// Ignore, we have a better time?
+			break;
+		// TIME - GET REAL-TIME CLOCK TIME (AT,XT286,PS)
+		case 0x02: {
+			time_t t = time(NULL);
+			struct tm* tm = localtime(&t);
+			State->Flags &= ~FLAG_CF;
+			State->CX.B.H = bcd_byte(tm->tm_hour);
+			State->CX.B.L = bcd_byte(tm->tm_min);
+			State->DX.B.H = bcd_byte(tm->tm_sec);
+			State->DX.B.L = tm->tm_isdst;
+			break;
+		}
+		// TIME - SET REAL-TIME CLOCK TIME (AT,XT286,PS)
+		case 0x03:
+			// Ignore, we have a better time?
+			break;
+		// TIME - GET REAL-TIME CLOCK DATE (AT,XT286,PS)
+		case 0x04: {
+			time_t t = time(NULL);
+			struct tm* tm = localtime(&t);
+			State->Flags &= ~FLAG_CF;
+			State->CX.B.H = bcd_byte((tm->tm_year / 100) + 19);
+			State->CX.B.L = bcd_byte(tm->tm_year % 100);
+			State->DX.B.H = bcd_byte(tm->tm_mon + 1);
+			State->DX.B.L = bcd_byte(tm->tm_mday);
+			break;
+		}
+		// TIME - SET REAL-TIME CLOCK DATE (AT,XT286,PS)
+		case 0x05:
+			// Ignore, we have a better time?
+			break;
 		default:
 			PrintDebugF(State, "HLE Call INT 0x%02x AH=%02x Unknown\n", IntNum, State->AX.B.H);
-			RME_DumpRegs(State);
 			return RME_ERR_BUG;
 		}
 		break;
 
 	default:
 		PrintDebugF(State, "HLE Call INT 0x%02x Unknown\n", IntNum);
-		RME_DumpRegs(State);
 		return RME_ERR_BUG;
 	}
 	return 0;	// Emulate
