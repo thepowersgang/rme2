@@ -69,8 +69,8 @@ void UiTty_Deinit(void)
         // HACK: Wait for input before clearing
         // - Note the cursor movement being to stdout while the print is on stderr: That handles redirected stdout debugging
         printf("\x1b[28;1H");
+        printf("Press any key to exit\n");
         fflush(stdout);
-        fprintf(stderr, "Press any key to exit\n");
         fgetc(stdin);
 
         // Switch back to normal buffer
@@ -126,9 +126,10 @@ void UiTty_WaitEvent(struct sRME_State* State)
 
 void UiTty_int_SetChar(int row, int col, uint8_t ch, uint8_t attr)
 {
-    PrintDebugF(NULL, "UiTty_int_SetChar: %i,%i ch=0x%02x '%c' attr=%02x\n", col, row, ch, (0x20 <= ch && ch <= 0x7E) ? ch : '.', attr);
+    PrintDebugF(NULL, "UiTty_int_SetChar: %i,%i ch=0x%02x '%c' attr=%02x (cur=%i,%i)\n",
+        col, row, ch, (0x20 <= ch && ch <= 0x7E) ? ch : '.', attr, giUiTty_OutCursorX,giUiTty_OutCursorY);
     // Move the cursor
-    if( row != giUiTty_OutCursorY && col != giUiTty_OutCursorX ) {
+    if( row != giUiTty_OutCursorY || col != giUiTty_OutCursorX ) {
         if( row == 0 && col == 0 ) {
             printf("\n");   // HACK: Put a newline, so debug writing to a file is easier to read
             printf("\x1b[H");
@@ -138,13 +139,13 @@ void UiTty_int_SetChar(int row, int col, uint8_t ch, uint8_t attr)
             printf("\b");
         }
         // Special case 1-3 newlines
-        else if( row == giUiTty_OutCursorY+1 && col == 0) {
+        else if( row == giUiTty_OutCursorY+1 && col == 0 ) {
             printf("\n");
         }
-        else if( row == giUiTty_OutCursorY+2 && col == 0) {
+        else if( row == giUiTty_OutCursorY+2 && col == 0 ) {
             printf("\n\n");
         }
-        else if( row == giUiTty_OutCursorY+3 && col == 0) {
+        else if( row == giUiTty_OutCursorY+3 && col == 0 ) {
             printf("\n\n\n");
         }
         // Fallback: Absolutely position cursor
