@@ -185,15 +185,33 @@ int HLECall10(tRME_State *State, int IntNum)
 		int bx = State->DX.B.L;
 		int by = State->DX.B.H;
 		
+		if( bx > 80 ) { bx = 80; }
+		if( by > 25 ) { by = 25; }
+
+		if(tx > bx || bx > 80) {
+			FatalErrorF(State, "HLE 0x10 AH=06: X coords invalid %i--%i unordered or >80\n", tx, bx);
+			return RME_ERR_INVAL;
+		}
+		if(ty > by || by > 25) {
+			FatalErrorF(State, "HLE 0x10 AH=06: Y coords invalid %i--%i unordered or >25\n", ty, by);
+			return RME_ERR_INVAL;
+		}
+		
 		if( lines == 0 ) {
+			PrintDebugF(State, "HLE 0x10 AH=06: Clear screen (%i,%i to %i,%i w/ 0x%02x)\n",
+				tx, ty, bx, by, attr);
 			// AL=0: Clear screen
-			for( int i = 0; i < VIDEO_ROWS*VIDEO_COLS; i ++ )
-			{
-				gaMemory[0xB8000+i*2+0] = 0;
-				gaMemory[0xB8000+i*2+1] = attr;
+			for( int y = ty; y <= by; y ++ ) {
+				for( int x = tx; x <= bx; x ++ ) {
+					int i = y * 80 + x;
+					gaMemory[0xB8000+i*2+0] = ' ';
+					gaMemory[0xB8000+i*2+1] = attr;
+				}
 			}
 		}
 		else {
+			PrintDebugF(State, "HLE 0x10 AH=06: Scroll up (%i,%i to %i,%i by %i w/ 0x%02x)\n",
+				tx, ty, bx, by, lines, attr);
 			Video_ScrollUp(0, lines, attr, ty, tx, by, bx);
 		}
 		
