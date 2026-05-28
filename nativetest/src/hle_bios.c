@@ -267,6 +267,19 @@ int HLECall10(tRME_State *State, int IntNum)
 			return RME_ERR_BUG;
 		}
 		break;
+	// Extensions: 0x11XX (VGA CharGen)
+	case 0x11:
+		switch(State->AX.W)
+		{
+		// VIDEO - TEXT-MODE CHARGEN - LOAD ROM 8x16 CHARACTER SET (VGA)
+		case 0x1104:
+			PrintDebugF(State, "HLE 0x10 AX=0x%04x: Load block %i\n", State->AX.W, State->BX.B.L);
+			break;
+		default:
+			PrintDebugF(State, "HLE Call INT 0x10 AX=0x%04x Unk\n", State->AX.W);
+			return RME_ERR_BUG;
+		}
+		break;
 	// VIDEO - GET BLANKING ATTRIBUTE
 	case 0x12:
 		State->BX.B.H = 0;
