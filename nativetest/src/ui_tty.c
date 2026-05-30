@@ -181,7 +181,27 @@ void UiTty_int_SetChar(int row, int col, uint8_t ch, uint8_t attr)
     case 0xB5:  printf("┤");    break;
     case 0xB6:  printf("╡");    break;
     case 0xB7:  printf("╢");    break;
+
+    case 0xC0:  printf("└");    break;
+	case 0xC1:  printf("┴");    break;
+	case 0xC2:  printf("┬");    break;
+	case 0xC3:  printf("├");    break;
+	case 0xC4:  printf("─");    break;
+	case 0xC5:  printf("┼");    break;
+	case 0xC6:  printf("╞");    break;
+	case 0xC7:  printf("╟");    break;
+	case 0xC8:  printf("╚");    break;
+	case 0xC9:  printf("╔");    break;
+	case 0xCA:  printf("╩");    break;
+	case 0xCB:  printf("╦");    break;
+	case 0xCC:  printf("╠");    break;
+	case 0xCD:  printf("═");    break;
+	case 0xCE:  printf("╬");    break;
+	case 0xCF:  printf("╧");    break;
+    
+    case 0xDB:  printf("█");    break;
     default:
+        PrintDebugF(NULL, "Unknown character 0x%02x\n", ch);
         printf("�");  // unicode U+FFFD
         break;
     }
