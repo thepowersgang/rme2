@@ -227,6 +227,7 @@ int HLECall10(tRME_State *State, int IntNum)
 		 int	page = State->BX.B.H;
 		uint8_t	attr = State->BX.B.L;
 		 int	count = State->CX.W;
+		PrintDebugF(State, "HLE 0x10 AH=09: Write 0x%02x * %i attr=0x%02x pg=%i\n", ch, count, attr, page);
 		for( int i = 0; i < count; i ++ )
 		{
 			gaMemory[0xB8000+(giCursorY*80+giCursorX)*2+0] = ch;
@@ -241,6 +242,7 @@ int HLECall10(tRME_State *State, int IntNum)
 	// VIDEO - TELETYPE OUTPUT
 	case 0x0E:
 		// TODO: Better Colours
+		PrintDebugF(State, "HLE 0x10 AH=0E: Write 0x%02x\n", State->AX.B.L);
 		PutChar(State->AX.B.L, gCurAttributes);
 		//Video_Redraw();
 		break;
