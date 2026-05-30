@@ -54,6 +54,7 @@ enum sRegs
 	name##_RI_SI = code|DH|8,	name##_RI_DI = code|BH|8
 
 enum opcodes {
+	// cspell:disable
 	ADD_MR = 0x00,	ADD_MRX = 0x01,
 	ADD_RM = 0x02,	ADD_RMX = 0x03,
 	ADD_AI = 0x04,	ADD_AIX = 0x05,
@@ -185,6 +186,7 @@ enum opcodes {
 	REPNZ = 0xF2,	REP = 0xF3,
 	LOOPNZ = 0xE0,	LOOPZ = 0xE1,
 	LOOP = 0xE2
+	// cspell:enable
 };
 
 // --- Debug Macro ---
@@ -199,13 +201,13 @@ __attribute__((format(printf, 2, 3)))
 extern void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...);
 
 // --- Operation helpers
-//#define PAIRITY8(v)	((((v)>>7)&1)^(((v)>>6)&1)^(((v)>>5)&1)^(((v)>>4)&1)^(((v)>>3)&1)^(((v)>>2)&1)^(((v)>>1)&1)^((v)&1))
-#define PAIRITY8(v)	((((v)>>7)^((v)>>6)^((v)>>5)^((v)>>4)^((v)>>3)^((v)>>2)^((v)>>1)^(v))&1)
+//#define PARITY8(v)	((((v)>>7)&1)^(((v)>>6)&1)^(((v)>>5)&1)^(((v)>>4)&1)^(((v)>>3)&1)^(((v)>>2)&1)^(((v)>>1)&1)^((v)&1))
+#define PARITY8(v)	(( ((v)>>7) ^ ((v)>>6) ^ ((v)>>5) ^ ((v)>>4) ^ ((v)>>3) ^ ((v)>>2) ^ ((v)>>1) ^ (v) )&1)
 #define SET_COMM_FLAGS(State,v,w) do{\
 	State->Flags &= ~(FLAG_ZF|FLAG_SF|FLAG_PF);\
 	State->Flags |= ((v) == 0) ? FLAG_ZF : 0;\
 	State->Flags |= ((v) >> ((w)-1)) ? FLAG_SF : 0;\
-	State->Flags |= PAIRITY8(v) == 0 ? FLAG_PF : 0;\
+	State->Flags |= PARITY8(v) == 0 ? FLAG_PF : 0;\
 	}while(0)
 
 // --- Memory Helpers
