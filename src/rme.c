@@ -245,7 +245,6 @@ int RME_Int_DoOpcode(tRME_State *State)
 	State->Decoder.IPOffset = 0;
 	State->Decoder.DebugStringLen = 0;
 	State->Decoder.DebugString[0] = 0;
-	State->Scratch.Len = 0;
 	State->InstrNum ++;
 
 	if( State->DebugLevel > 0 ) {
@@ -339,11 +338,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 		}
 		RME_Int_DebugOut(State, "\n");
 	}
-
-	if( State->Scratch.Len > 0 ) {
-		ret = RME_Int_WriteBytes(State, State->Scratch.Addr >> 4, State->Scratch.Addr & 15, State->Scratch.Buf, State->Scratch.Len);
-		if(ret) return ret;
-	}
+	
 	return 0;
 }
 

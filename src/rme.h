@@ -241,15 +241,6 @@ typedef struct sRME_State
 		char	DebugString[64];	// Debug text
 	}	Decoder;
 
-	/**
-	 * \brief Memory scratch buffer, used for unaligned cross-region reads/writes
-	 */
-	struct {
-		uint32_t	Addr;
-		uint16_t	Len;
-		uint8_t	Buf[4];
-	} Scratch;
-
 }	tRME_State;
 
 
