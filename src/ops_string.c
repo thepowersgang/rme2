@@ -200,17 +200,14 @@ DEF_OPCODE_FCN(CMP, SB)
 	 int	ret;
 	STRING_HEAD(1, 1, 1, "", "", 1);
 	
-	uint8_t	tmp1, tmp2, v;
-	uint8_t	*dest=&tmp1, *src=&tmp2;
-	const int	width = 8;
+	uint8_t	val_l, val_r, v, *dest=&v;
 	
-	ret = RME_Int_Read8(State, srcSeg, srcOfs, &tmp1);
-	if(ret)	return ret;
-	ret = RME_Int_Read8(State, destSeg, destOfs, &tmp2);
-	if(ret)	return ret;
+	TRY(ret, RME_Int_Read8(State, srcSeg, srcOfs, &val_l));
+	TRY(ret, RME_Int_Read8(State, destSeg, destOfs, &val_r));
 	
 	{ALU_OPCODE_CMP_CODE}
-	SET_COMM_FLAGS(State, v, width);
+	SET_COMM_FLAGS(State, v);
+	(void)dest;
 	
 	STRING_FOOTER();
 	return 0;
@@ -222,33 +219,27 @@ DEF_OPCODE_FCN(CMP, SW)
 	if( State->Decoder.bOverrideOperand )
 	{
 		STRING_HEAD(1, 1, 1, "", "", 4);
-		uint32_t	tmp1, tmp2, v;
-		uint32_t	*dest=&tmp1, *src=&tmp2;
-		const int	width = 32;
+		uint32_t	val_l, val_r, v, *dest=&v;
 		
-		ret = RME_Int_Read32(State, srcSeg, srcOfs, &tmp1);
-		if(ret)	return ret;
-		ret = RME_Int_Read32(State, destSeg, destOfs, &tmp2);
-		if(ret)	return ret;
+		TRY(ret, RME_Int_Read32(State, srcSeg, srcOfs, &val_l));
+		TRY(ret, RME_Int_Read32(State, destSeg, destOfs, &val_r));
 		
 		{ALU_OPCODE_CMP_CODE}
-		SET_COMM_FLAGS(State, v, width);
+		SET_COMM_FLAGS(State, v);
+		(void)dest;
 		STRING_FOOTER();
 	}
 	else
 	{
 		STRING_HEAD(1, 1, 1, "", "", 2);
-		uint16_t	tmp1, tmp2, v;
-		uint16_t	*dest=&tmp1, *src=&tmp2;
-		const int	width = 16;
+		uint16_t	val_l, val_r, v, *dest=&v;
 		
-		ret = RME_Int_Read16(State, srcSeg, srcOfs, &tmp1);
-		if(ret)	return ret;
-		ret = RME_Int_Read16(State, destSeg, destOfs, &tmp2);
-		if(ret)	return ret;
+		TRY(ret, RME_Int_Read16(State, srcSeg, srcOfs, &val_l));
+		TRY(ret, RME_Int_Read16(State, destSeg, destOfs, &val_r));
 		
 		{ALU_OPCODE_CMP_CODE}
-		SET_COMM_FLAGS(State, v, width);
+		SET_COMM_FLAGS(State, v);
+		(void)dest;
 		STRING_FOOTER();
 	}
 	
@@ -261,15 +252,13 @@ DEF_OPCODE_FCN(SCA, SB)
 	 int	ret;
 	STRING_HEAD(1, 1, 0, "", "", 1);
 	
-	uint8_t	tmp, v;
-	uint8_t	*src=&tmp, *dest=&State->AX.B.L;
-	const int	width = 8;
-	ret = RME_Int_Read8(State, destSeg, destOfs, &tmp);
-	if(ret)	return ret;
+	uint8_t	v, val_l = State->AX.B.L, val_r, *dest = &v;
+	TRY(ret, RME_Int_Read8(State, destSeg, destOfs, &val_r));
 	
 	{ALU_OPCODE_CMP_CODE}
-	SET_COMM_FLAGS(State, v, width);
-	
+	SET_COMM_FLAGS(State, v);
+
+	(void)dest;
 	STRING_FOOTER();
 	return 0;
 }
@@ -280,31 +269,27 @@ DEF_OPCODE_FCN(SCA, SW)
 	if( State->Decoder.bOverrideOperand )
 	{
 		STRING_HEAD(1, 1, 0, "", " EAX", 4);
-		uint32_t	tmp, v;
-		uint32_t	*src=&tmp, *dest=&State->AX.D;
-		const int	width = 32;
+		uint32_t	val_l = State->AX.D, val_r, v, *dest = &v;
 		
-		ret = RME_Int_Read32(State, destSeg, destOfs, &tmp);
-		if(ret)	return ret;
+		TRY(ret, RME_Int_Read32(State, destSeg, destOfs, &val_r));
 		
 		{ALU_OPCODE_CMP_CODE}
-		SET_COMM_FLAGS(State, v, width);
+		SET_COMM_FLAGS(State, v);
 		
+		(void)dest;
 		STRING_FOOTER();
 	}
 	else
 	{
 		STRING_HEAD(1, 1, 0, "", " AX", 2);
-		uint16_t	tmp, v;
-		uint16_t	*src=&tmp, *dest=&State->AX.W;
-		const int	width = 16;
+		uint16_t	val_l = State->AX.D, val_r, v, *dest = &v;
 		
-		ret = RME_Int_Read16(State, destSeg, destOfs, &tmp);
-		if(ret)	return ret;
+		TRY(ret, RME_Int_Read16(State, destSeg, destOfs, &val_r));
 		
 		{ALU_OPCODE_CMP_CODE}
-		SET_COMM_FLAGS(State, v, width);
+		SET_COMM_FLAGS(State, v);
 		
+		(void)dest;
 		STRING_FOOTER();
 	}
 	

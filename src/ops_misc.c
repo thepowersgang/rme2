@@ -19,22 +19,21 @@ DEF_OPCODE_FCN(CBW, z)	// Convert signed Byte to Word (Or, Convert signed Word t
 DEF_OPCODE_FCN(BSF,z)
 {
 	int ret;
-	uint16_t	*dest, *src;
+	struct ValueRefX	dest;
+	uint16_t src;
 	
-	ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
-	if(ret)	return ret;
+	if( State->Decoder.bOverrideOperand )	return RME_ERR_UNDEFOPCODE;
+	TRY(ret, RME_Int_ParseModRMX_RRd16(State, &dest, &src));
 	
-	if( *src == 0 )
-	{
+	if( src == 0 ) {
 		State->Flags |= FLAG_ZF;
 	}
-	else
-	{
+	else {
 		const int width = 16;
 		 int	val = 0;
-		while(val < width && 0 == ((*src) & (1 << val)))
+		while(val < width && 0 == ((src) & (1 << val)))
 			val ++;
-		*dest = val;
+		TRY(ret, RME_Int_WriteV16(State, &dest, val));
 		State->Flags &= ~FLAG_ZF;
 	}
 	return 0;
@@ -61,7 +60,7 @@ DEF_OPCODE_FCN(AAA, z)
 		State->Flags &= ~(FLAG_AF|FLAG_CF);
 		State->AX.B.L &= 0xF;
 	}
-	SET_COMM_FLAGS(State, State->AX.B.L, 8);
+	SET_COMM_FLAGS(State, State->AX.B.L);
 	return 0;
 }
 
@@ -80,7 +79,7 @@ DEF_OPCODE_FCN(AAS, z)
 		State->Flags &= ~(FLAG_AF|FLAG_CF);
 		State->AX.B.L &= 0xF;
 	}
-	SET_COMM_FLAGS(State, State->AX.B.L, 8);
+	SET_COMM_FLAGS(State, State->AX.B.L);
 	return 0;
 }
 
@@ -92,7 +91,7 @@ DEF_OPCODE_FCN(AAM, z)
 	if(imm8 == 0)	return RME_ERR_DIVERR;
 	State->AX.B.H = State->AX.B.L / imm8;
 	State->AX.B.L = State->AX.B.L % imm8;
-	SET_COMM_FLAGS(State, State->AX.B.L, 8);
+	SET_COMM_FLAGS(State, State->AX.B.L);
 	return 0;
 }
 // 0xD5 - ASCII adjust AL before Division
@@ -102,7 +101,7 @@ DEF_OPCODE_FCN(AAD, z)
 	READ_INSTR8(imm8);
 	State->AX.B.L += State->AX.B.H * imm8;
 	State->AX.B.H = 0;
-	SET_COMM_FLAGS(State, State->AX.B.L, 8);
+	SET_COMM_FLAGS(State, State->AX.B.L);
 	State->Flags &= ~(FLAG_OF|FLAG_CF);	// Effect undefined, cleared for Artlav tests
 	return 0;
 }
@@ -134,7 +133,7 @@ DEF_OPCODE_FCN(DAA, z)
 	{
 		State->Flags &= ~FLAG_CF;
 	}
-	SET_COMM_FLAGS(State, State->AX.B.L, 8);
+	SET_COMM_FLAGS(State, State->AX.B.L);
 	return 0;
 }
 
@@ -161,7 +160,7 @@ DEF_OPCODE_FCN(DAS, z)
 		State->AX.B.L -= 0x60;
 		State->Flags |= FLAG_CF;
 	}
-	SET_COMM_FLAGS(State, State->AX.B.L, 8);
+	SET_COMM_FLAGS(State, State->AX.B.L);
 	return 0;
 }
 
@@ -307,24 +306,22 @@ DEF_OPCODE_FCN(XLAT, z)
 DEF_OPCODE_FCN(BTx,RI8)
 {
 	 int	ret;
-	 int	op_num = Param;
-	uint16_t	*src16;
-	uint32_t	*src32;
 	uint8_t	ofs;
+	struct ValueRefX	dest;
 	
-	if( op_num < 4 ) {
+	if( Param < 4 ) {
 		return RME_ERR_UNDEFOPCODE;
 	}
 	uint32_t	val;
 	 int	width;
 	if( State->Decoder.bOverrideOperand ) {
-		ret = RME_Int_ParseModRMX32(State, NULL, &src32, 0);
-		val = *src32;
+		TRY(ret, RME_Int_ParseModRMX_MRd32(State, &dest, &val));
 		width = 32;
 	}
 	else {
-		ret = RME_Int_ParseModRMX16(State, NULL, &src16, 0);
-		val = *src16;
+		uint16_t val16;
+		TRY(ret, RME_Int_ParseModRMX_MRd16(State, &dest, &val16));
+		val = val16;
 		width = 16;
 	}
 	if(ret)	return ret;
@@ -337,7 +334,7 @@ DEF_OPCODE_FCN(BTx,RI8)
 	else
 		State->Flags |= FLAG_CF;
 
-	switch(op_num)
+	switch(Param)
 	{
 	case 4:	// BT
 		return 0;
@@ -352,10 +349,13 @@ DEF_OPCODE_FCN(BTx,RI8)
 		break;
 	}
 	
-	if( State->Decoder.bOverrideOperand )
-		*src32 = val;
-	else
-		*src16 = val;
+	if( State->Decoder.bOverrideOperand ) {
+		TRY(ret, RME_Int_WriteV32(State, &dest, val));
+	}
+	else {
+		TRY(ret, RME_Int_WriteV16(State, &dest, val));
+	}
+	
 	return 0;
 }
 

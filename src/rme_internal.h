@@ -44,6 +44,8 @@ enum sRegs
 	SREG_GS,
 };
 
+#define TRY(ret, fcn)	do { ret = fcn; if(ret) return ret; } while(0)
+
 #define OPCODE_RI(name, code)	name##_RI_AL = code|AL,	name##_RI_BL = code|BL,\
 	name##_RI_CL = code|CL,	name##_RI_DL = code|DL,\
 	name##_RI_AH = code|AH,	name##_RI_BH = code|BH,\
@@ -203,10 +205,10 @@ extern void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...);
 // --- Operation helpers
 //#define PARITY8(v)	((((v)>>7)&1)^(((v)>>6)&1)^(((v)>>5)&1)^(((v)>>4)&1)^(((v)>>3)&1)^(((v)>>2)&1)^(((v)>>1)&1)^((v)&1))
 #define PARITY8(v)	(( ((v)>>7) ^ ((v)>>6) ^ ((v)>>5) ^ ((v)>>4) ^ ((v)>>3) ^ ((v)>>2) ^ ((v)>>1) ^ (v) )&1)
-#define SET_COMM_FLAGS(State,v,w) do{\
+#define SET_COMM_FLAGS(State,v) do{\
 	State->Flags &= ~(FLAG_ZF|FLAG_SF|FLAG_PF);\
 	State->Flags |= ((v) == 0) ? FLAG_ZF : 0;\
-	State->Flags |= ((v) >> ((w)-1)) ? FLAG_SF : 0;\
+	State->Flags |= ((v) >> (sizeof(v)*8-1)) ? FLAG_SF : 0;\
 	State->Flags |= PARITY8(v) == 0 ? FLAG_PF : 0;\
 	}while(0)
 
@@ -352,10 +354,14 @@ static inline WARN_UNUSED_RET int	RME_Int_Write32(tRME_State *State, uint16_t Se
 }
 
 struct ModRM {
-	unsigned mod: 2;
-	unsigned rrr: 3;
-	unsigned mmm: 3;
+	unsigned char mod;	// 2 bits
+	unsigned char rrr;	// 3 bits, a register or operator selector
+	unsigned char mmm;	// 3 bits
 };
+/// @brief Decode a ModRM byte
+/// @param State 
+/// @param out 
+/// @return  
 static inline int RME_Int_GetModRM(tRME_State *State, struct ModRM *out)
 {
 	uint8_t	byte;
@@ -365,12 +371,144 @@ static inline int RME_Int_GetModRM(tRME_State *State, struct ModRM *out)
 	out->mmm = (byte >> 0) & 7;
 	return 0;
 }
-extern WARN_UNUSED_RET int	RME_Int_ParseModRM (tRME_State *State, uint8_t **to, uint8_t **from, int bReverse);
-extern WARN_UNUSED_RET int	RME_Int_ParseModRMX16(tRME_State *State, uint16_t **to, uint16_t **from, int bReverse);
-extern WARN_UNUSED_RET int	RME_Int_ParseModRMX32(tRME_State *State, uint32_t **to, uint32_t **from, int bReverse);
-extern WARN_UNUSED_RET int	RME_Int_DecodeModM (tRME_State *State, uint8_t  **mem, const struct ModRM* modrm);
-extern WARN_UNUSED_RET int	RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* modrm, int WriteSize);
+#define VALUE_REF_FLAG_REGISTER	(1 << 0)
+#define VALUE_REF_FLAG_WRAP	(1 << 1)
+struct ValueRef {
+	/// @brief Flags on the value reference
+	/// - 0: Register or memory bit
+	/// - 1: Indicates that the address is within 16 bytes of the end of the segment. Either wrap (<286) or fault (286)
+	/// - 2: Stack segment was involved in the memory access
+	uint8_t	flags;
+	/// @brief 21 bit address (or register number)
+	uint8_t	addr[3];
+};
+struct ValueRefX {
+	struct ValueRef	r;
+};
+/// @brief Load and parse the ModRM byte, decoding/printing `rrr` before `mmm`
+extern WARN_UNUSED_RET int	RME_Int_ParseModRM(tRME_State *State, struct ValueRef *reg, struct ValueRef *mem);
+extern WARN_UNUSED_RET int	RME_Int_ParseModRMX(tRME_State *State, struct ValueRefX *reg, struct ValueRefX* mem);
+/// @brief Load and parse the ModRM byte, decoding/printing `mmm` before `rrr`
+extern WARN_UNUSED_RET int	RME_Int_ParseModRMRev(tRME_State *State, struct ValueRef *reg, struct ValueRef *mem);
+extern WARN_UNUSED_RET int	RME_Int_ParseModRMXRev(tRME_State *State, struct ValueRefX *reg, struct ValueRefX *mem);
+/// @brief Decode (and print) the MMM part of a ModRM byte
+/// @param State Emulator state structure
+/// @param modrm Decomposes ModRM byte
+/// @param mem Output memory value reference
+/// @return Error code
+extern WARN_UNUSED_RET int	RME_Int_DecodeModM (tRME_State *State, const struct ModRM* modrm, struct ValueRef *mem);
+extern WARN_UNUSED_RET int	RME_Int_DecodeModMX(tRME_State *State, const struct ModRM* modrm, struct ValueRefX *mem);
+/// @brief Decode the MMM part of a ModRM byte into a segment:offset address
 extern WARN_UNUSED_RET int	RME_Int_GetMMM(tRME_State *State, const struct ModRM* modrm, uint16_t *Segment, uint32_t *Address);
+
+extern WARN_UNUSED_RET int RME_Int_ReadV8(tRME_State *State, struct ValueRef* Ref, uint8_t *Dst);
+extern WARN_UNUSED_RET int RME_Int_ReadV16(tRME_State *State, struct ValueRefX* Ref, uint16_t *Dst);
+extern WARN_UNUSED_RET int RME_Int_ReadV32(tRME_State *State, struct ValueRefX* Ref, uint32_t *Dst);
+extern WARN_UNUSED_RET int RME_Int_WriteV8(tRME_State *State, struct ValueRef* Ref, uint8_t Val);
+extern WARN_UNUSED_RET int RME_Int_WriteV16(tRME_State *State, struct ValueRefX* Ref, uint16_t Val);
+extern WARN_UNUSED_RET int RME_Int_WriteV32(tRME_State *State, struct ValueRefX* Ref, uint32_t Val);
+
+/// Parse the ModRM byte, reading u8 from both operands
+static inline WARN_UNUSED_RET int RME_Int_ParseModRM_Rd8Both(tRME_State *State, struct ValueRef *rrr, uint8_t *reg, uint8_t *mem) {
+	int ret;
+	struct ValueRef src;
+	TRY(ret, RME_Int_ParseModRM(State, rrr, &src));
+	TRY(ret, RME_Int_ReadV8(State, rrr, reg));
+	TRY(ret, RME_Int_ReadV8(State, &src, mem));
+	return 0;
+}
+static inline WARN_UNUSED_RET int RME_Int_ParseModRMX_Rd16Both(tRME_State *State, struct ValueRefX *rrr, uint16_t* reg, uint16_t *mem) {
+	int ret;
+	struct ValueRefX src;
+	TRY(ret, RME_Int_ParseModRMX(State, rrr, &src));
+	TRY(ret, RME_Int_ReadV16(State, rrr, reg));
+	TRY(ret, RME_Int_ReadV16(State, &src, mem));
+	return 0;
+}
+static inline WARN_UNUSED_RET int RME_Int_ParseModRMX_Rd32Both(tRME_State *State, struct ValueRefX *rrr, uint32_t* reg, uint32_t *mem) {
+	int ret;
+	struct ValueRefX src;
+	TRY(ret, RME_Int_ParseModRMX(State, rrr, &src));
+	TRY(ret, RME_Int_ReadV32(State, rrr, reg));
+	TRY(ret, RME_Int_ReadV32(State, &src, mem));
+	return 0;
+}
+
+/// Parse the ModRM byte in reverse order (mmm, rrr) reading u8 from both
+static inline WARN_UNUSED_RET int RME_Int_ParseModRMRev_Rd8Both(tRME_State *State, struct ValueRef *mmm, uint8_t *mem, uint8_t *reg) {
+	int ret;
+	struct ValueRef src;
+	TRY(ret, RME_Int_ParseModRMRev(State, &src, mmm));
+	TRY(ret, RME_Int_ReadV8(State, mmm, mem));
+	TRY(ret, RME_Int_ReadV8(State, &src, reg));
+	return 0;
+}
+static inline WARN_UNUSED_RET int RME_Int_ParseModRMXRev_Rd16Both(tRME_State *State, struct ValueRefX *mmm, uint16_t *mem, uint16_t *reg) {
+	int ret;
+	struct ValueRefX src;
+	TRY(ret, RME_Int_ParseModRMXRev(State, &src, mmm));
+	TRY(ret, RME_Int_ReadV16(State, mmm, mem));
+	TRY(ret, RME_Int_ReadV16(State, &src, reg));
+	return 0;
+}
+static inline WARN_UNUSED_RET int RME_Int_ParseModRMXRev_Rd32Both(tRME_State *State, struct ValueRefX *mmm, uint32_t *mem, uint32_t *reg) {
+	int ret;
+	struct ValueRefX src;
+	TRY(ret, RME_Int_ParseModRMXRev(State, &src, mmm));
+	TRY(ret, RME_Int_ReadV32(State, mmm, mem));
+	TRY(ret, RME_Int_ReadV32(State, &src, reg));
+	return 0;
+}
+
+/// Parse just the mmm operand, and read from it
+static inline WARN_UNUSED_RET int RME_Int_ParseModRM_MRd8(tRME_State *State, struct ValueRef *mmm, uint8_t *mem)
+{
+	int ret;
+	TRY(ret, RME_Int_ParseModRM(State, NULL, mmm));
+	TRY(ret, RME_Int_ReadV8(State, mmm, mem));
+	return 0;
+}
+static inline WARN_UNUSED_RET int RME_Int_ParseModRMX_MRd16(tRME_State *State, struct ValueRefX *mmm, uint16_t *mem)
+{
+	int ret;
+	TRY(ret, RME_Int_ParseModRMX(State, NULL, mmm));
+	TRY(ret, RME_Int_ReadV16(State, mmm, mem));
+	return 0;
+}
+static inline WARN_UNUSED_RET int RME_Int_ParseModRMX_MRd32(tRME_State *State, struct ValueRefX *mmm, uint32_t *mem)
+{
+	int ret;
+	TRY(ret, RME_Int_ParseModRMX(State, NULL, mmm));
+	TRY(ret, RME_Int_ReadV32(State, mmm, mem));
+	return 0;
+}
+
+
+/// Parse both operands (rrr then mmm), reading u8 from mmm and providing the rrr operand
+static inline WARN_UNUSED_RET int RME_Int_ParseModRM_RRdM8(tRME_State *State, struct ValueRef *rrr, uint8_t *mem)
+{
+	int ret;
+	struct ValueRef	mmm;
+	TRY(ret, RME_Int_ParseModRM(State, rrr, &mmm));
+	TRY(ret, RME_Int_ReadV8(State, &mmm, mem));
+	return 0;
+}
+static inline WARN_UNUSED_RET int RME_Int_ParseModRMX_RRd16(tRME_State *State, struct ValueRefX *rrr, uint16_t *mem)
+{
+	int ret;
+	struct ValueRefX mmm;
+	TRY(ret, RME_Int_ParseModRMX(State, rrr, &mmm));
+	TRY(ret, RME_Int_ReadV16(State, &mmm, mem));
+	return 0;
+}
+static inline WARN_UNUSED_RET int RME_Int_ParseModRMX_RRd32(tRME_State *State, struct ValueRefX *rrr, uint32_t *mem)
+{
+	int ret;
+	struct ValueRefX mmm;
+	TRY(ret, RME_Int_ParseModRMX(State, rrr, &mmm));
+	TRY(ret, RME_Int_ReadV32(State, &mmm, mem));
+	return 0;
+}
 
 // --- Stack Primitives ---
 // TODO: Possible support for non 16-bit stack segment
@@ -380,11 +518,11 @@ extern WARN_UNUSED_RET int	RME_Int_GetMMM(tRME_State *State, const struct ModRM*
 	if(ret)return ret;\
 	}while(0)
 #define POP(dst)	do{\
-	uint16_t v;\
-	ret=RME_Int_Read16(State,State->SS,State->SP.W,&v);\
+	uint16_t _tmp_v;\
+	ret=RME_Int_Read16(State,State->SS,State->SP.W,&_tmp_v);\
 	if(ret)return ret;\
 	State->SP.W+=2;\
-	(dst)=v;\
+	(dst)=_tmp_v;\
 	}while(0)
 
 // --- Register Selecting ---

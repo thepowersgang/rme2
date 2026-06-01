@@ -364,21 +364,29 @@ DEF_OPCODE_FCN(Ext,0F)
 
 DEF_OPCODE_FCN(Unary, M)	// INC/DEC r/m8
 {
-	const int	width = 8;
 	 int	ret;
-	uint8_t	*dest;
+	struct ValueRef	dest;
+	uint8_t	v;
 	
 	switch(Param)
 	{
 	case 0:	// INC
-		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
+		ret = RME_Int_ParseModRMRev(State, NULL, &dest);
 		if(ret)	return ret;
-		{ALU_OPCODE_INC_CODE}
+		ret = RME_Int_ReadV8(State, &dest, &v);
+		if(ret)	return ret;
+		{ALU_OPCODE_INC_CODE(v)}
+		ret = RME_Int_WriteV8(State, &dest, v);
+		if(ret)	return ret;
 		break;
 	case 1:	// DEC
-		ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
+		ret = RME_Int_ParseModRMRev(State, NULL, &dest);
 		if(ret)	return ret;
-		{ALU_OPCODE_DEC_CODE}
+		ret = RME_Int_ReadV8(State, &dest, &v);
+		if(ret)	return ret;
+		{ALU_OPCODE_DEC_CODE(v)}
+		ret = RME_Int_WriteV8(State, &dest, v);
+		if(ret)	return ret;
 		break;
 	default:
 		RME_Int_ErrorPrint(State, " - Unary M /%i unimplemented\n", Param);
@@ -417,29 +425,31 @@ int RME_Int_ParseModRMX_FarPtr(tRME_State* State, uint16_t* cs, uint16_t* ip)
 DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 {
 	 int	ret;
+	struct ValueRefX	dest;
 
 	if( State->Decoder.bOverrideOperand )
 	{
-		uint32_t	*dest;
-		const int	width = 32;	
+		uint32_t	v;
 		switch( Param )
 		{
 		case 0:
-			ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);
-			if(ret)	return ret;
-			{ALU_OPCODE_INC_CODE}
-			SET_COMM_FLAGS(State, *dest, width);
+			TRY(ret, RME_Int_ParseModRMXRev(State, NULL, &dest));
+			TRY(ret, RME_Int_ReadV32(State, &dest, &v));
+			{ALU_OPCODE_INC_CODE(v)}
+			TRY(ret, RME_Int_WriteV32(State, &dest, v));
 			break;
 		case 1:
-			ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);
-			if(ret)	return ret;
-			{ALU_OPCODE_DEC_CODE}
-			SET_COMM_FLAGS(State, *dest, width);
+			TRY(ret, RME_Int_ParseModRMXRev(State, NULL, &dest));
+			TRY(ret, RME_Int_ReadV32(State, &dest, &v));
+			{ALU_OPCODE_DEC_CODE(v)}
+			TRY(ret, RME_Int_WriteV32(State, &dest, v));
 			break;
 		case 6:
-			ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);	//Get Register Value
+			ret = RME_Int_ParseModRMXRev(State, NULL, &dest);
 			if(ret)	return ret;
-			PUSH( *dest );
+			ret = RME_Int_ReadV32(State, &dest, &v);
+			if(ret)	return ret;
+			PUSH( v );
 			break;
 		default:
 			RME_Int_ErrorPrint(State, " - Unary MX (32) /%i unimplemented\n", Param);
@@ -448,33 +458,31 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 	}
 	else
 	{
+		uint16_t v;
 		uint16_t cs, ip;
-		uint16_t	*dest;
-		const int	width = 16;	
 		switch( Param )
 		{
 		case 0:	// INC
-			ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
-			if(ret)	return ret;
-			{ALU_OPCODE_INC_CODE}
-			SET_COMM_FLAGS(State, *dest, width);
+			TRY(ret, RME_Int_ParseModRMX(State, NULL, &dest));
+			TRY(ret, RME_Int_ReadV16(State, &dest, &v));
+			{ALU_OPCODE_INC_CODE(v)}
+			TRY(ret, RME_Int_WriteV16(State, &dest, v));
 			break;
 		case 1:	// DEC
-			ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
-			if(ret)	return ret;
-			{ALU_OPCODE_DEC_CODE}
-			SET_COMM_FLAGS(State, *dest, width);
+			TRY(ret, RME_Int_ParseModRMX(State, NULL, &dest));
+			TRY(ret, RME_Int_ReadV16(State, &dest, &v));
+			{ALU_OPCODE_DEC_CODE(v)}
+			TRY(ret, RME_Int_WriteV16(State, &dest, v));
 			break;
 		case 2:	// Call Near Indirect
-			ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
-			if(ret)	return ret;
+			TRY(ret, RME_Int_ParseModRMX(State, NULL, &dest));
+			TRY(ret, RME_Int_ReadV16(State, &dest, &v));
 			PUSH(State->IP + State->Decoder.IPOffset);
-			State->IP = *dest;
+			State->IP = v;
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 3:	// Call Far Indirect
-			ret = RME_Int_ParseModRMX_FarPtr(State, &cs, &ip);
-			if(ret) return ret;
+			TRY(ret, RME_Int_ParseModRMX_FarPtr(State, &cs, &ip));
 			PUSH(State->CS);
 			PUSH(State->IP + State->Decoder.IPOffset);
 			State->IP = ip;
@@ -482,22 +490,21 @@ DEF_OPCODE_FCN(Unary, MX)	// INC/DEC r/m16, CALL/JMP/PUSH r/m16
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 4:	// Jump Near Indirect
-			ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
-			if(ret)	return ret;
-			State->IP = *dest;
+			TRY(ret, RME_Int_ParseModRMX(State, NULL, &dest));
+			TRY(ret, RME_Int_ReadV16(State, &dest, &v));
+			State->IP = v;
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 5:	// Jump Far Indirect
-			ret = RME_Int_ParseModRMX_FarPtr(State, &cs, &ip);
-			if(ret) return ret;
+			TRY(ret, RME_Int_ParseModRMX_FarPtr(State, &cs, &ip));
 			State->IP = ip;
 			State->CS = cs;
 			State->Decoder.bDontChangeIP = 1;
 			break;
 		case 6:	// Push
-			ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
-			if(ret)	return ret;
-			PUSH( *dest );
+			TRY(ret, RME_Int_ParseModRMX(State, NULL, &dest));
+			TRY(ret, RME_Int_ReadV16(State, &dest, &v));
+			PUSH( v );
 			break;
 		case 7:	// UNDEFINED!
 			RME_Int_ErrorPrint(State, " - Unary MX (16) /7 not defined\n");
@@ -778,59 +785,71 @@ int RME_Int_GetMMM(tRME_State *State, const struct ModRM* modrm, uint16_t *Segme
 	return 0;
 }
 
-int RME_Int_DecodeModM(tRME_State *State, uint8_t **mem, const struct ModRM* modrm)
+int RME_Int_DecodeModM(tRME_State *State, const struct ModRM* modrm, struct ValueRef *mem)
 {
 	int ret = 0;
 	if( modrm->mod == 3 ) {
-		*mem = RegB( State, modrm->mmm );
+		mem->flags = 1;
+		mem->addr[0] = modrm->mmm;
+		RegB(State, modrm->mmm);
 	}
 	else {
 		uint16_t	segment;
 		uint32_t	offset;
-		ret = RME_Int_GetMMM( State, modrm, &segment, &offset );
-		if(ret)	return ret;
-		struct MemRef mr;
-		ret = RME_Int_GetPtr(State, segment, offset, 1, &mr);
-		if(ret)	return ret;
-		*mem = mr.range1;
+		TRY(ret, RME_Int_GetMMM( State, modrm, &segment, &offset ));
+		mem->flags = 0
+			| (offset >= 0xFFF0 ? VALUE_REF_FLAG_WRAP : 0)
+			;
+		uint32_t	linear = ((uint32_t)segment * 16) + offset;
+		mem->addr[0] = linear >> 0;
+		mem->addr[1] = linear >> 8;
+		mem->addr[2] = linear >> 16;
 	}
 	return ret;
 }
 
-/// @brief Decode the M part of the ModRM byte into a pointer
-/// @param State 
-/// @param mem Output pointer (may be a pointer to a 32-bit slot, if `|write_size|==4`)
-/// @param modrm Input ModRM byte
-/// @param write_size If positive, this is a write. If negative, it's a read. Magnitude is the size
-/// @return Status code
-int RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* modrm, int write_size)
+int RME_Int_DecodeModMX(tRME_State *State, const struct ModRM* modrm, struct ValueRefX *mem)
 {
 	int ret;
 	if( modrm->mod == 3 ) {
-		*mem = RegW( State, modrm->mmm );
+		mem->r.flags = VALUE_REF_FLAG_REGISTER;
+		mem->r.addr[0] = modrm->mmm;
+		RegW(State, modrm->mmm);
 	}
 	else {
 		uint16_t	segment;
 		uint32_t	offset;
-		ret = RME_Int_GetMMM( State, modrm, &segment, &offset );
-		if(ret)	return ret;
-		struct MemRef mr;
-		size_t len = write_size < 0 ? -write_size : write_size;
-		ret = RME_Int_GetPtr(State, segment, offset, len, &mr);
-		if(ret)	return ret;
-		if( mr.len_1 != len ) {
-			// Use a bounce buffer, written back at the end of the instruction
-			assert(len <= sizeof(State->Scratch.Buf));
-			assert(State->Scratch.Len == 0);
-			State->Scratch.Len = len;
-			State->Scratch.Addr = (uint32_t)segment * 16 + offset;
-			memcpy(State->Scratch.Buf, mr.range1, mr.len_1);
-			memcpy(State->Scratch.Buf + mr.len_1, mr.range2, len - mr.len_1);
-			*mem = (void*)State->Scratch.Buf;
-		}
-		else {
-			*mem = mr.range1;
-		}
+		TRY(ret, RME_Int_GetMMM( State, modrm, &segment, &offset ));
+		mem->r.flags = 0
+			| (offset >= 0xFFF0 ? VALUE_REF_FLAG_WRAP : 0)
+			;
+		uint32_t	linear = ((uint32_t)segment * 16) + offset;
+		mem->r.addr[0] = linear >> 0;
+		mem->r.addr[1] = linear >> 8;
+		mem->r.addr[2] = linear >> 16;
+	}
+	return 0;
+}
+
+int RME_Int_ParseModRM_Inner(tRME_State *State, struct ValueRef* reg, struct ValueRef* mem, int bReverse)
+{
+	 int	ret;
+
+	struct ModRM modrm;
+	TRY(ret, RME_Int_GetModRM(State, &modrm));
+	
+	if(reg && !bReverse) {
+		reg->flags = VALUE_REF_FLAG_REGISTER;
+		reg->addr[0] = modrm.rrr;
+		RegB(State, modrm.rrr);
+	}
+	if(mem) {
+		TRY(ret, RME_Int_DecodeModM(State, &modrm, mem));
+	}
+	if(reg && bReverse) {
+		reg->flags = 1;
+		reg->addr[0] = modrm.rrr;
+		RegB(State, modrm.rrr);
 	}
 	return 0;
 }
@@ -841,69 +860,146 @@ int RME_Int_DecodeModMX(tRME_State *State, uint16_t **mem, const struct ModRM* m
  * \param to	R field destination (ignored if NULL)
  * \param from	M field destination (ignored if NULL)
  */
-int RME_Int_ParseModRM(tRME_State *State, uint8_t **reg, uint8_t **mem, int bReverse)
+int RME_Int_ParseModRM(tRME_State *State, struct ValueRef* reg, struct ValueRef* mem)
+{
+	return RME_Int_ParseModRM_Inner(State, reg, mem, 0);
+}
+int RME_Int_ParseModRMRev(tRME_State *State, struct ValueRef* reg, struct ValueRef* mem)
+{
+	return RME_Int_ParseModRM_Inner(State, reg, mem, 1);
+}
+
+int RME_Int_ParseModRMX_Inner(tRME_State *State, struct ValueRefX *reg, struct ValueRefX *mem, int bReverse)
 {
 	 int	ret;
 
 	struct ModRM modrm;
-	ret = RME_Int_GetModRM(State, &modrm);
-	if(ret) return ret;
+	TRY(ret, RME_Int_GetModRM(State, &modrm));
 	
-	if(!bReverse && reg) *reg = RegB( State, modrm.rrr );
-	if(mem) {
-		ret = RME_Int_DecodeModM(State, mem, &modrm);
-		if(ret) return ret;
+	if(reg && !bReverse) {
+		reg->r.flags = 1;
+		reg->r.addr[0] = modrm.rrr;
+		RegW( State, modrm.rrr );
 	}
-	if( bReverse && reg) *reg = RegB( State, modrm.rrr );
+	if(mem) {
+		TRY(ret, RME_Int_DecodeModMX(State, &modrm, mem));
+	}
+	if(reg && bReverse) {
+		reg->r.flags = 1;
+		reg->r.addr[0] = modrm.rrr;
+		RegW( State, modrm.rrr );
+	}
 	return 0;
 }
-
-/**
- * \brief Parses the ModR/M byte as a 16-bit value
- * \param State Emulator State
- * \param to    R field destination (ignored if NULL)
- * \param from  M field destination (ignored if NULL)
- * \param bReverse `rrr` is the second (source) parameter instead of first (destination)
- */
-int RME_Int_ParseModRMX16(tRME_State *State, uint16_t **reg, uint16_t **mem, int bReverse)
+int RME_Int_ParseModRMX(tRME_State *State, struct ValueRefX *reg, struct ValueRefX  *mem)
 {
-	 int	ret;
-
-	struct ModRM modrm;
-	ret = RME_Int_GetModRM(State, &modrm);
-	if(ret) return ret;
-	
-	if(!bReverse && reg) *reg = RegW( State, modrm.rrr );
-	if(mem) {
-		ret = RME_Int_DecodeModMX(State, mem, &modrm, bReverse ? 2 : -2);
-		if(ret) return ret;
-	}
-	if( bReverse && reg) *reg = RegW( State, modrm.rrr );
-	return 0;
+	return RME_Int_ParseModRMX_Inner(State, reg, mem, 0);
 }
-
-/**
- * \brief Parses the ModR/M byte as a 32-bit value
- * \param State	Emulator State
- * \param to	R field destination (ignored if NULL)
- * \param from	M field destination (ignored if NULL)
- */
-int RME_Int_ParseModRMX32(tRME_State *State, uint32_t **reg, uint32_t **mem, int bReverse)
+int RME_Int_ParseModRMXRev(tRME_State *State, struct ValueRefX *reg, struct ValueRefX  *mem)
 {
-	 int	ret;
-
-	struct ModRM modrm;
-	ret = RME_Int_GetModRM(State, &modrm);
-	if(ret) return ret;
-	
-	if(!bReverse && reg) *reg = (void*)RegW( State, modrm.rrr );
-	if(mem) {
-		ret = RME_Int_DecodeModMX(State, (uint16_t**)mem, &modrm, bReverse ? 4 : -4);
-		if(ret) return ret;
-	}
-	if( bReverse && reg) *reg = (void*)RegW( State, modrm.rrr );
-	return 0;
+	return RME_Int_ParseModRMX_Inner(State, reg, mem, 1);
 }
+
+static void _recreate_ptr(struct ValueRef* Ref, uint16_t* seg, uint16_t* ofs) {
+	uint32_t linear =
+		(uint32_t)Ref->addr[2] * 0x10000
+		| (uint32_t)Ref->addr[1] * 0x100
+		| Ref->addr[0]
+		;
+	if(Ref->flags & VALUE_REF_FLAG_WRAP) {
+		// Linear address is within one nibble of the end, thus the offset must be 0xFFFx
+		*ofs = 0xFFF0 + (linear & 0xF);
+		linear -= *ofs;
+		assert((linear & 0xF) == 0);
+		*seg = linear >> 4;
+	}
+	else {
+		*seg = linear >> 4;
+		*ofs = linear & 0xF;
+	}
+}
+int RME_Int_ReadV8(tRME_State *State, struct ValueRef* Ref, uint8_t *Dst) {
+	if(Ref->flags & 1) {
+		int num = Ref->addr[0] & 7;
+		*Dst = num >= 4
+			? State->GPRs[num-4].B.H
+			: State->GPRs[num].B.L
+			;
+		return 0;
+	}
+	else {
+		uint16_t s = Ref->addr[2] * 0x1000;
+		uint16_t o = Ref->addr[1] * 0x100 | Ref->addr[0];
+		return RME_Int_Read8(State, s, o, Dst);
+	}
+}
+int RME_Int_ReadV16(tRME_State *State, struct ValueRefX* Ref, uint16_t *Dst) {
+	if(Ref->r.flags & VALUE_REF_FLAG_REGISTER) {
+		int num = Ref->r.addr[0] & 7;
+		*Dst = State->GPRs[num].W;
+		return 0;
+	}
+	else {
+		uint16_t s, o;
+		_recreate_ptr(&Ref->r, &s, &o);
+		return RME_Int_Read16(State, s, o, Dst);
+	}
+}
+int RME_Int_ReadV32(tRME_State *State, struct ValueRefX* Ref, uint32_t *Dst) {
+	if(Ref->r.flags & VALUE_REF_FLAG_REGISTER) {
+		int num = Ref->r.addr[0] & 7;
+		*Dst = State->GPRs[num].D;
+		return 0;
+	}
+	else {
+		uint16_t s, o;
+		_recreate_ptr(&Ref->r, &s, &o);
+		return RME_Int_Read32(State, s, o, Dst);
+	}
+}
+int RME_Int_WriteV8(tRME_State *State, struct ValueRef* Ref, uint8_t Val) {
+	if(Ref->flags & 1) {
+		int num = Ref->addr[0] & 7;
+		if(num >= 4) {
+			State->GPRs[num-4].B.H = Val;
+		}
+		else {
+			State->GPRs[num].B.L = Val;
+		}
+		return 0;
+	}
+	else {
+		uint16_t s = Ref->addr[2] * 0x1000;
+		uint16_t o = Ref->addr[1] * 0x100 | Ref->addr[0];
+		return RME_Int_Write8(State, s, o, Val);
+	}
+}
+int RME_Int_WriteV16(tRME_State *State, struct ValueRefX* Ref, uint16_t Val) {
+	if(Ref->r.flags & VALUE_REF_FLAG_REGISTER) {
+		int num = Ref->r.addr[0] & 7;
+		State->GPRs[num].W = Val;
+		return 0;
+	}
+	else {
+		uint16_t s, o;
+		_recreate_ptr(&Ref->r, &s, &o);
+		return RME_Int_Write16(State, s, o, Val);
+	}
+}
+int RME_Int_WriteV32(tRME_State *State, struct ValueRefX* Ref, uint32_t Val) {
+	if(Ref->r.flags & VALUE_REF_FLAG_REGISTER) {
+		int num = Ref->r.addr[0] & 7;
+		State->GPRs[num].D = Val;
+		return 0;
+	}
+	else {
+		uint16_t s, o;
+		_recreate_ptr(&Ref->r, &s, &o);
+		return RME_Int_Write32(State, s, o, Val);
+	}
+}
+
+
 
 /// @brief Convert an emulated segment:offset pointer into a memory pointer
 /// @param State Emulator state

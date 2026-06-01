@@ -14,31 +14,32 @@
 DEF_OPCODE_FCN(MOV, MR)
 {
 	 int	ret;
-	uint8_t	*dest, *src;
-	ret = RME_Int_ParseModRM(State, &src, &dest, 1);
-	if(ret)	return ret;
+	struct ValueRef dest, src;
+	TRY(ret, RME_Int_ParseModRMRev(State, &src, &dest));
 	
-	*dest = *src;
+	uint8_t v;
+	TRY(ret, RME_Int_ReadV8(State, &src, &v));
+	TRY(ret, RME_Int_WriteV8(State, &dest, v));
 	
 	return 0;
 }
 DEF_OPCODE_FCN(MOV, MRX)
 {
 	 int	ret;
+	struct ValueRefX dest, src;
+	TRY(ret, RME_Int_ParseModRMXRev(State, &src, &dest));
 	
 	if( State->Decoder.bOverrideOperand )
 	{
-		uint32_t	*dest, *src;
-		ret = RME_Int_ParseModRMX32(State, &src, &dest, 1);
-		if(ret)	return ret;
-		*dest = *src;
+		uint32_t v;
+		TRY(ret, RME_Int_ReadV32(State, &src, &v));
+		TRY(ret, RME_Int_WriteV32(State, &dest, v));
 	}
 	else
 	{
-		uint16_t	*dest, *src;
-		ret = RME_Int_ParseModRMX16(State, &src, &dest, 1);
-		if(ret)	return ret;
-		*dest = *src;
+		uint16_t v;
+		TRY(ret, RME_Int_ReadV16(State, &src, &v));
+		TRY(ret, RME_Int_WriteV16(State, &dest, v));
 	}
 	
 	return 0;
@@ -48,31 +49,32 @@ DEF_OPCODE_FCN(MOV, MRX)
 DEF_OPCODE_FCN(MOV, RM)
 {
 	 int	ret;
-	uint8_t	*dest, *src;
-	ret = RME_Int_ParseModRM(State, &dest, &src, 0);
-	if(ret)	return ret;
+	struct ValueRef dest, src;
+	TRY(ret, RME_Int_ParseModRM(State, &dest, &src));
 	
-	*dest = *src;
+	uint8_t v;
+	TRY(ret, RME_Int_ReadV8(State, &src, &v));
+	TRY(ret, RME_Int_WriteV8(State, &dest, v));
 	
 	return 0;
 }
 DEF_OPCODE_FCN(MOV, RMX)
 {
 	 int	ret;
+	struct ValueRefX dest, src;
+	TRY(ret, RME_Int_ParseModRMX(State, &dest, &src));
 	
 	if( State->Decoder.bOverrideOperand )
 	{
-		uint32_t	*dest, *src;
-		ret = RME_Int_ParseModRMX32(State, &dest, &src, 0);
-		if(ret)	return ret;
-		*dest = *src;
+		uint32_t v;
+		TRY(ret, RME_Int_ReadV32(State, &src, &v));
+		TRY(ret, RME_Int_WriteV32(State, &dest, v));
 	}
 	else
 	{
-		uint16_t	*dest, *src;
-		ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
-		if(ret)	return ret;
-		*dest = *src;
+		uint16_t v;
+		TRY(ret, RME_Int_ReadV16(State, &src, &v));
+		TRY(ret, RME_Int_WriteV16(State, &dest, v));
 	}
 	
 	return 0;
@@ -81,35 +83,35 @@ DEF_OPCODE_FCN(MOV, RMX)
 DEF_OPCODE_FCN(MOV, MI )
 {
 	 int	ret;
-	uint8_t	val, *dest;
-	ret = RME_Int_ParseModRM(State, NULL, &dest, 0);
-	if(ret)	return ret;
+	struct ValueRef	dest;
+	TRY(ret, RME_Int_ParseModRMRev(State, NULL, &dest));
+	uint8_t	val;
 	READ_INSTR8( val );
 	RME_Int_DebugPrint(State, " 0x%02x", val);
-	*dest = val;
+
+	TRY(ret, RME_Int_WriteV8(State, &dest, val));
+	
 	return 0;
 }
 DEF_OPCODE_FCN(MOV, MIX)
 {
 	 int	ret;
+	struct ValueRefX	dest;
+	TRY(ret, RME_Int_ParseModRMXRev(State, NULL, &dest));
 	
 	if(State->Decoder.bOverrideOperand)
 	{
-		uint32_t	val, *dest;
-		ret = RME_Int_ParseModRMX32(State, NULL, &dest, 0);
-		if(ret)	return ret;
+		uint32_t	val;
 		READ_INSTR32( val );
 		RME_Int_DebugPrint(State, " 0x%08x", val);
-		*dest = val;
+		TRY(ret, RME_Int_WriteV32(State, &dest, val));
 	}
 	else
 	{
-		uint16_t	val, *dest;
-		ret = RME_Int_ParseModRMX16(State, NULL, &dest, 0);
-		if(ret)	return ret;
+		uint16_t	val;
 		READ_INSTR16( val );
 		RME_Int_DebugPrint(State, " 0x%04x", val);
-		*dest = val;
+		TRY(ret, RME_Int_WriteV16(State, &dest, val));
 	}
 	return 0;
 }
@@ -215,27 +217,22 @@ DEF_OPCODE_FCN(MOV, MoAX)
 	return 0;
 }
 
-// r = sr
+// r/m = sr
 DEF_OPCODE_FCN(MOV, RS)
 {
 	 int	ret;
-	union {
-		//uint32_t	*D;
-		uint16_t	*W;
-	}	dest, src;
-	uint8_t	byte2;
 	
 	if( State->Decoder.bOverrideOperand )
 		return RME_ERR_UNDEFOPCODE;
 	
-	READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
+	struct ModRM mod_rm;
+	TRY(ret, RME_Int_GetModRM(State, &mod_rm));
 	
-	ret = RME_Int_ParseModRMX16(State, NULL, &dest.W, 0);
-	if(ret)	return ret;
+	struct ValueRefX	dest;
+	TRY(ret, RME_Int_DecodeModMX(State, &mod_rm, &dest));
 	
-	src.W = Seg(State, (byte2>>3)&7);
-	
-	*dest.W = *src.W;
+	uint16_t v = *Seg(State, mod_rm.rrr);
+	TRY(ret, RME_Int_WriteV16(State, &dest, v));
 	
 	return 0;
 }
@@ -243,23 +240,19 @@ DEF_OPCODE_FCN(MOV, RS)
 DEF_OPCODE_FCN(MOV, SR )
 {
 	 int	ret;
-	union {
-		//uint32_t	*D;
-		uint16_t	*W;
-	}	dest, src;
-	uint8_t	byte2;
 	
 	if( State->Decoder.bOverrideOperand )
 		return RME_ERR_UNDEFOPCODE;
-	
-	READ_INSTR8( byte2 );	State->Decoder.IPOffset --;
-	
-	dest.W = Seg(State, (byte2>>3)&7);
-	
-	ret = RME_Int_ParseModRMX16(State, NULL, &src.W, 0);
-	if(ret)	return ret;
-	
-	*dest.W = *src.W;
+
+	struct ModRM mod_rm;
+	TRY(ret, RME_Int_GetModRM(State, &mod_rm));
+
+	// NOTE: `Seg` prints, so call first
+	uint16_t* dest = Seg(State, mod_rm.rrr);
+	struct ValueRefX	src;
+	TRY(ret, RME_Int_DecodeModMX(State, &mod_rm, &src));
+
+	TRY(ret, RME_Int_ReadV16(State, &src, dest));
 	
 	return 0;
 }
@@ -298,43 +291,45 @@ DEF_OPCODE_FCN(MOV, Reg)
 DEF_OPCODE_FCN(MOV,Z)
 {
 	 int	ret;
-	uint8_t	*src;
-	void	*dest;
+	struct ValueRef	src;
 	struct ModRM	modrm;
 	
-	ret = RME_Int_GetModRM(State, &modrm);
-	if( ret )	return ret;
+	TRY(ret, RME_Int_GetModRM(State, &modrm));
 	
-	dest = RegW(State, modrm.rrr);
-	ret = RME_Int_DecodeModM(State, &src, &modrm);
-	if( ret )	return ret;
+	void* dest = RegW(State, modrm.rrr);
+	TRY(ret, RME_Int_DecodeModM(State, &modrm, &src));
+	uint8_t	v;
+	TRY(ret, RME_Int_ReadV8(State, &src, &v));
 	
-	if( State->Decoder.bOverrideOperand )
-		*(uint32_t*)dest = *src;
-	else
-		*(uint16_t*)dest = *src;
+	if( State->Decoder.bOverrideOperand ) {
+		*(uint32_t*)dest = v;
+	}
+	else {
+		*(uint16_t*)dest = v;
+	}
 	
 	return 0;
 }
 DEF_OPCODE_FCN(MOV,ZX)
 {
 	 int	ret;
-	uint16_t	*src;
-	void	*dest;
 	
+	struct ValueRefX	src;
 	struct ModRM	modrm;
 	
-	ret = RME_Int_GetModRM(State, &modrm);
-	if( ret )	return ret;
+	TRY(ret, RME_Int_GetModRM(State, &modrm));
 	
-	dest = RegW(State, modrm.rrr);
-	ret = RME_Int_DecodeModMX(State, &src, &modrm, 0);
-	if( ret )	return ret;
+	void* dest = RegW(State, modrm.rrr);
+	TRY(ret, RME_Int_DecodeModMX(State, &modrm, &src));
+	uint16_t	v;
+	TRY(ret, RME_Int_ReadV16(State, &src, &v));
 	
-	if( State->Decoder.bOverrideOperand )
-		*(uint32_t*)dest = *src;
-	else
-		*(uint16_t*)dest = *src;
+	if( State->Decoder.bOverrideOperand ) {
+		*(uint32_t*)dest = v;
+	}
+	else {
+		*(uint16_t*)dest = v;
+	}
 	
 	return 0;
 }
@@ -343,28 +338,35 @@ DEF_OPCODE_FCN(MOV,ZX)
 DEF_OPCODE_FCN(XCHG, RM)
 {
 	 int	ret;
-	uint8_t	*dest, *src;
-	ret = RME_Int_ParseModRM(State, &dest, &src, 0);
-	if(ret)	return ret;
-	XCHG(*dest, *src);
+	struct ValueRef dst, src;
+	TRY(ret, RME_Int_ParseModRM(State, &dst, &src));
+	uint8_t dst_v, src_v;
+	TRY(ret, RME_Int_ReadV8(State, &dst, &dst_v));
+	TRY(ret, RME_Int_ReadV8(State, &src, &src_v));
+	TRY(ret, RME_Int_WriteV8(State, &dst, src_v));
+	TRY(ret, RME_Int_WriteV8(State, &src, dst_v));
 	return 0;
 }
 DEF_OPCODE_FCN(XCHG, RMX)
 {
 	 int	ret;
+	struct ValueRefX dst, src;
+	TRY(ret, RME_Int_ParseModRMX(State, &dst, &src));
 	if( State->Decoder.bOverrideOperand )
 	{
-		uint32_t	*dest, *src;
-		ret = RME_Int_ParseModRMX32(State, &dest, &src, 0);
-		if(ret)	return ret;
-		XCHG(*dest, *src);
+		uint32_t dst_v, src_v;
+		TRY(ret, RME_Int_ReadV32(State, &dst, &dst_v));
+		TRY(ret, RME_Int_ReadV32(State, &src, &src_v));
+		TRY(ret, RME_Int_WriteV32(State, &dst, src_v));
+		TRY(ret, RME_Int_WriteV32(State, &src, dst_v));
 	}
 	else
 	{
-		uint16_t	*dest, *src;
-		ret = RME_Int_ParseModRMX16(State, &dest, &src, 0);
-		if(ret)	return ret;
-		XCHG(*dest, *src);
+		uint16_t dst_v, src_v;
+		TRY(ret, RME_Int_ReadV16(State, &dst, &dst_v));
+		TRY(ret, RME_Int_ReadV16(State, &src, &src_v));
+		TRY(ret, RME_Int_WriteV16(State, &dst, src_v));
+		TRY(ret, RME_Int_WriteV16(State, &src, dst_v));
 	}
 	return 0;
 }
