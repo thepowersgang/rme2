@@ -338,10 +338,7 @@ int main(int argc, char *argv[])
 			#undef CHECK_REG
 		}
 
-		for(size_t ofs = 0; ofs < sizeof(gaMemory); ofs += RME_BLOCK_SIZE)
-		{
-			emu->MemoryTouched[ofs / RME_BLOCK_SIZE] = 0;
-		}
+		memset(emu->MemoryTouched, 0, sizeof(emu->MemoryTouched));
 
 		if(gpUiBinding && gpUiBinding->poll_events) {
 			gpUiBinding->poll_events(emu);

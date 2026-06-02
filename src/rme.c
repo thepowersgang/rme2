@@ -1045,6 +1045,10 @@ void RME_Int_ErrorPrint(tRME_State* State, const char* fmt, ...)
 }
 void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...)
 {
+	if( State->DebugLevel == 0 ) {
+		return ;
+	}
+
 	va_list	args;
 	va_start(args, fmt);
 
