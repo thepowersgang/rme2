@@ -1043,14 +1043,11 @@ void RME_Int_ErrorPrint(tRME_State* State, const char* fmt, ...)
 	va_end(args);
 	#endif
 }
-void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...)
+void RME_Int_DebugPrint_Inner(tRME_State* State, const char* fmt, va_list args)
 {
 	if( State->DebugLevel == 0 ) {
 		return ;
 	}
-
-	va_list	args;
-	va_start(args, fmt);
 
 	int space = sizeof(State->Decoder.DebugString) - State->Decoder.DebugStringLen;
 	int len = vsnprintf(State->Decoder.DebugString + State->Decoder.DebugStringLen, space, fmt, args);
@@ -1062,6 +1059,4 @@ void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...)
 		State->Decoder.DebugString[ sizeof(State->Decoder.DebugString) - 2 ] = '$';
 		State->Decoder.DebugString[ sizeof(State->Decoder.DebugString) - 1 ] = '\0';
 	}
-
-	va_end(args);
 }

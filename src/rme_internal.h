@@ -195,12 +195,21 @@ enum opcodes {
 __attribute__((format(printf, 2, 3)))
 extern void RME_Int_ErrorPrint(tRME_State* State, const char* fmt, ...);
 
+
+extern void RME_Int_DebugPrint_Inner(tRME_State* State, const char* fmt, va_list args);
 /// @brief Print into the debug buffer
 /// @param State Emulator state
 /// @param fmt printf-style format string
 /// @param  Arguments
 __attribute__((format(printf, 2, 3)))
-extern void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...);
+static inline void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...) {
+	if(State->DebugLevel != 0) {
+		va_list	args;
+		va_start(args, fmt);
+		RME_Int_DebugPrint_Inner(State, fmt, args);
+		va_end(args);
+	}
+}
 
 // --- Operation helpers
 //#define PARITY8(v)	((((v)>>7)&1)^(((v)>>6)&1)^(((v)>>5)&1)^(((v)>>4)&1)^(((v)>>3)&1)^(((v)>>2)&1)^(((v)>>1)&1)^((v)&1))
