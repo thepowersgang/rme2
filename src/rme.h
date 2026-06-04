@@ -201,6 +201,7 @@ typedef struct sRME_State
 
 	/// Emulated CPU variant
 	enum eRME_CPUType	CPUType;
+	/// Emulator debug level (0: off, 1: print instructions, 2: dump register state)
 	 int	DebugLevel;
 
 	/**
@@ -220,24 +221,24 @@ typedef struct sRME_State
 	 */
 	uint8_t	MemoryTouched[0x110000/RME_BLOCK_SIZE];
 
-	 int	InstrNum;	//!< Total executed instructions
+	unsigned	InstrNum;	//!< Total executed instructions
 
 	// --- Decoder State ---
 	/// Was the last instruction `00 00`, used to spot execution of zeroed memory
 	 int	bWasLastOperationNull;
 	/**
-	 * \brief Decoder State
+	 * \brief Decoder state for a single instruction
 	 * \note Should not be touched except by the emulator
 	 */
 	struct {
-		 int	OverrideSegment;	// 0: Unset, otherwise it's the SREG_* value plus 1
-		 int	RepeatType;
-		 int	bOverrideOperand;	// Operand size override provided
+		uint8_t	OverrideSegment;	// 0: Unset, otherwise it's the SREG_* value plus 1
+		uint8_t	RepeatType;			// 0 if unset, otherwise it's the repeat prefix byte/opcode
+		bool	bOverrideOperand;	// Operand size override provided
 		bool	bOverrideAddress;	// Address size override provided
 		bool	bDontChangeIP;	// Don't change IP after the instruction is executed
-		 int	IPOffset;
+		uint8_t	IPOffset;	// Length of the current instruction sequence
 
-		 int	DebugStringLen;
+		uint8_t	DebugStringLen;
 		char	DebugString[64];	// Debug text
 	}	Decoder;
 
