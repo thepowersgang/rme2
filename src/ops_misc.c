@@ -285,7 +285,7 @@ DEF_OPCODE_FCN(XLAT, z)
 
 	RME_Int_DebugPrint(State, " AL,");
 
-	seg = *Seg(State, State->Decoder.OverrideSegment == -1 ? SREG_DS : State->Decoder.OverrideSegment);
+	seg = *GET_SEGMENT(State, SREG_DS);
 
 	if( State->Decoder.bOverrideAddress ) {
 		RME_Int_DebugPrint(State, ":[EBX+AL]");

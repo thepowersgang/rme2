@@ -237,14 +237,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 	startIP = State->IP;
 	startCS = State->CS;
 
-	State->Decoder.OverrideSegment = -1;
-	State->Decoder.RepeatType = 0;
-	State->Decoder.bOverrideOperand = 0;
-	State->Decoder.bOverrideAddress = 0;
-	State->Decoder.bDontChangeIP = 0;
-	State->Decoder.IPOffset = 0;
-	State->Decoder.DebugStringLen = 0;
-	State->Decoder.DebugString[0] = 0;
+	memset(&State->Decoder, 0, sizeof(State->Decoder));
 	State->InstrNum ++;
 
 	if( State->DebugLevel > 0 ) {
@@ -531,17 +524,12 @@ static int DoFunc(tRME_State *State, int mmm, int16_t disp, uint16_t *Segment, u
 
 	switch(mmm){
 	case 2:	case 3:	case 6:
-		seg = SREG_SS;
+		seg = *GET_SEGMENT(State, SREG_SS);
 		break;
 	default:
-		seg = SREG_DS;
+		seg = *GET_SEGMENT(State, SREG_DS);
 		break;
 	}
-
-	if(State->Decoder.OverrideSegment != -1)
-		seg = State->Decoder.OverrideSegment;
-
-	seg = *Seg(State, seg);
 
 	RME_Int_DebugPrint(State, ":[");
 	switch(mmm & 7)
@@ -614,17 +602,12 @@ static int DoFunc32(tRME_State *State, int mmm, int32_t disp, uint16_t *Segment,
 
 	switch(mmm){
 	case 2:	case 3:	case 6:
-		seg = SREG_SS;
+		seg = *GET_SEGMENT(State, SREG_SS);
 		break;
 	default:
-		seg = SREG_DS;
+		seg = *GET_SEGMENT(State, SREG_DS);
 		break;
 	}
-
-	if(State->Decoder.OverrideSegment != -1)
-		seg = State->Decoder.OverrideSegment;
-
-	seg = *Seg(State, seg);
 
 	RME_Int_DebugPrint(State, ":[");
 	switch(mmm & 7)

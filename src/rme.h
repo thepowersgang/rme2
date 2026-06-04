@@ -230,7 +230,7 @@ typedef struct sRME_State
 	 * \note Should not be touched except by the emulator
 	 */
 	struct {
-		 int	OverrideSegment;	// -1: Unset
+		 int	OverrideSegment;	// 0: Unset, otherwise it's the SREG_* value plus 1
 		 int	RepeatType;
 		 int	bOverrideOperand;	// Operand size override provided
 		bool	bOverrideAddress;	// Address size override provided

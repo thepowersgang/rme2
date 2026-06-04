@@ -265,7 +265,7 @@ static inline void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...) {
 /**
  * \brief Get a segment with overrides
  */
-#define GET_SEGMENT(State,_def)	(Seg(State, (State->Decoder.OverrideSegment==-1?(_def):State->Decoder.OverrideSegment)))
+#define GET_SEGMENT(State,_def)	(Seg(State, (State->Decoder.OverrideSegment==0 ? (_def) : State->Decoder.OverrideSegment-1)))
 
 // -- Per Compiler macros
 #define	WARN_UNUSED_RET	__attribute__((warn_unused_result))

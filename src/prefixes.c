@@ -9,10 +9,10 @@
 // === CODE ===
 DEF_OPCODE_FCN(Ovr, Seg)
 {
-	if( State->Decoder.OverrideSegment != -1 )
+	if( State->Decoder.OverrideSegment != 0 )
 		return RME_ERR_UNDEFOPCODE;
 	Seg(State, Param);	// Printing
-	State->Decoder.OverrideSegment = Param;
+	State->Decoder.OverrideSegment = 1+Param;
 	return RME_ERR_CONTINUE;	// Not an error
 }
 

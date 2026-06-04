@@ -30,8 +30,7 @@
 		}\
 	} \
 	if( __use_si ) { \
-		srcSeg = *Seg(State, \
-			State->Decoder.OverrideSegment == -1 ? SREG_DS : State->Decoder.OverrideSegment); \
+		srcSeg = *GET_SEGMENT(State, SREG_DS); \
 		if( State->Decoder.bOverrideAddress ) { \
 			mask = 0xFFFFFFFF; \
 			srcOfs = State->SI.D; \
