@@ -260,7 +260,7 @@ int RME_Int_DoOpcode(tRME_State *State)
 		}
 		
 		const char* name;
-		struct ModRM	modrm;
+		struct ModRM	modrm = {0};
 		if(caOperations[opcode].ModRMNames) {
 			RME_Int_GetModRM(State, &modrm);
 			State->Decoder.IPOffset --;
@@ -978,6 +978,99 @@ int RME_Int_WriteV32(tRME_State *State, struct ValueRefX* Ref, uint32_t Val) {
 }
 
 
+WARN_UNUSED_RET int	RME_Int_ReadBlockBytes(tRME_State *State, int Block, uint16_t Ofs, uint16_t Len, uint8_t *Dst)
+{
+	assert(Ofs <= RME_BLOCK_SIZE);
+	assert(Len <= RME_BLOCK_SIZE);
+	assert(Ofs+Len <= RME_BLOCK_SIZE);
+	State->MemoryTouched[Block] |= 1|2;	// Accessed, read
+	if( State->Memory[Block] != NULL ) {
+		memcpy(Dst, (const uint8_t*)State->Memory[Block] + Ofs, Len);
+		return 0;
+	}
+	else if( State->Callbacks->Read ) {
+		return (State->Callbacks->Read)(State, Block * RME_BLOCK_SIZE + Ofs, Len, Dst);
+	}
+	else {
+		return RME_ERR_BADMEM;
+	}
+}
+WARN_UNUSED_RET int	RME_Int_WriteBlockBytes(tRME_State *State, int Block, uint16_t Ofs, uint16_t Len, const uint8_t *Src)
+{
+	assert(Ofs <= RME_BLOCK_SIZE);
+	assert(Len <= RME_BLOCK_SIZE);
+	assert(Ofs+Len <= RME_BLOCK_SIZE);
+	State->MemoryTouched[Block] |= 1|4;	// Accessed, written
+	if( State->Memory[Block] != NULL ) {
+		memcpy((uint8_t*)State->Memory[Block] + Ofs, Src, Len);
+		return 0;
+	}
+	else if( State->Callbacks->Write ) {
+		return (State->Callbacks->Write)(State, Block * RME_BLOCK_SIZE + Ofs, Len, Src);
+	}
+	else {
+		return RME_ERR_BADMEM;
+	}
+}
+WARN_UNUSED_RET int	RME_Int_ReadBytes(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst, uint16_t Len)
+{
+	int ret;
+	if( Len == 0 ) {
+		return 0;
+	}
+	uint32_t	addr = (uint32_t)Seg * 16 + Ofs;
+	// Are the first and last bytes in the same block?
+	if( Len == 1 || addr / RME_BLOCK_SIZE == (addr + Len - 1) / RME_BLOCK_SIZE ) {
+		// Simple case: Nearly all reads shouldn't cross blocks
+		return RME_Int_ReadBlockBytes(State, addr / RME_BLOCK_SIZE, addr % RME_BLOCK_SIZE, Len, Dst);
+	}
+	else {
+		// Complex case
+		uint32_t head_len = RME_BLOCK_SIZE - addr % RME_BLOCK_SIZE;
+		TRY(ret, RME_Int_ReadBlockBytes(State, addr / RME_BLOCK_SIZE, addr % RME_BLOCK_SIZE, head_len, Dst));
+		Len -= head_len;
+		addr += head_len;
+		Dst += head_len;
+		while(Len > 0) {
+			unsigned cur_len = Len < RME_BLOCK_SIZE ? Len : RME_BLOCK_SIZE;
+			TRY(ret, RME_Int_ReadBlockBytes(State, addr / RME_BLOCK_SIZE, 0, cur_len, Dst));
+			Len -= cur_len;
+			addr += cur_len;
+			Dst += cur_len;
+		}
+		return 0;
+	}
+}
+WARN_UNUSED_RET int	RME_Int_WriteBytes(tRME_State *State, uint16_t Seg, uint16_t Ofs, const uint8_t *Src, uint16_t Len)
+{
+	int ret;
+	if( Len == 0 ) {
+		return 0;
+	}
+	uint32_t	addr = (uint32_t)Seg * 16 + Ofs;
+	// Are the first and last bytes in the same block?
+	if( Len == 1 || addr / RME_BLOCK_SIZE == (addr + Len - 1) / RME_BLOCK_SIZE ) {
+		// Simple case: Nearly all reads shouldn't cross blocks
+		return RME_Int_WriteBlockBytes(State, addr / RME_BLOCK_SIZE, addr % RME_BLOCK_SIZE, Len, Src);
+	}
+	else {
+		// Complex case
+		uint32_t head_len = RME_BLOCK_SIZE - addr % RME_BLOCK_SIZE;
+		TRY(ret, RME_Int_WriteBlockBytes(State, addr / RME_BLOCK_SIZE, addr % RME_BLOCK_SIZE, head_len, Src));
+		Len -= head_len;
+		addr += head_len;
+		Src += head_len;
+		while(Len > 0) {
+			unsigned cur_len = Len < RME_BLOCK_SIZE ? Len : RME_BLOCK_SIZE;
+			TRY(ret, RME_Int_WriteBlockBytes(State, addr / RME_BLOCK_SIZE, 0, cur_len, Src));
+			Len -= cur_len;
+			addr += cur_len;
+			Src += cur_len;
+		}
+		return 0;
+	}
+}
+
 
 /// @brief Convert an emulated segment:offset pointer into a memory pointer
 /// @param State Emulator state
@@ -988,14 +1081,28 @@ int RME_Int_WriteV32(tRME_State *State, struct ValueRefX* Ref, uint32_t Val) {
 /// @return Error code (non-zero indicates an error)
 int RME_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, uint16_t Len, struct sRME_MemRef* Out)
 {
-	struct MemRef out1;
-	int rv = RME_Int_GetPtr(State, Seg, Ofs, Len, &out1);
-	if(rv) {
-		return rv;
-	}
-	Out->len_1 = out1.len_1;
-	Out->range_1 = out1.range1;
-	Out->range_2 = out1.range2;
+	assert(Out);
+	uint32_t	addr = (int)Seg * 16 + Ofs;
+	assert(1 <= Len && Len <= RME_BLOCK_SIZE);
+	 int	block_s = addr/RME_BLOCK_SIZE;
+	 int	block_e = (addr+Len-1)/RME_BLOCK_SIZE;
+	#if RME_DO_NULL_CHECK
+	# if RME_ALLOW_ZERO_TO_BE_NULL
+	// Allow NULL if this is for block 0
+	if(block_s && State->Memory[block_s] == NULL)	return RME_ERR_BADMEM;
+	if(block_e && State->Memory[block_e] == NULL)	return RME_ERR_BADMEM;
+	# else
+	if(State->Memory[block_s] == NULL)	return RME_ERR_BADMEM;
+	if(State->Memory[block_e] == NULL)	return RME_ERR_BADMEM;
+	# endif
+	#endif
+	Out->range_1 = (void*)( (uint8_t*)State->Memory[block_s] + (addr%RME_BLOCK_SIZE) );
+	uint16_t space = RME_BLOCK_SIZE - addr % RME_BLOCK_SIZE;
+	Out->len_1 = space < Len ? space : Len;
+	uint16_t tail_len = Len - Out->len_1;
+	Out->range_2 = (void*)( (uint8_t*)State->Memory[block_e] + ((addr+Len-1)%RME_BLOCK_SIZE) + 1 - tail_len );
+	State->MemoryTouched[block_s] = 1;
+	State->MemoryTouched[block_e] = 1;
 	return 0;
 }
 /// @brief Directly print a debug message

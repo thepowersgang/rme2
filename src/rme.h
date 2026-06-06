@@ -144,6 +144,15 @@ typedef struct sRME_Callbacks
 	 int	(*HLECallbacks[256])(struct sRME_State *State, int IntNum);
 	
 	/**
+	 * \brief Handle a memory read of unmapped (NULL-backed) memory (e.g. a device)
+	 */
+	 int (*Read)(struct sRME_State* State, uint32_t Addr, size_t Size, void* Dst);
+	/**
+	 * \brief Handle a memory read of unmapped (NULL-backed) memory (e.g. a device)
+	 */
+	 int (*Write)(struct sRME_State* State, uint32_t Addr, size_t Size, const void* Src);
+
+	/**
 	 * \brief Handle an `IN[BWL]` opcode
 	 * \param State Emulation state
 	 * \param Addr	IO bus address

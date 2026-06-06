@@ -271,70 +271,9 @@ static inline void RME_Int_DebugPrint(tRME_State* State, const char* fmt, ...) {
 #define	WARN_UNUSED_RET	__attribute__((warn_unused_result))
 
 // --- Functions ---
-struct MemRef {
-	void*	range1;
-	void*	range2;
-	size_t	len_1;
-};
-/// @param PtrFirst	Pointer to the first byte in the range
-/// @param LenFirst Length of the first portion of the range
-/// @param PtrLast	Pointer to the last byte in the range (might be in a different allocation to PtrFirst)
-static inline WARN_UNUSED_RET int	RME_Int_GetPtr(tRME_State *State, uint16_t Seg, uint32_t Ofs, uint16_t Len, struct MemRef* Out)
-{
-	assert(Out);
-	// PtrLast can be null
-	uint32_t	addr = (int)Seg * 16 + Ofs;
-	assert(1 <= Len && Len <= RME_BLOCK_SIZE);
-	 int	block_s = addr/RME_BLOCK_SIZE;
-	 int	block_e = (addr+Len-1)/RME_BLOCK_SIZE;
-	#if RME_DO_NULL_CHECK
-	# if RME_ALLOW_ZERO_TO_BE_NULL
-	if(block_s && State->Memory[block_s] == NULL)	return RME_ERR_BADMEM;
-	if(block_e && State->Memory[block_e] == NULL)	return RME_ERR_BADMEM;
-	# else
-	if(State->Memory[block_s] == NULL)	return RME_ERR_BADMEM;
-	if(State->Memory[block_e] == NULL)	return RME_ERR_BADMEM;
-	# endif
-	#endif
-	Out->range1 = (void*)( (uint8_t*)State->Memory[block_s] + (addr%RME_BLOCK_SIZE) );
-	uint16_t space = RME_BLOCK_SIZE - addr % RME_BLOCK_SIZE;
-	Out->len_1 = space < Len ? space : Len;
-	uint16_t tail_len = Len - Out->len_1;
-	Out->range2 = (void*)( (uint8_t*)State->Memory[block_e] + ((addr+Len-1)%RME_BLOCK_SIZE) + 1 - tail_len );
-	State->MemoryTouched[block_s] = 1;
-	State->MemoryTouched[block_e] = 1;
-	return 0;
-}
-static inline WARN_UNUSED_RET int	RME_Int_ReadBytes(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst, uint16_t Len) {
-	if( Len > 0 ) {
-		struct MemRef	mr;
-		int	ret = RME_Int_GetPtr(State, Seg, Ofs, Len, &mr);
-		if(ret)	return ret;
-		if( mr.len_1 < Len ) {
-			memcpy(Dst, mr.range1, mr.len_1);
-			memcpy(Dst+mr.len_1, mr.range2, Len-mr.len_1);
-		}
-		else {
-			memcpy(Dst, mr.range1, Len);
-		}
-	}
-	return 0;
-}
-static inline WARN_UNUSED_RET int	RME_Int_WriteBytes(tRME_State *State, uint16_t Seg, uint16_t Ofs, const uint8_t *Src, uint16_t Len) {
-	if( Len > 0 ) {
-		struct MemRef	mr;
-		int	ret = RME_Int_GetPtr(State, Seg, Ofs, Len, &mr);
-		if(ret)	return ret;
-		if( mr.len_1 < Len ) {
-			memcpy(mr.range1, Src, mr.len_1);
-			memcpy(mr.range2, Src+mr.len_1, Len-mr.len_1);
-		}
-		else {
-			memcpy(mr.range1, Src, Len);
-		}
-	}
-	return 0;
-}
+extern WARN_UNUSED_RET int	RME_Int_ReadBytes(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst, uint16_t Len);
+extern WARN_UNUSED_RET int	RME_Int_WriteBytes(tRME_State *State, uint16_t Seg, uint16_t Ofs, const uint8_t *Src, uint16_t Len);
+
 static inline WARN_UNUSED_RET int	RME_Int_Read8(tRME_State *State, uint16_t Seg, uint16_t Ofs, uint8_t *Dst) {
 	return RME_Int_ReadBytes(State, Seg, Ofs, Dst, 1);
 }
